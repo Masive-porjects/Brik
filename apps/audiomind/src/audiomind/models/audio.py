@@ -556,6 +556,36 @@ class MasteringParameters(BaseModel):
         ),
     )
 
+    # ── Stereo Shuffler 3-Band (Mix→Master Handshake) ───────────────────────────
+    # Opt-in frequency-dependent width via LR4 crossover (phase-zero, float64).
+    # Mutually exclusive with legacy broadband width and stereo_imaging: when
+    # enabled, the legacy broadband width stage is skipped in the master chain.
+    # Defaults are neutral (disabled + neutral widths) for backward compatibility.
+    stereo_shuffler_enabled: bool = Field(
+        default=False,
+        description="Enable the 3-band Stereo Shuffler (LR4 phase-zero). False = legacy M/S width only."
+    )
+    stereo_shuffler_width_low: float = Field(
+        default=0.0, ge=0.0, le=2.0,
+        description="Width factor for LOW band (< crossover_low). 0.0 = mono strict."
+    )
+    stereo_shuffler_width_mid: float = Field(
+        default=1.0, ge=0.0, le=2.0,
+        description="Width factor for MID band (crossover_low – crossover_high). 1.0 = neutral."
+    )
+    stereo_shuffler_width_high: float = Field(
+        default=1.3, ge=0.0, le=3.0,
+        description="Width factor for HIGH band (> crossover_high). >1.0 = expanded air."
+    )
+    stereo_shuffler_crossover_low: float = Field(
+        default=120.0, ge=20.0, le=500.0,
+        description="Low/Mid crossover frequency in Hz (default 120 Hz)."
+    )
+    stereo_shuffler_crossover_high: float = Field(
+        default=2500.0, ge=1000.0, le=8000.0,
+        description="Mid/High crossover frequency in Hz (default 2500 Hz)."
+    )
+
     @model_validator(mode="after")
     def _apply_platform_defaults(self) -> "MasteringParameters":
         """Apply platform delivery defaults for known targets.
@@ -777,6 +807,12 @@ class SessionData(BaseModel):
     # consuming ``mix_path``. Defaults to ``none`` so sessions persisted
     # before the field existed keep loading unchanged.
     mix_status: MixStatus = "none"
+    # Mix Engine metadata for adaptive mastering (Mix → Master handshake).
+    # Populated by POST /mix via build_mix._compute_mix_metadata().
+    mix_metadata: dict | None = Field(
+        default=None,
+        description="Metadatos de mezcla serializados (MixMetadata.model_dump()) para master adaptativo"
+    )
     # Vocal Chain (VoiceChain Pro) output pointer. The processed vocal is a
     # STEM artifact, never a master: it keeps its own field so ``POST /vocal``
     # can never overwrite ``mastered_path`` (which ``/audio/mastered``,
