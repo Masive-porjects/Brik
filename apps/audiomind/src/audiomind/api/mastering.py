@@ -229,10 +229,15 @@ class MasterInput(NamedTuple):
     existence check, ``analyze_audio`` and the engine's ``input_path`` —
     reads this, so the delivered master always comes from the SELECTED
     input (feature ``odd/tasks/mix-master-flow.md``).
+
+    ``mix_metadata`` carries the Mix→Master handshake metadata when
+    ``source == "mix"``, enabling adaptive mastering based on the
+    actual mix state (spatial width, side energy, stem LUFS, headroom).
     """
 
     source: MasterSource
     input_path: str
+    mix_metadata: dict | None = None
 
 
 def _resolve_master_input(
@@ -282,7 +287,11 @@ def _resolve_master_input(
                     f"(mix_status='{session.mix_status}'). Re-run the mix."
                 ),
             )
-        return MasterInput(source="mix", input_path=str(session.mix_path))
+        return MasterInput(
+            source="mix",
+            input_path=str(session.mix_path),
+            mix_metadata=session.mix_metadata,
+        )
 
     return MasterInput(source="original", input_path=str(session.original_path or ""))
 
@@ -593,6 +602,7 @@ def _run_preset_job(
             params=params,
             analysis_result=analysis,
             progress_cb=update_progress,
+            mix_metadata=master_input.mix_metadata,
         )
 
         # ── Layer 2 gate: validate against the preset, with at most ONE

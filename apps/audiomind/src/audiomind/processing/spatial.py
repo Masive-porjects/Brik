@@ -6,7 +6,7 @@ and phase correlation safety enforcement.
 import numpy as np
 import pedalboard
 from pedalboard import HighpassFilter, LowpassFilter, PeakFilter, Reverb
-from scipy.signal import butter, sosfilt
+from scipy.signal import butter, sosfilt, sosfiltfilt
 
 # pedalboard's __init__ re-exports Pedalboard via a plain named import and
 # defines no __all__; with implicit_reexport=False (mypy strict) the name is
@@ -245,3 +245,53 @@ def safety_enforce_correlation(audio: np.ndarray, sr: int) -> np.ndarray:
             return candidate
 
     return mono_left
+
+
+def apply_frequency_dependent_width(
+    audio: np.ndarray,           # (2, samples) estéreo
+    sr: int,
+    width_low: float = 0.0,      # < 120 Hz → mono absoluto
+    width_mid: float = 1.0,      # 120 Hz – 2.5 kHz → natural/estrecho
+    width_high: float = 1.3,     # > 2.5 kHz → expansivo
+    crossover_low: float = 120.0,
+    crossover_high: float = 2500.0,
+) -> np.ndarray:
+    """
+    Stereo Shuffler 3-bandas con crossover Linkwitz-Riley 4to orden (fase cero).
+    
+    División:
+      - LOW (< 120 Hz): width = 0.0 (mono estricto para bajo/kick)
+      - MID (120 Hz – 2.5 kHz): width = width_mid (inteligibilidad vocal)
+      - HIGH (> 2.5 kHz): width = width_high (apertura y aire inmersivo)
+    
+    Implementación: LR4 (butter 4to orden) + sosfiltfilt (fase cero, float64).
+    """
+    if audio.shape[0] != 2:
+        raise ValueError("apply_frequency_dependent_width requiere audio estéreo (2, samples)")
+
+    audio_proc = audio.astype(np.float64)  # Precisión extendida para IIR sub-graves
+    mid, side = mid_side_encode(audio_proc)
+    nyq = sr / 2.0
+
+    # Crossover LR4 (4to orden = 2 cascadas de Butterworth 2do orden)
+    sos_low = butter(4, crossover_low / nyq, btype='lowpass', output='sos')
+    sos_mid_low = butter(4, crossover_low / nyq, btype='highpass', output='sos')
+    sos_mid_high = butter(4, crossover_high / nyq, btype='lowpass', output='sos')
+    sos_high = butter(4, crossover_high / nyq, btype='highpass', output='sos')
+
+    # Filtrado fase-cero (forward-backward)
+    mid_low = sosfiltfilt(sos_low, mid)
+    side_low = sosfiltfilt(sos_low, side) * width_low  # width_low=0.0 → mono
+
+    mid_mid = sosfiltfilt(sos_mid_high, sosfiltfilt(sos_mid_low, mid))
+    side_mid = sosfiltfilt(sos_mid_high, sosfiltfilt(sos_mid_low, side)) * width_mid
+
+    mid_high = sosfiltfilt(sos_high, mid)
+    side_high = sosfiltfilt(sos_high, side) * width_high
+
+    # Recombinación coherente
+    mid_out = mid_low + mid_mid + mid_high
+    side_out = side_low + side_mid + side_high
+
+    output = mid_side_decode(mid_out, side_out)
+    return output.astype(audio.dtype, copy=False)

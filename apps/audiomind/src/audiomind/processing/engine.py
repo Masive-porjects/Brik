@@ -741,6 +741,7 @@ def process_audio(
     analysis_result: AnalysisResult | None = None,
     intensity_multiplier: float = 1.8,
     progress_cb: Callable[[float], None] | None = None,
+    mix_metadata: dict | None = None,
 ) -> dict[str, Any]:
     """
     Module-based mastering pipeline.
@@ -1017,8 +1018,65 @@ def process_audio(
 
     report(30)
 
+    report(30)
+
+    # ── Mix→Master Adaptive Context ────────────────────────────────────
+    # If mix_metadata is present (source="mix"), adapt spatial params to
+    # avoid double-processing what the mix already did.
+    if mix_metadata:
+        from audiomind.models.mix_metadata import MixMetadata
+        mix_meta = MixMetadata(**mix_metadata)
+        params = _adapt_spatial_for_mix_context(params, mix_meta)
+
+    def _adapt_spatial_for_mix_context(
+        params: MasteringParameters,
+        mix_meta: "MixMetadata",
+    ) -> MasteringParameters:
+        """Adjust mastering spatial parameters based on mix context.
+
+        Prevents double-processing when the mix already applied spatial
+        expansion, reverb, or side energy.
+        """
+        adapted = params.model_copy()
+
+        # 1. Throttle legacy stereo_width (broadband M/S gain)
+        if mix_meta.applied_spatial_width > 1.2:
+            excess = mix_meta.applied_spatial_width - 1.2
+            adapted.stereo_width = max(1.0, adapted.stereo_width - excess * 0.5)
+
+        # 2. Throttle stereo_imaging (Sprint 9, per-band width)
+        if mix_meta.applied_spatial_width > 1.15 and adapted.stereo_imaging_enabled:
+            adapted.stereo_imaging_width_high = min(
+                getattr(adapted, 'stereo_imaging_width_high', 1.3), 1.15
+            )
+            adapted.stereo_imaging_width_mid = min(
+                getattr(adapted, 'stereo_imaging_width_mid', 1.1), 1.05
+            )
+
+        # 3. Side HPF more aggressive if side energy high
+        if mix_meta.side_energy_ratio > 0.35:
+            adapted.side_hpf_enabled = True
+            adapted.side_hpf_hz = min(
+                getattr(adapted, 'side_hpf_hz', 100.0), 150.0
+            )
+
+        # 4. Limiter ceiling conservative if little headroom
+        if mix_meta.transient_headroom_db < 1.0:
+            adapted.limiter_ceiling_db = min(adapted.limiter_ceiling_db, -1.5)
+
+        return adapted
+
+    # ── Mix→Master Adaptive Context ────────────────────────────────────
+    # If mix_metadata is present (source="mix"), adapt spatial params to
+    # avoid double-processing what the mix already did.
+    if mix_metadata:
+        from audiomind.models.mix_metadata import MixMetadata
+        mix_meta = MixMetadata(**mix_metadata)
+        params = _adapt_spatial_for_mix_context(params, mix_meta)
+
     # ── Spatial Processing: M/S with Reverb + Haas + Width ──────────
     from .spatial import (
+        apply_frequency_dependent_width,
         apply_side_hpf,
         check_phase_correlation,
         mid_side_decode,
@@ -1084,6 +1142,21 @@ def process_audio(
         corr = check_phase_correlation(effected)
         if corr < 0:
             effected = safety_enforce_correlation(effected, sr)
+
+    # ── Stereo Shuffler 3-Band (Mix→Master Handshake) ─────────────────
+    # Mutually exclusive with legacy broadband width: when enabled, the
+    # legacy broadband width stage is skipped. Runs BEFORE stereo imaging
+    # (Sprint 9) so the per-band width can further refine if needed.
+    if params.stereo_shuffler_enabled:
+        from .spatial import apply_frequency_dependent_width
+        effected = apply_frequency_dependent_width(
+            effected, sr,
+            width_low=params.stereo_shuffler_width_low,
+            width_mid=params.stereo_shuffler_width_mid,
+            width_high=params.stereo_shuffler_width_high,
+            crossover_low=params.stereo_shuffler_crossover_low,
+            crossover_high=params.stereo_shuffler_crossover_high,
+        )
 
     # 7e. Per-band stereo imaging (Sprint 9) — LR4 3-band constant-power
     #     width + lows-mono + correlation safety. This is the correlation-safe
