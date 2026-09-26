@@ -136,6 +136,8 @@ from audiomind.processing.vocal_adaptive import (
     apply_vocal_treatment,
     resolve_vocal_treatment,
 )
+from audiomind.models.mix_metadata import MixMetadata
+from audiomind.processing.spatial import mid_side_encode
 
 #: Per-stem fields extracted from ``AnalysisResult`` (spec: LUFS/DR/centroid).
 _STEM_ANALYSIS_FIELDS: tuple[str, ...] = (
@@ -425,6 +427,69 @@ def _process_stem(
             shaped, target_sr, bpm, dim_profile
         )
     return shaped, eq_bands, comp_report, dim_report
+
+
+def _compute_mix_metadata(
+    final_bus: np.ndarray,
+    sr: int,
+    analysis: dict,
+    dimension_report: dict | None,
+    emphasis_report: dict | None,
+    stereo_width_param: float,
+    stereo_imaging_enabled: bool,
+    limiter_ceiling_db: float,
+) -> MixMetadata:
+    """Compute MixMetadata from the final mix bus and processing reports."""
+    # 1. Side energy ratio (bus final)
+    mid, side = mid_side_encode(final_bus)
+    side_rms = float(np.sqrt(np.mean(side**2)))
+    mid_rms = float(np.sqrt(np.mean(mid**2)))
+    side_energy_ratio = side_rms / (mid_rms + 1e-10)
+
+    # 2. Applied spatial width (heurística combinada)
+    width = 1.0
+    if dimension_report and dimension_report.get("status") == "active":
+        # Promedio de reverb mix en stems vocales/other
+        stems_reverb = dimension_report.get("stems", {})
+        reverb_mixes = [
+            s.get("reverb", {}).get("mix", 0) for s in stems_reverb.values()
+            if s.get("reverb", {}).get("mix", 0) > 0
+        ]
+        avg_reverb_mix = np.mean(reverb_mixes) if reverb_mixes else 0.0
+        width += 0.2 * avg_reverb_mix  # reverb en Side expande ancho percibido
+
+    if emphasis_report and emphasis_report.get("status") == "active":
+        dim_scaling = emphasis_report.get("scaling", {}).get("dimension", {})
+        avg_dim_send = np.mean(list(dim_scaling.values())) if dim_scaling else 0.0
+        width += 0.15 * avg_dim_send  # emphasis escala sends de dimensión
+
+    if stereo_width_param != 1.0:
+        width += abs(stereo_width_param - 1.0) * 0.5  # legacy width broadband
+
+    if stereo_imaging_enabled:
+        width += 0.2  # Sprint 9 añade ancho per-band
+
+    applied_spatial_width = float(np.clip(width, 1.0, 2.5))
+
+    # 3. Stem LUFS
+    stem_lufs = {
+        stem: float(analysis[stem]["integrated_lufs"])
+        for stem in STEM_NAMES if stem in analysis
+    }
+
+    # 4. Transient headroom (True Peak - ceiling)
+    from scipy.signal import find_peaks
+    peak = float(np.max(np.abs(final_bus)))
+    true_peak_db = 20.0 * float(np.log10(peak + 1e-10))
+    transient_headroom_db = limiter_ceiling_db - true_peak_db
+
+    return MixMetadata(
+        applied_spatial_width=applied_spatial_width,
+        side_energy_ratio=side_energy_ratio,
+        stem_lufs=stem_lufs,
+        transient_headroom_db=transient_headroom_db,
+        mix_status="completed",
+    )
 
 
 def build_mix(
@@ -1225,4 +1290,17 @@ def build_mix(
             "hypothesis": vocal_plan["hypothesis"],
             "why": why,
         }
+    
+    # Mix → Master handshake metadata (computed after all reports are built)
+    build_result["mix_metadata"] = _compute_mix_metadata(
+        final_bus=bus,
+        sr=target_sr,
+        analysis=analysis,
+        dimension_report=dimension_report,
+        emphasis_report=build_result.get("emphasis_report"),
+        stereo_width_param=1.0,
+        stereo_imaging_enabled=False,
+        limiter_ceiling_db=-1.0,
+    ).model_dump()
+    
     return build_result
