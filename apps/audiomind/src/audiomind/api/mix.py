@@ -210,6 +210,8 @@ async def mix_session(
         **{key: value for key, value in result.items() if key != "mix_path"},
         "mix_status": "completed",
     }
+    # Persist mix_metadata for adaptive mastering (Mix→Master handshake)
+    session.mix_metadata = result.get("mix_metadata")
     session.mix_path = result["mix_path"]
     session.mix_analysis = payload
     session.mix_status = "completed"

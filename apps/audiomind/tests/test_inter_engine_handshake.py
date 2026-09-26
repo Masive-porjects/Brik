@@ -3,9 +3,21 @@
 import pytest
 import numpy as np
 from pydantic import ValidationError
+from pathlib import Path
 
-# Fixtures will be imported from conftest or defined here
-# For now, we'll define minimal fixtures inline
+# ─── Fixtures ────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def sample_wav_path(tmp_path):
+    """Path to a sample WAV file for testing."""
+    import soundfile as sf
+    path = tmp_path / "test.wav"
+    t = np.linspace(0.0, 1.0, 44100, endpoint=False)
+    sf.write(str(path), 0.25 * np.sin(2.0 * np.pi * 220.0 * t), 44100)
+    return path
+
+
+# ─── Tests ──────────────────────────────────────────────────────────────
 
 
 class TestMixMetadataContract:
@@ -53,3 +65,33 @@ class TestMixMetadataContract:
                 MixMetadata(**kwargs)
         else:
             MixMetadata(**kwargs)  # no raise
+
+
+class TestBuildMixIncludesMetadata:
+    """Tests for build_mix returning MixMetadata."""
+
+    def test_build_mix_returns_mix_metadata(self, tmp_path):
+        """build_mix returns mix_metadata with realistic ranges."""
+        from audiomind.processing.mix_engine import build_mix
+        import soundfile as sf
+        
+        wav_path = tmp_path / "test.wav"
+        t = np.linspace(0.0, 1.0, 44100, endpoint=False)
+        sf.write(str(tmp_path / "test.wav"), 0.25 * np.sin(2.0 * np.pi * 220.0 * np.linspace(0.0, 1.0, 44100, endpoint=False)), 44100)
+        
+        result = build_mix(session_id="test_meta", input_path=tmp_path / "test.wav")
+        meta = result["mix_metadata"]
+        
+        # Verify all required fields exist
+        assert "applied_spatial_width" in meta
+        assert "side_energy_ratio" in meta
+        assert "stem_lufs" in meta
+        assert "transient_headroom_db" in meta
+        assert "mix_status" in meta
+        
+        # Verify realistic ranges
+        assert 1.0 <= meta["applied_spatial_width"] <= 2.5
+        assert 0.0 <= meta["side_energy_ratio"] <= 1.0
+        assert all(k in meta["stem_lufs"] for k in ["drums", "bass", "other", "vocals"])
+        assert isinstance(meta["transient_headroom_db"], (int, float))
+        assert meta["mix_status"] in ["none", "processing", "completed", "failed"]
