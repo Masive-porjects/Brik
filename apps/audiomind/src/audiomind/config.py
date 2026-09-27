@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 # Path to the backend/ directory (parent of src/)
@@ -60,6 +61,46 @@ class Settings(BaseSettings):
     max_concurrent_dsp: int = 2
     demo_max_duration_seconds: float = 0.0
     session_ttl_minutes: int = 0
+
+    # ── Supabase Cloud Integration (Fase 6) ─────────────────────────────
+    supabase_url: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SUPABASE_URL",
+            "SUPABASE_URL",
+            "NEXT_PUBLIC_SUPABASE_URL",
+        ),
+    )
+    supabase_service_role_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_SERVICE_KEY",
+        ),
+    )
+    supabase_anon_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SUPABASE_ANON_KEY",
+            "SUPABASE_ANON_KEY",
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        ),
+    )
+    supabase_originals_bucket: str = Field(
+        default="audio-originals",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SUPABASE_ORIGINALS_BUCKET",
+            "SUPABASE_ORIGINALS_BUCKET",
+        ),
+    )
+    supabase_masters_bucket: str = Field(
+        default="audio-masters",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SUPABASE_MASTERS_BUCKET",
+            "SUPABASE_MASTERS_BUCKET",
+        ),
+    )
 
     model_config = {
         "env_prefix": "AUDIOMIND_",

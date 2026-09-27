@@ -17,6 +17,7 @@ dependencies = [
     "soxr>=1.0.0",
     "pydub>=0.25.1",
     "demucs-onnx>=0.3.0",
+    "supabase>=2.31.0",
 ]
 
 [project.optional-dependencies]

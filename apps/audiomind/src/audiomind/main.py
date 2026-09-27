@@ -1,25 +1,27 @@
+import threading
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
-import threading
-import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from audiomind.api.batch import router as batch_router
+from audiomind.api.jobs import router as jobs_router
+from audiomind.api.license import router as license_router
+from audiomind.api.mastering import router as mastering_router
+from audiomind.api.mix import router as mix_router
+from audiomind.api.songstarter import router as songstarter_router
+from audiomind.api.splitter import router as splitter_router
+from audiomind.api.upload import router as upload_router
+from audiomind.api.vocal import router as vocal_router
 from audiomind.config import settings
 from audiomind.services import demo_guard
-from audiomind.api.upload import router as upload_router
-from audiomind.api.mastering import router as mastering_router
-from audiomind.api.license import router as license_router
-from audiomind.api.splitter import router as splitter_router
-from audiomind.api.vocal import router as vocal_router
-from audiomind.api.songstarter import router as songstarter_router
-from audiomind.api.batch import router as batch_router
-from audiomind.api.mix import router as mix_router
 
 
 def _ttl_janitor_loop() -> None:
+
     """Daemon loop pruning idle demo sessions (only when TTL is enabled)."""
     while True:
         time.sleep(60)
@@ -79,6 +81,7 @@ app.include_router(splitter_router, prefix="/api")
 app.include_router(vocal_router, prefix="/api")
 app.include_router(songstarter_router, prefix="/api")
 app.include_router(batch_router, prefix="/api")
+app.include_router(jobs_router, prefix="/api")
 
 
 @app.get("/health")

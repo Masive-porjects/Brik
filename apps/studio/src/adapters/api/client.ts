@@ -680,3 +680,88 @@ export async function downloadMastered(
   }
   return res.blob();
 }
+
+/** Payload for submitting a cloud DSP mastering job (Fase 6). */
+export interface MasterJobPayload {
+  track_id: string;
+  user_id?: string;
+  version_id?: string;
+  input_audio_url?: string;
+  input_storage_path?: string;
+  preset_id?: string;
+  parameters?: Partial<MasteringParameters>;
+  platform_target?: "spotify" | "apple_music" | "youtube" | "tidal" | "club" | "cd" | "custom";
+  format?: "wav" | "mp3";
+  output_bit_depth?: number;
+  master_name?: string;
+  is_async?: boolean;
+}
+
+/** Result from a synchronous or completed mastering worker job. */
+export interface MasterJobResult {
+  success: boolean;
+  job_id: string;
+  track_id: string;
+  master_id: string;
+  status: string;
+  storage_path?: string;
+  download_url?: string;
+  file_size_bytes: number;
+  format: "wav" | "mp3";
+  metrics?: MasterResultMetrics;
+  validation?: ValidationReport;
+  report?: MasteringReport;
+  error?: string;
+}
+
+/** Async job status returned when polling background jobs. */
+export interface AsyncJobStatus {
+  job_id: string;
+  track_id: string;
+  status: "processing" | "completed" | "error";
+  result?: MasterJobResult;
+  error?: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+/**
+ * Submits a stateless DSP mastering job to AudioMind.
+ * Can execute synchronously or enqueued in the background.
+ */
+export async function submitMasterJob(
+  payload: MasterJobPayload,
+): Promise<MasterJobResult> {
+  const res = await fetch(`${API_BASE}/jobs/master`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...licenseHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Mastering job failed" }));
+    throw new ApiError(err.detail || "Mastering job failed", res.status);
+  }
+
+  return res.json();
+}
+
+/**
+ * Polls the current status of an asynchronous mastering job.
+ */
+export async function getMasterJobStatus(jobId: string): Promise<AsyncJobStatus> {
+  const res = await fetch(`${API_BASE}/jobs/master/${encodeURIComponent(jobId)}`, {
+    headers: { ...licenseHeaders() },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Job status check failed" }));
+    throw new ApiError(err.detail || "Job status check failed", res.status);
+  }
+
+  return res.json();
+}
+

@@ -28,7 +28,24 @@ Este documento establece las políticas obligatorias de control de versiones y e
 
 ---
 
-## 3. Reportes de Fases y Documentación
-1. **Entrega de Reportes por Fase**:
-   - Al finalizar cada fase del roadmap, se debe redactar el reporte detallado correspondiente en `docs/evidence/reports/REPORT_FASE_X.md`.
-   - El informe debe incluir: Resumen ejecutivo, esquema de base de datos/Supabase, componentes desarrollados, validación de compilación y próximos pasos.
+## 3. Reportes de Fases y Documentación Continua
+1. **Actualización Viva y Obligatoria de Reportes**:
+   - Cada entrega, sub-fase (ej. 5.5, 5.6), corrección de bugs, optimización de latencia o ajuste de interfaz DEBE registrarse inmediatamente en el reporte de la fase activa: `docs/evidence/reports/REPORT_FASE_X.md`.
+   - **El asistente no debe esperar a que el usuario solicite la actualización del reporte**: debe mantener el documento al día con cada commit relevante.
+   - El informe debe incluir: Resumen ejecutivo detallado, esquema de base de datos/Supabase, componentes desarrollados, validación de compilación (`bun run build`) y próximos pasos.
+
+---
+
+## 4. Preservación de Contexto y Gestión de Compactions
+1. **Recuperación Proactiva de Contexto**:
+   - Ante reinicios de sesión, pérdida de contexto o compactación de memoria, el agente DEBE leer prioritariamente:
+     1. El reporte de la última fase en `docs/evidence/reports/REPORT_FASE_X.md`.
+     2. Los lineamientos activos en `.agents/rules/`.
+     3. El `git status` y el historial reciente de commits (`git log -n 5`).
+   - Esto evita pedirle al usuario explicaciones sobre decisiones ya tomadas o bugs ya resueltos.
+2. **Transición Limpia de Fases tras PR & Merge**:
+   - Cuando el usuario confirme que se realizó el PR y Merge a `dev`:
+     1. Actualizar y consolidar el reporte de la fase concluida.
+     2. Hacer `git checkout dev` y `git pull origin dev` para sincronizar.
+     3. Crear la nueva rama de trabajo para la siguiente fase: `git checkout -b feat/fase-X-<nombre>`.
+     4. Comenzar la implementación de la nueva fase inmediatamente sobre esa rama.

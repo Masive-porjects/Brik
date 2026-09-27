@@ -225,8 +225,7 @@ def prune_expired_sessions(now: float | None = None) -> list[str]:
         ):
             continue  # never delete active work
         if any(
-            entry.status == "processing"
-            for entry in session.preset_masters.values()
+            entry.status == "processing" for entry in session.preset_masters.values()
         ):
             continue
         _remove_session_files(session_id, _prerender_cache)
