@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 from enum import Enum
@@ -18,6 +18,21 @@ class ProcessingStatus(str, Enum):
     ERROR = "error"
 
 
+# Lifecycle of the Mix Engine output of a session (``SessionData.mix_status``).
+# The client must be able to tell "never mixed" from "mix running" from
+# "mix delivered" from "mix failed" — the gate "if you chose to mix, deliver
+# the mix first" (feature ``odd/tasks/mix-master-flow.md``) is only
+# actionable when the backend owns this state. ``completed`` is the ONLY
+# value that makes ``mix_path`` masterable.
+MixStatus = Literal["none", "processing", "completed", "failed"]
+
+# Which audio file a mastering run consumes: the uploaded original or the
+# Mix Engine output. Resolved per request by ``/process`` (``source`` query
+# param) — the smart default picks ``mix`` only when the mix is ``completed``
+# and its file exists, otherwise ``original``.
+MasterSource = Literal["original", "mix"]
+
+
 class AnalysisResult(BaseModel):
     integrated_lufs: float
     true_peak_db: float
@@ -32,6 +47,17 @@ class AnalysisResult(BaseModel):
     crest_factor_db: float = 0.0
     is_already_mastered: bool = False
     mastering_confidence: float = 0.0
+
+    # ── Vocal register / f0 (Eje A adaptive voice treatment — measurement) ──
+    # Populated by analyze_audio via librosa.pyin over the analyzed signal
+    # (the vocal stem when the mix engine analyzes per-stem files). All fields
+    # default to neutral (None/0) so they are backward compatible and so a
+    # signal without a credible voice never invents a register. Measurement
+    # only: the neutral/bypass chain of the master is untouched.
+    vocal_median_f0_hz: float | None = None
+    vocal_register: str | None = None  # "grave" | "medio" | "agudo" | None
+    vocal_f0_voiced_ratio: float = 0.0
+    vocal_phrase_count: int = 0
 
 
 class MasteringParameters(BaseModel):
@@ -56,7 +82,7 @@ class MasteringParameters(BaseModel):
     # and peaks that render the character (bass punch, air, presence).
     # Empty list = no additional plugins (bit-exact bypass), so existing
     # masters are unchanged unless a preset explicitly ships bands.
-    eq_bands: list[dict] = Field(
+    eq_bands: list[dict[str, Any]] = Field(
         default_factory=list,
         description=(
             "Preset character EQ bands applied after match EQ: "
@@ -530,6 +556,36 @@ class MasteringParameters(BaseModel):
         ),
     )
 
+    # ── Stereo Shuffler 3-Band (Mix→Master Handshake) ───────────────────────────
+    # Opt-in frequency-dependent width via LR4 crossover (phase-zero, float64).
+    # Mutually exclusive with legacy broadband width and stereo_imaging: when
+    # enabled, the legacy broadband width stage is skipped in the master chain.
+    # Defaults are neutral (disabled + neutral widths) for backward compatibility.
+    stereo_shuffler_enabled: bool = Field(
+        default=False,
+        description="Enable the 3-band Stereo Shuffler (LR4 phase-zero). False = legacy M/S width only."
+    )
+    stereo_shuffler_width_low: float = Field(
+        default=0.0, ge=0.0, le=2.0,
+        description="Width factor for LOW band (< crossover_low). 0.0 = mono strict."
+    )
+    stereo_shuffler_width_mid: float = Field(
+        default=1.0, ge=0.0, le=2.0,
+        description="Width factor for MID band (crossover_low – crossover_high). 1.0 = neutral."
+    )
+    stereo_shuffler_width_high: float = Field(
+        default=1.3, ge=0.0, le=3.0,
+        description="Width factor for HIGH band (> crossover_high). >1.0 = expanded air."
+    )
+    stereo_shuffler_crossover_low: float = Field(
+        default=120.0, ge=20.0, le=500.0,
+        description="Low/Mid crossover frequency in Hz (default 120 Hz)."
+    )
+    stereo_shuffler_crossover_high: float = Field(
+        default=2500.0, ge=1000.0, le=8000.0,
+        description="Mid/High crossover frequency in Hz (default 2500 Hz)."
+    )
+
     @model_validator(mode="after")
     def _apply_platform_defaults(self) -> "MasteringParameters":
         """Apply platform delivery defaults for known targets.
@@ -732,6 +788,38 @@ class SessionData(BaseModel):
     # stays the legacy "last processed / currently selected" pointer and is
     # kept in sync on every successful preset process.
     preset_masters: dict[str, PresetMasterEntry] = Field(default_factory=dict)
+    # Mix Engine (Paso 01): the mix is NOT the master — it lives on its own
+    # pointer/analysis pair so the mastering pipeline is never affected.
+    # ``mix_analysis`` mirrors the ``X-Mix-Result`` payload served by
+    # POST /api/session/{id}/mix (per-stem analysis + full-mix tempo/genre).
+    mix_path: str | None = None
+    mix_analysis: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Mix Engine JSON analysis payload: per-stem analysis dict plus "
+            "full-mix tempo_bpm / genre / genre_confidence."
+        ),
+    )
+    # Lifecycle of the mix, kept OUT of ``mix_analysis`` on purpose: the
+    # analysis dict is the snapshot of the LAST SUCCESSFUL mix, while this
+    # field is the live state (``processing`` while the pipeline runs,
+    # ``failed`` on error) and is what ``/process?source=mix`` reads before
+    # consuming ``mix_path``. Defaults to ``none`` so sessions persisted
+    # before the field existed keep loading unchanged.
+    mix_status: MixStatus = "none"
+    # Mix Engine metadata for adaptive mastering (Mix → Master handshake).
+    # Populated by POST /mix via build_mix._compute_mix_metadata().
+    mix_metadata: dict | None = Field(
+        default=None,
+        description="Metadatos de mezcla serializados (MixMetadata.model_dump()) para master adaptativo"
+    )
+    # Vocal Chain (VoiceChain Pro) output pointer. The processed vocal is a
+    # STEM artifact, never a master: it keeps its own field so ``POST /vocal``
+    # can never overwrite ``mastered_path`` (which ``/audio/mastered``,
+    # ``/raw-mastered``, ``/download`` and the reference comparison all read
+    # as "the master"). Same pattern as ``mix_path``: an additive optional
+    # pointer, so sessions persisted before the field existed load unchanged.
+    vocal_path: str | None = None
 
 
 class BeatData(BaseModel):
@@ -750,7 +838,7 @@ class BeatData(BaseModel):
     output_path: str = ""
     stems: dict[str, str] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Album / EP batch mastering (Phase D, P1-2) ───────────────────────────

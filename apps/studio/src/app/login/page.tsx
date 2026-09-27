@@ -1,10 +1,23 @@
-import LoginScreen from "@/presentation/components/auth/LoginScreen";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { LoginForm } from "@/features/auth";
+import AuthLayout from "@/features/auth/components/AuthLayout";
 
-export const metadata = {
-  title: "Iniciar sesión — WaveIA",
-  description: "Accedé a tu estudio de mastering",
+export const metadata: Metadata = {
+  title: "Login | WaveIA Studio",
+  description: "Accede a tu cuenta de WaveIA Studio para masterizar tus pistas.",
 };
 
 export default function LoginPage() {
-  return <LoginScreen />;
+  return (
+    <AuthLayout>
+      <Suspense
+        fallback={
+          <div className="w-full max-w-md h-96 rounded-3xl animate-pulse bg-[var(--surface-elevated)] border border-[var(--border-subtle)]" />
+        }
+      >
+        <LoginForm />
+      </Suspense>
+    </AuthLayout>
+  );
 }

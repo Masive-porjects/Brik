@@ -273,7 +273,7 @@ class TestDemoDownload:
         resp = client.get(f"/api/session/{sid}/download/wav?preset_id=fuego")
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == (
-            'attachment; filename="BrikmasterFinal.wav"'
+            'attachment; filename="WaveAIFinal.wav"'
         )
 
 

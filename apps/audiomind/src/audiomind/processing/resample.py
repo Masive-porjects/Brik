@@ -48,9 +48,9 @@ def resample_audio(audio: np.ndarray, src_sr: int, dst_sr: int) -> np.ndarray:
 
     x = np.asarray(audio)
     if x.ndim == 1:
-        return soxr.resample(
+        return np.asarray(soxr.resample(
             x.astype(np.float64), src_sr, dst_sr, quality=SOXR_QUALITY
-        )
-    return soxr.resample(
+        ))
+    return np.asarray(soxr.resample(
         x.T.astype(np.float64), src_sr, dst_sr, quality=SOXR_QUALITY
-    ).T
+    )).T

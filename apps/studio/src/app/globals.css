@@ -301,6 +301,28 @@ body {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* ── Global Interactive Cursors ────────────────────── */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="reset"]:not(:disabled),
+select:not(:disabled),
+summary,
+a[href],
+.cursor-pointer,
+[data-interactive="true"] {
+  cursor: pointer !important;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+input:disabled,
+select:disabled,
+.cursor-not-allowed {
+  cursor: not-allowed !important;
+}
+
 /* ── Range inputs (legacy) ──────────────────────────── */
 
 input[type="range"] {
@@ -463,5 +485,24 @@ input[type="range"]::-moz-range-thumb {
 /* -- Ghost icon (favicon / breathing room) ----------- */
 .mi-icono {
   --ghost-fill: #ffffff;
+}
+
+/* ── Focus mode ────────────────────────────────────────
+   html[data-focus="true"] (Modo foco): surface planchada para
+   trabajar limpio. Apaga la decoración ambiental y reduce el
+   blur/shine de los paneles de cristal. */
+html[data-focus="true"] .ambient-layer {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+/* Glass reducido en modo foco: el cristal queda casi sólido para
+   que el texto se lea sin el "shine" de fondo. */
+html[data-focus="true"] .glass,
+html[data-focus="true"] .glass-elevated {
+  background: var(--bg-glass-elevated);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: none;
 }
 

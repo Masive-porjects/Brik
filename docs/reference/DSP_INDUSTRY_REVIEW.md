@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Map the Brikmaster mastering chain (`apps/audiomind/src/audiomind/processing/engine.py`)
+Map the WaveAI mastering chain (`apps/audiomind/src/audiomind/processing/engine.py`)
 against 17 pieces of advice commonly given by professional mastering engineers,
 identify concrete gaps with code evidence, and drive them into shipped phases.
 

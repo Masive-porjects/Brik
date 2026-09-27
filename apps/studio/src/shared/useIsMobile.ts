@@ -10,10 +10,7 @@ const MOBILE_BREAKPOINT = 768; // md breakpoint in Tailwind
  * Updates automatically on viewport resize / device rotation.
  */
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < MOBILE_BREAKPOINT;
-  });
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);

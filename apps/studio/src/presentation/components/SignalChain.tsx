@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Activity } from "lucide-react";
 import type { MasteringParameters } from "@/lib/api";
 import { useSignalChain } from "@/application/hooks/useSignalChain";
+import { useTranslation } from "@/i18n";
 
 /* ── Signal Chain Visualizer ───────────────────────────────
    Renders the 4 processing blocks as a horizontal chain.
@@ -31,6 +32,9 @@ function ChainBlockView({
   compact?: boolean;
   index: number;
 }) {
+  const { t } = useTranslation();
+  const localizedLabel = t(`signalChain.blocks.${block.id}`, block.label);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -69,12 +73,12 @@ function ChainBlockView({
               className={`font-semibold ${compact ? "text-[10px]" : "text-xs"}`}
               style={{ color: block.active ? block.color : "var(--text-muted)" }}
             >
-              {block.label}
+              {localizedLabel}
             </span>
           </div>
           {!compact && (
             <span className="text-[9px] text-[var(--text-muted)] font-mono">
-              {block.active ? "ON" : "BYPASS"}
+              {block.active ? t("signalChain.on", "ON") : t("signalChain.bypass", "BYPASS")}
             </span>
           )}
         </div>
@@ -203,6 +207,7 @@ function ChainBlockView({
 /* ── Main component ─────────────────────────────────────── */
 
 export default function SignalChain({ params, compact }: SignalChainProps) {
+  const { t } = useTranslation();
   const blocks = useSignalChain(params);
 
   return (
@@ -214,7 +219,7 @@ export default function SignalChain({ params, compact }: SignalChainProps) {
         <div className="flex items-center gap-2 mb-3 px-1">
           <Activity size={13} className="text-[var(--text-muted)]" />
           <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
-            Cadena de Señal
+            {t("signalChain.title", "Cadena de Señal")}
           </span>
         </div>
       )}
@@ -242,7 +247,7 @@ export default function SignalChain({ params, compact }: SignalChainProps) {
         <div className="flex items-center justify-center gap-1.5 mt-3 opacity-30">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--border-subtle)]" />
           <span className="text-[8px] text-[var(--text-muted)] uppercase tracking-widest shrink-0">
-            Input → Procesamiento → Output
+            {t("signalChain.flow", "Input → Procesamiento → Output")}
           </span>
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--border-subtle)]" />
         </div>

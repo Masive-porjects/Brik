@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import IconButton from "@/components/ui/IconButton";
 
 interface ModuleSheetProps {
   open: boolean;
@@ -105,14 +106,12 @@ export default function ModuleSheet({
                     <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>
                   )}
                 </div>
-                <button
+                <IconButton
+                  label="Cerrar panel"
+                  icon={X}
                   onClick={onClose}
-                  aria-label="Cerrar panel"
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)]
-                    hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all"
-                >
-                  <X size={18} />
-                </button>
+                  className="shrink-0"
+                />
               </motion.div>
 
               {/* Content */}

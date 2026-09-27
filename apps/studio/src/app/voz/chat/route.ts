@@ -9,8 +9,6 @@ import {
 
 /**
  * Puente entre el chat y el agente de interpretacion.
- *
- * Cuando Convex este montado esto se muda a una action sin cambiar la firma:
  * interpretIntent es una funcion pura sobre (historial, perfil, analisis).
  */
 

@@ -9,18 +9,25 @@ Instead of applying fixed preset values, this engine:
 import gc
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import soundfile as sf
+import pedalboard
 from pedalboard import (
     Compressor,
     HighpassFilter,
     HighShelfFilter,
     LowShelfFilter,
     PeakFilter,
-    Pedalboard,
 )
 from pedalboard.io import AudioFile
+
+# pedalboard's __init__ re-exports Pedalboard via a plain named import and
+# defines no __all__; with implicit_reexport=False (mypy strict) the name is
+# not treated as exported. Bind the module attribute explicitly — identical
+# runtime behavior, satisfies mypy.
+Pedalboard = pedalboard.Pedalboard
 
 from audiomind.analysis.analyzer import (
     TARGET_BANDS_HZ,
@@ -172,10 +179,10 @@ def _freq_to_band_index(freq: float) -> int:
 def build_match_eq(
     audio: np.ndarray,
     sample_rate: int,
-    eq_bands: list[dict],
+    eq_bands: list[dict[str, Any]],
     analysis_result: AnalysisResult | None = None,
     intensity_multiplier: float = 1.8,
-) -> list:
+) -> list[PeakFilter]:
     """Build EQ chain using genre target profiles (Match EQ).
 
     REPLACES the old `build_dynamic_eq`. Instead of applying fixed preset
@@ -228,7 +235,7 @@ def build_match_eq(
     # Compute per-band delta: what gain to apply to reach the target shape
     #   delta > 0 → boost (band is quieter than target)
     #   delta < 0 → cut   (band is louder than target)
-    plugins: list = []
+    plugins: list[PeakFilter] = []
     for i, band in enumerate(eq_bands):
         band_freq = band["freq"]
         band_idx = _freq_to_band_index(band_freq)
@@ -298,7 +305,9 @@ def build_match_eq(
     return plugins
 
 
-def build_character_eq(eq_bands: list[dict], gain_scale: float = 1.0) -> list:
+def build_character_eq(
+    eq_bands: list[dict[str, Any]], gain_scale: float = 1.0
+) -> list[PeakFilter | LowShelfFilter | HighShelfFilter]:
     """Build preset character EQ plugins from PRESET_CHAINS band dicts.
 
     Each band follows the preset chain format:
@@ -314,7 +323,7 @@ def build_character_eq(eq_bands: list[dict], gain_scale: float = 1.0) -> list:
     exactly like the 8 kHz clarity shelf) and clamped to the
     pedalboard-sanctioned default range (±24 dB gain, q in [0.1, 10]).
     """
-    plugins: list = []
+    plugins: list[PeakFilter | LowShelfFilter | HighShelfFilter] = []
     for band in eq_bands:
         band_type = band.get("type", "peak")
         freq = float(band.get("freq", 1000.0))
@@ -323,7 +332,9 @@ def build_character_eq(eq_bands: list[dict], gain_scale: float = 1.0) -> list:
         gain = float(np.clip(gain, -24.0, 24.0))
         q = float(np.clip(q, 0.1, 10.0))
         if band_type == "low_shelf":
-            plugin_cls = LowShelfFilter
+            plugin_cls: (
+                type[PeakFilter] | type[LowShelfFilter] | type[HighShelfFilter]
+            ) = LowShelfFilter
         elif band_type == "high_shelf":
             plugin_cls = HighShelfFilter
         else:  # "peak" (and unknown types → peak fallback)
@@ -413,7 +424,7 @@ def _multiband_params_from_mastering(p: MasteringParameters) -> MultibandParams:
     return MultibandParams(
         crossover_low_hz=p.multiband_crossover_low_hz,
         crossover_high_hz=p.multiband_crossover_high_hz,
-        bands=[
+        bands=(
             BandParams(
                 threshold_db=p.multiband_low_threshold_db,
                 ratio=p.multiband_low_ratio,
@@ -426,7 +437,7 @@ def _multiband_params_from_mastering(p: MasteringParameters) -> MultibandParams:
                 threshold_db=p.multiband_high_threshold_db,
                 ratio=p.multiband_high_ratio,
             ),
-        ],
+        ),
         auto_makeup=True,
     )
 
@@ -439,7 +450,7 @@ def _dyn_eq_params_from_mastering(p: MasteringParameters) -> DynEqParams:
     stage a bit-exact no-op even when enabled.
     """
     return DynEqParams(
-        bands=[
+        bands=(
             DynEqBandParams(
                 freq_hz=p.dyn_eq_band1_freq_hz,
                 q=p.dyn_eq_band1_q,
@@ -458,7 +469,7 @@ def _dyn_eq_params_from_mastering(p: MasteringParameters) -> DynEqParams:
                 threshold_db=p.dyn_eq_band3_threshold_db,
                 ratio=p.dyn_eq_band3_ratio,
             ),
-        ]
+        )
     )
 
 
@@ -471,7 +482,7 @@ def _exciter_params_from_mastering(p: MasteringParameters) -> ExciterParams:
     the stage a bit-exact no-op even when enabled.
     """
     return ExciterParams(
-        bands=[
+        bands=(
             ExciterBandParams(
                 amount=p.exciter_band1_amount,
                 drive_db=p.exciter_band1_drive_db,
@@ -496,7 +507,7 @@ def _exciter_params_from_mastering(p: MasteringParameters) -> ExciterParams:
                 low_cut_hz=p.exciter_band4_low_cut_hz,
                 mode=p.exciter_band4_mode,
             ),
-        ]
+        )
     )
 
 
@@ -620,7 +631,7 @@ def _process_transparent(
     already_mastered: bool,
     report: Callable[[float], None],
     warnings: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """Transparent delivery mode — no tone shaping whatsoever.
 
     Compliance Phase 1 (BandLab/LANDR-like delivery). ONLY these stages
@@ -730,7 +741,8 @@ def process_audio(
     analysis_result: AnalysisResult | None = None,
     intensity_multiplier: float = 1.8,
     progress_cb: Callable[[float], None] | None = None,
-) -> dict:
+    mix_metadata: dict | None = None,
+) -> dict[str, Any]:
     """
     Module-based mastering pipeline.
 
@@ -758,7 +770,7 @@ def process_audio(
     # Read audio
     with AudioFile(str(input_path)) as f:
         audio = f.read(f.frames)
-        sr = f.samplerate
+        sr = int(f.samplerate)
     input_sr = sr
 
     # ── Input QC (Compliance Phase 1) ─────────────────────────────────
@@ -911,8 +923,8 @@ def process_audio(
     #     like the 8 kHz clarity shelf, so already-mastered material gets
     #     the same proportional character, not the full preset boost.
     if params.eq_bands:
-        for p in build_character_eq(params.eq_bands, gain_scale=am_factor):
-            board.append(p)
+        for cp in build_character_eq(params.eq_bands, gain_scale=am_factor):
+            board.append(cp)
 
     # 4. Module EQ: Claridad — Brilliance (8 kHz shelf)
     if (
@@ -1006,8 +1018,65 @@ def process_audio(
 
     report(30)
 
+    report(30)
+
+    # ── Mix→Master Adaptive Context ────────────────────────────────────
+    # If mix_metadata is present (source="mix"), adapt spatial params to
+    # avoid double-processing what the mix already did.
+    if mix_metadata:
+        from audiomind.models.mix_metadata import MixMetadata
+        mix_meta = MixMetadata(**mix_metadata)
+        params = _adapt_spatial_for_mix_context(params, mix_meta)
+
+    def _adapt_spatial_for_mix_context(
+        params: MasteringParameters,
+        mix_meta: "MixMetadata",
+    ) -> MasteringParameters:
+        """Adjust mastering spatial parameters based on mix context.
+
+        Prevents double-processing when the mix already applied spatial
+        expansion, reverb, or side energy.
+        """
+        adapted = params.model_copy()
+
+        # 1. Throttle legacy stereo_width (broadband M/S gain)
+        if mix_meta.applied_spatial_width > 1.2:
+            excess = mix_meta.applied_spatial_width - 1.2
+            adapted.stereo_width = max(1.0, adapted.stereo_width - excess * 0.5)
+
+        # 2. Throttle stereo_imaging (Sprint 9, per-band width)
+        if mix_meta.applied_spatial_width > 1.15 and adapted.stereo_imaging_enabled:
+            adapted.stereo_imaging_width_high = min(
+                getattr(adapted, 'stereo_imaging_width_high', 1.3), 1.15
+            )
+            adapted.stereo_imaging_width_mid = min(
+                getattr(adapted, 'stereo_imaging_width_mid', 1.1), 1.05
+            )
+
+        # 3. Side HPF more aggressive if side energy high
+        if mix_meta.side_energy_ratio > 0.35:
+            adapted.side_hpf_enabled = True
+            adapted.side_hpf_hz = min(
+                getattr(adapted, 'side_hpf_hz', 100.0), 150.0
+            )
+
+        # 4. Limiter ceiling conservative if little headroom
+        if mix_meta.transient_headroom_db < 1.0:
+            adapted.limiter_ceiling_db = min(adapted.limiter_ceiling_db, -1.5)
+
+        return adapted
+
+    # ── Mix→Master Adaptive Context ────────────────────────────────────
+    # If mix_metadata is present (source="mix"), adapt spatial params to
+    # avoid double-processing what the mix already did.
+    if mix_metadata:
+        from audiomind.models.mix_metadata import MixMetadata
+        mix_meta = MixMetadata(**mix_metadata)
+        params = _adapt_spatial_for_mix_context(params, mix_meta)
+
     # ── Spatial Processing: M/S with Reverb + Haas + Width ──────────
     from .spatial import (
+        apply_frequency_dependent_width,
         apply_side_hpf,
         check_phase_correlation,
         mid_side_decode,
@@ -1073,6 +1142,21 @@ def process_audio(
         corr = check_phase_correlation(effected)
         if corr < 0:
             effected = safety_enforce_correlation(effected, sr)
+
+    # ── Stereo Shuffler 3-Band (Mix→Master Handshake) ─────────────────
+    # Mutually exclusive with legacy broadband width: when enabled, the
+    # legacy broadband width stage is skipped. Runs BEFORE stereo imaging
+    # (Sprint 9) so the per-band width can further refine if needed.
+    if params.stereo_shuffler_enabled:
+        from .spatial import apply_frequency_dependent_width
+        effected = apply_frequency_dependent_width(
+            effected, sr,
+            width_low=params.stereo_shuffler_width_low,
+            width_mid=params.stereo_shuffler_width_mid,
+            width_high=params.stereo_shuffler_width_high,
+            crossover_low=params.stereo_shuffler_crossover_low,
+            crossover_high=params.stereo_shuffler_crossover_high,
+        )
 
     # 7e. Per-band stereo imaging (Sprint 9) — LR4 3-band constant-power
     #     width + lows-mono + correlation safety. This is the correlation-safe

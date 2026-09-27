@@ -17,7 +17,16 @@ export interface AudioGraphNodes {
   convolver: ConvolverNode;
   masterGain: GainNode;
   analyser: AnalyserNode;
+  analyserL: AnalyserNode;
+  analyserR: AnalyserNode;
+  splitter: ChannelSplitterNode;
   destination: AudioDestinationNode;
+}
+
+/** Datos estéreo en tiempo real (canales separados, buffers reutilizados). */
+export interface StereoData {
+  l: Float32Array;
+  r: Float32Array;
 }
 
 export interface AudioGraph {
@@ -30,6 +39,7 @@ export interface AudioGraph {
   disconnect: () => void;
   getAnalyserData: () => { frequency: Uint8Array; timeDomain: Uint8Array };
   getOutputLevel: () => number; // RMS 0-1
+  getStereoData: () => StereoData;
 }
 
 /**
@@ -79,13 +89,27 @@ export function createAudioGraph(
   // Master gain
   const masterGain = audioContext.createGain();
 
-  // Analyser for visualisation
+  // Analyser for visualisation (downmix mono → spectrum + forma de onda)
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0.3;
 
+  // Analysers estéreo por canal (correlación / width / levels L/R)
+  // Tap: splitter 2 canales después de masterGain; NO va al destination.
+  const analyserL = audioContext.createAnalyser();
+  const analyserR = audioContext.createAnalyser();
+  analyserL.fftSize = 2048;
+  analyserR.fftSize = 2048;
+  analyserL.smoothingTimeConstant = 0.3;
+  analyserR.smoothingTimeConstant = 0.3;
+  const splitter = audioContext.createChannelSplitter(2);
+
+  // Buffers reutilizados para getStereoData (sin alloc por frame).
+  const stereoL = new Float32Array(analyserL.fftSize);
+  const stereoR = new Float32Array(analyserR.fftSize);
+
   // ── Connect Graph ────────────────────────────────────────────────
-  // Source → Filter → Drive → [Delay Loop] → Dry/Wet Split → Convolver → Master → Analyser → Destination
+  // Source → Filter → Drive → [Delay Loop] → Dry/Wet Split → Convolver → Master → [Analyser → Destination] + [Splitter → AnalyserL/R]
   
   source.connect(filter);
   filter.connect(drive);
@@ -110,6 +134,11 @@ export function createAudioGraph(
   convolver.connect(masterGain);
   masterGain.connect(analyser);
   analyser.connect(audioContext.destination);
+
+  // Tap estéreo: Master → Splitter → AnalyserL (canal 0) / AnalyserR (canal 1)
+  masterGain.connect(splitter);
+  splitter.connect(analyserL, 0);
+  splitter.connect(analyserR, 1);
 
   // ── Initial Parameter Values ─────────────────────────────────────
   const now = audioContext.currentTime;
@@ -171,6 +200,9 @@ export function createAudioGraph(
       convolver,
       masterGain,
       analyser,
+      analyserL,
+      analyserR,
+      splitter,
       destination: audioContext.destination,
     },
     audioContext,
@@ -228,6 +260,9 @@ export function createAudioGraph(
       convolver.disconnect();
       masterGain.disconnect();
       analyser.disconnect();
+      analyserL.disconnect();
+      analyserR.disconnect();
+      splitter.disconnect();
     },
 
     getAnalyserData() {
@@ -248,6 +283,13 @@ export function createAudioGraph(
         sum += sample * sample;
       }
       return Math.sqrt(sum / timeData.length);
+    },
+
+    getStereoData(): StereoData {
+      // Buffers reutilizados: cero allocations en el hot path (60 fps).
+      analyserL.getFloatTimeDomainData(stereoL);
+      analyserR.getFloatTimeDomainData(stereoR);
+      return { l: stereoL, r: stereoR };
     },
   };
 }

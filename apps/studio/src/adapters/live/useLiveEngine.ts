@@ -1,42 +1,37 @@
 /**
- * useLiveEngine — React hook orchestrating the complete live engine.
- * Manages: AudioContext, AudioGraph, WebSocket, Recorder, and UI state.
+ * useLiveEngine — React hook orchestrating the standalone Live Engine.
+ * Manages: AudioContext, AudioGraph, Recorder, and UI state.
+ * No WebSocket: params come exclusively from the knob UI (mouse/keyboard).
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { LiveParams } from '@/lib/live/liveParams.gen';
 import { createAudioGraph, AudioGraph } from './audioGraph';
-import { createLiveSocket, ConnectionState } from './liveSocket';
 import { createRecorder, RecorderState } from './recorder';
-import { applyPreset, getPresetByNote, FX_PRESETS, FxPresetName } from './fxPresets';
-import { LIVE_PARAM_DEFAULTS, NEUTRAL_AFTER_MS, NEUTRAL_CHECK_MS } from '@/lib/live/liveDefaults';
+import { applyPreset, FX_PRESETS, FxPresetName } from './fxPresets';
+import { LIVE_PARAM_DEFAULTS } from '@/lib/live/liveDefaults';
+import { publish, reset } from '@/lib/live/liveMeterBus';
+import { safeCloseAudioContext } from '@/lib/live/audioContextUtils';
+import { rms, peakDb, correlation, stereoWidth, momentaryLoudnessDb, shortTermLoudnessDb } from '@/lib/live/meterMath';
 
 export interface UseLiveEngineOptions {
   /** Master audio buffer (from WaveAI mastering) */
   masterAudioBuffer: AudioBuffer | null;
   /** AudioContext (shared or created internally) */
   audioContext?: AudioContext;
-  /** WebSocket URL */
-  wsUrl?: string;
   /** Initial LiveParams */
   initialParams?: Partial<LiveParams>;
   /** Callbacks */
   onParamsChange?: (params: LiveParams) => void;
-  onConnectionStateChange?: (state: ConnectionState) => void;
-  onLatencyUpdate?: (rtt: number) => void;
   onError?: (error: Error) => void;
 }
 
 export interface UseLiveEngineReturn {
   // State
   params: LiveParams;
-  connectionState: ConnectionState;
-  latency: number;
-  outputLevel: number;
-  analyserData: { frequency: Uint8Array; timeDomain: Uint8Array } | null;
   recorderState: RecorderState;
   isPlaying: boolean;
-  
+
   // Actions
   setParams: (params: Partial<LiveParams>) => void;
   setFxPreset: (preset: FxPresetName) => void;
@@ -46,33 +41,31 @@ export interface UseLiveEngineReturn {
   startRecording: () => void;
   stopRecording: () => void;
   downloadRecording: (filename?: string) => void;
-  
+
   // Cleanup
   destroy: () => void;
 }
 
 /**
- * Main hook for the Live Engine.
- * Handles the complete pipeline: WebSocket → Params → AudioGraph → Recorder.
+ * Main hook for the standalone Live Engine (knob-controlled).
+ * Pipeline: Knobs → LiveParams → AudioGraph → Recorder.
  */
 export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineReturn {
   const {
     masterAudioBuffer,
     audioContext: providedContext,
-    wsUrl = 'ws://localhost:8765',
     initialParams = {},
     onParamsChange,
-    onConnectionStateChange,
-    onLatencyUpdate,
     onError,
   } = options;
 
   // ── Refs for persistent objects ──────────────────────────────────
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioGraphRef = useRef<AudioGraph | null>(null);
-  const socketRef = useRef<ReturnType<typeof createLiveSocket> | null>(null);
   const recorderRef = useRef<ReturnType<typeof createRecorder> | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  /** Guard de dispose idempotente: destroy() no debe cerrar el ctx dos veces. */
+  const disposedRef = useRef(false);
 
   // ── React State ──────────────────────────────────────────────────
   const [params, setParamsState] = useState<LiveParams>(() => ({
@@ -80,10 +73,6 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
     ts: Date.now(),
     ...initialParams,
   }));
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const [latency, setLatency] = useState(0);
-  const [outputLevel, setOutputLevel] = useState(0);
-  const [analyserData, setAnalyserData] = useState<{ frequency: Uint8Array; timeDomain: Uint8Array } | null>(null);
   const [recorderState, setRecorderState] = useState<RecorderState>({
     recording: false,
     paused: false,
@@ -104,8 +93,16 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
   }, [params]);
 
   // ── Initialize AudioContext ──────────────────────────────────────
+  // StrictMode / Fast Refresh pueden haber cerrado el ctx vía destroy() en un
+  // ciclo anterior: si quedó "closed", descartarlo y crear uno fresco. Nunca
+  // se reusa un contexto cerrado (crear nodos sobre él también lanza
+  // InvalidStateError).
   useEffect(() => {
+    if (audioContextRef.current?.state === 'closed') {
+      audioContextRef.current = null;
+    }
     if (!audioContextRef.current) {
+      disposedRef.current = false; // nuevo dueño de contexto → destroy revive
       const ctx = providedContext || new AudioContext({ latencyHint: 'interactive' });
       audioContextRef.current = ctx;
     }
@@ -146,56 +143,51 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
     };
   }, [masterAudioBuffer]);
 
-  // ── Initialize WebSocket ─────────────────────────────────────────
+  // ── Meter Loop → Bus (sin React state por frame) ────────────────
+  // ANTI-PATRÓN eliminado: antes este loop escribía state por frame (re-render
+  // React a 60fps). Ahora computa un LiveMeterReading y lo publica en
+  // liveMeterBus; los meters se suscriben y dibujan en canvas sin involucrar
+  // al reconciler. Deps [masterAudioBuffer]: si el buffer llega
+  // DESPUÉS del mount (caso real: master async), el loop arranca recién ahí
+  // (bug latente: con deps [] el loop moría temprano con graph null).
   useEffect(() => {
-    const socket = createLiveSocket({
-      url: wsUrl,
-      onStateChange: (state) => {
-        setConnectionState(state);
-        onConnectionStateChange?.(state);
-        // Política de neutral: anotar el momento de la caída; se resetea
-        // a defaults si sigue caído > NEUTRAL_AFTER_MS (spec AGENTS.md).
-        if (state === 'connected' || state === 'connecting') {
-          disconnectSinceRef.current = null;
-        } else if (disconnectSinceRef.current === null) {
-          disconnectSinceRef.current = Date.now();
-        }
-      },
-      onParams: (newParams) => {
-        // Apply incoming params from Bridge
-        setParamsState(prev => {
-          const merged = { ...prev, ...newParams, ts: newParams.ts };
-          // If preset changed via note, apply full preset
-          if (newParams.fx_preset && newParams.fx_preset !== prev.fx_preset) {
-            return applyPreset(merged, newParams.fx_preset);
-          }
-          return merged;
-        });
-      },
-      onPong: (rtt) => {
-        setLatency(rtt);
-        onLatencyUpdate?.(rtt);
-      },
-      onError: (err) => onError?.(err),
-    });
-    socketRef.current = socket;
+    if (!masterAudioBuffer) return;
 
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [wsUrl]);
-
-  // ── Analyser / Output Level Loop ────────────────────────────────
-  useEffect(() => {
-    const graph = audioGraphRef.current;
-    if (!graph) return;
+    // Ventanas deslizantes por instancia de grafo: MOM ~400ms (24 frames),
+    // ST ~3s (180 frames) — aproximación documentada, NO BS.1770.
+    const momentary = momentaryLoudnessDb();
+    const shortTerm = shortTermLoudnessDb();
 
     const tick = () => {
-      const data = graph.getAnalyserData();
+      const graph = audioGraphRef.current;
+      if (!graph) {
+        // Sin grafo: silencio inmediato en el bus (no congelar el último frame).
+        reset();
+        animationFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const { frequency, timeDomain } = graph.getAnalyserData();
+      const { l, r } = graph.getStereoData();
       const level = graph.getOutputLevel();
-      setAnalyserData(data);
-      setOutputLevel(level);
+      const levelL = rms(l);
+      const levelR = rms(r);
+
+      publish({
+        frequency,
+        timeDomain,
+        outputLevel: level,
+        levelL,
+        levelR,
+        peakL: peakDb(l),
+        peakR: peakDb(r),
+        correlation: correlation(l, r),
+        width: stereoWidth(l, r),
+        momentaryLufs: momentary.push(level),
+        shortTermLufs: shortTerm.push(level),
+        ts: Date.now(),
+      });
+
       animationFrameRef.current = requestAnimationFrame(tick);
     };
     animationFrameRef.current = requestAnimationFrame(tick);
@@ -204,30 +196,9 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      reset();
     };
-  }, []);
-
-  // ── Neutral policy: socket caído > 2 s → volver a defaults (spec) ──
-  const disconnectSinceRef = useRef<number | null>(null);
-
-  const resetToNeutral = useCallback(() => {
-    const defaults: LiveParams = { ...LIVE_PARAM_DEFAULTS, ts: Date.now() };
-    setParamsState(defaults);
-    audioGraphRef.current?.setParams(defaults);
-    onParamsChange?.(defaults);
-  }, [onParamsChange]);
-
-  useEffect(() => {
-    const check = () => {
-      const since = disconnectSinceRef.current;
-      if (since !== null && Date.now() - since > NEUTRAL_AFTER_MS) {
-        disconnectSinceRef.current = null; // reset una sola vez por caída
-        resetToNeutral();
-      }
-    };
-    const id = setInterval(check, NEUTRAL_CHECK_MS);
-    return () => clearInterval(id);
-  }, [resetToNeutral]);
+  }, [masterAudioBuffer]);
 
   // ── Parameter Setters ────────────────────────────────────────────
   const setParams = useCallback((newParams: Partial<LiveParams>) => {
@@ -250,6 +221,9 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
 
   // ── Transport Controls ───────────────────────────────────────────
   const play = useCallback(() => {
+    // Limpiar el frame viejo en el bus antes de arrancar: los meters
+    // muestran silencio hasta que el primer frame real de audio llega.
+    reset();
     audioGraphRef.current?.start(true);
     setIsPlaying(true);
   }, []);
@@ -257,11 +231,13 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
   const pause = useCallback(() => {
     audioGraphRef.current?.stop();
     setIsPlaying(false);
+    reset();
   }, []);
 
   const stop = useCallback(() => {
     audioGraphRef.current?.stop();
     setIsPlaying(false);
+    reset();
   }, []);
 
   // ── Recorder Controls ────────────────────────────────────────────
@@ -280,15 +256,28 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
   }, []);
 
   // ── Cleanup ──────────────────────────────────────────────────────
+  // Idempotente: StrictMode/Fast Refresh montan y desmontan efectos varias
+  // veces; el primer destroy cierra el ctx, los siguientes no-op. El ref se
+  // nulifica ANTES del close para que un init posterior cree uno fresco.
   const destroy = useCallback(() => {
+    if (disposedRef.current) return;
+    disposedRef.current = true;
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     audioGraphRef.current?.disconnect();
-    socketRef.current?.disconnect();
+    audioGraphRef.current = null;
     recorderRef.current?.cleanup();
-    if (audioContextRef.current && !providedContext) {
-      audioContextRef.current.close();
+    recorderRef.current = null;
+
+    // Owner del AudioContext interno: cerrar UNA vez. Un contexto provisto
+    // por el caller (providedContext) lo cierra el caller, no nosotros.
+    const ctx = audioContextRef.current;
+    audioContextRef.current = null;
+    if (ctx && !providedContext) {
+      void safeCloseAudioContext(ctx);
     }
   }, [providedContext]);
 
@@ -299,10 +288,6 @@ export function useLiveEngine(options: UseLiveEngineOptions): UseLiveEngineRetur
   return {
     // State
     params,
-    connectionState,
-    latency,
-    outputLevel,
-    analyserData,
     recorderState,
     isPlaying,
     // Actions

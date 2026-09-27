@@ -170,8 +170,6 @@ export default function WelcomeGate({ children }: WelcomeGateProps) {
           {/* Credits */}
           <p className="text-[10px] text-[var(--text-muted)] mt-4 leading-relaxed relative z-10">
             WaveIA © {new Date().getFullYear()}
-            <br />
-            Creado por Brikman Paul
           </p>
         </div>
       </div>

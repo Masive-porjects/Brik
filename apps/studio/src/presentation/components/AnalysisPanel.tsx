@@ -5,6 +5,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import type { AnalysisResult, MasterResultMetrics, ValidationReport } from "@/lib/api";
 import { DEFAULT_PRESET_COLOR, PRESET_INFO, type PresetInfo } from "@/core/presets";
+import { useTranslation } from "@/i18n";
 
 interface AnalysisPanelProps {
   analysis: AnalysisResult | null;
@@ -208,6 +209,7 @@ function MasterResultCard({
   masterResult?: MasterResultMetrics | null;
   presetInfo?: PresetInfo;
 }) {
+  const { t } = useTranslation();
   const lufs = masterResult?.integrated_lufs;
   if (lufs === null || lufs === undefined) return null;
 
@@ -254,12 +256,12 @@ function MasterResultCard({
           style={{ background: color, boxShadow: `0 0 5px ${color}` }}
         />
         <span className="font-medium text-[var(--text-primary)]">
-          Resultado del Master
+          {t("analysis.masterResultTitle", "Resultado del Master")}
         </span>
       </div>
       {presetInfo && (
         <p className="text-[var(--text-secondary)] text-[11px] mb-2">
-          Medido vs objetivo de {presetInfo.title}
+          {t("analysis.measuredVsTarget", "Medido vs objetivo de")} {presetInfo.title}
         </p>
       )}
       <div className="space-y-1">
@@ -292,14 +294,15 @@ function MasterResultCard({
    Compact verdict above the master result card: slim green
    line when in tolerance, amber card listing issues when not. */
 
-const RETRY_SUFFIX = " (reintentado automáticamente con menor intensidad)";
-
 function ValidationBanner({
   validation,
 }: {
   validation?: ValidationReport | null;
 }) {
+  const { t } = useTranslation();
   if (!validation) return null;
+
+  const retrySuffix = t("analysis.retrySuffix", " (reintentado automáticamente con menor intensidad)");
 
   if (validation.status === "ok") {
     return (
@@ -312,7 +315,10 @@ function ValidationBanner({
         }}
       >
         <span>✓</span>
-        <span>Master validado — dentro de tolerancia{validation.retry_applied ? RETRY_SUFFIX : ""}</span>
+        <span>
+          {t("analysis.masterValidated", "Master validado — dentro de tolerancia")}
+          {validation.retry_applied ? retrySuffix : ""}
+        </span>
       </div>
     );
   }
@@ -333,12 +339,12 @@ function ValidationBanner({
         />
         <p className="text-[var(--text-secondary)] leading-relaxed">
           {messages.join(" · ")}
-          {validation.retry_applied ? RETRY_SUFFIX : ""}
+          {validation.retry_applied ? retrySuffix : ""}
         </p>
       </div>
       {validation.suggested_preset_id === "universal" && (
         <p className="text-[11px] mt-1.5" style={{ color: DELTA_WARN }}>
-          Sugerencia: prueba Pulido
+          {t("analysis.suggestPulido", "Sugerencia: prueba Pulido")}
         </p>
       )}
     </div>
@@ -353,6 +359,8 @@ export default function AnalysisPanel({
   masterResult,
   validation,
 }: AnalysisPanelProps) {
+  const { t } = useTranslation();
+
   if (!analysis) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -361,7 +369,7 @@ export default function AnalysisPanel({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605" />
           </svg>
         </div>
-        <p className="text-xs text-[var(--text-muted)]">Carga un audio para ver el análisis</p>
+        <p className="text-xs text-[var(--text-muted)]">{t("analysis.noAudio", "Carga un audio para ver el análisis")}</p>
       </div>
     );
   }
@@ -393,13 +401,13 @@ export default function AnalysisPanel({
               <line x1="12" y1="9" x2="12" y2="13"/>
               <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
-            <span className="font-semibold">Audio ya masterizado</span>
+            <span className="font-semibold">{t("analysis.alreadyMasteredTitle", "Audio ya masterizado")}</span>
           </div>
           <p className="text-[10px] opacity-80 leading-relaxed">
             {analysis.mastering_confidence !== undefined
-              ? `Confianza: ${Math.round(analysis.mastering_confidence * 100)}%. `
+              ? `${t("analysis.confidence", "Confianza")}: ${Math.round(analysis.mastering_confidence * 100)}%. `
               : ""}
-            Procesarlo de nuevo puede causar sobremasterización. Se aplicará una cadena reducida al 80% para preservar la calidad.
+            {t("analysis.alreadyMasteredDesc", "Procesarlo de nuevo puede causar sobremasterización. Se aplicará una cadena reducida al 80% para preservar la calidad.")}
           </p>
         </div>
       )}
@@ -421,7 +429,7 @@ export default function AnalysisPanel({
                 style={{ background: info.color, boxShadow: `0 0 5px ${info.color}` }}
               />
               <span className="font-medium text-[var(--text-primary)]">
-                Preset Objetivo
+                {t("analysis.targetPreset", "Preset Objetivo")}
               </span>
             </div>
             <p className="text-[var(--text-secondary)] text-[11px] mb-2">
@@ -429,17 +437,17 @@ export default function AnalysisPanel({
             </p>
             <div className="grid grid-cols-3 gap-2">
               <MetricRow
-                label="Target LUFS"
+                label={t("analysis.targetLufs", "Target LUFS")}
                 value={`${info.targetLufs} dB`}
                 accent={info.color}
               />
               <MetricRow
-                label="Ceiling"
+                label={t("analysis.ceiling", "Ceiling")}
                 value={`${info.ceiling.toFixed(1)} dB`}
                 accent={info.color}
               />
               <MetricRow
-                label="Ratio"
+                label={t("analysis.ratio", "Ratio")}
                 value={`${info.ratio.toFixed(1)}:1`}
                 accent={info.color}
               />
@@ -466,7 +474,7 @@ export default function AnalysisPanel({
       />
 
       <VUMeter
-        label="True Peak"
+        label={t("analysis.truePeak", "True Peak")}
         value={analysis.true_peak_db}
         unit="dB"
         min={-12}
@@ -478,7 +486,7 @@ export default function AnalysisPanel({
       {/* Crest factor */}
       {analysis.crest_factor_db !== undefined && (
         <VUMeter
-          label="Crest Factor"
+          label={t("report.crestFactor", "Crest Factor")}
           value={analysis.crest_factor_db}
           unit="dB"
           min={0}
@@ -491,30 +499,30 @@ export default function AnalysisPanel({
       {/* Metrics grid */}
       <div className="grid grid-cols-2 gap-x-4 border-t border-[var(--border-subtle)] pt-3">
         <MetricRow
-          label="Rango Din."
+          label={t("analysis.dynamicRangeShort", "Rango Din.")}
           value={`${formatDb(analysis.dynamic_range_db)} dB`}
         />
         <MetricRow
-          label="Tempo"
+          label={t("analysis.tempo", "Tempo")}
           value={`${Math.round(analysis.tempo_bpm)} BPM`}
           animate={analysis.tempo_bpm}
           animateSuffix=" BPM"
         />
         <MetricRow
-          label="Género"
+          label={t("analysis.genre", "Género")}
           value={
             genreIdentified
               ? analysis.detected_genre.replace("_", " ")
-              : "No identificado"
+              : t("common.notIdentified", "No identificado")
           }
           accent={genreIdentified ? "var(--accent-primary)" : undefined}
         />
         <MetricRow
-          label="Duración"
+          label={t("common.duration", "Duración")}
           value={formatDuration(analysis.duration_seconds)}
         />
         <MetricRow
-          label="Sample Rate"
+          label={t("report.sampleRate", "Sample Rate")}
           value={`${(analysis.sample_rate / 1000).toFixed(1)} kHz`}
         />
       </div>

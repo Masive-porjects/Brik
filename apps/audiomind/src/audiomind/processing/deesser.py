@@ -52,6 +52,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.signal import butter, sosfilt
+from typing import Any
 
 from audiomind.processing.multiband import (
     DEFAULT_ATTACK_MS,
@@ -136,7 +137,7 @@ def detection_gate(band_db: np.ndarray, sr: int) -> np.ndarray:
     reference = _smooth_db(band, DEESSER_REFERENCE_T_MS, sr)
     floor_ok = band > DEESSER_LEVEL_FLOOR_DB
     spike_ok = band - reference > DEESSER_SPIKE_DB
-    return (floor_ok & spike_ok).astype(np.float64)
+    return np.asarray(floor_ok & spike_ok, dtype=np.float64)
 
 
 def deesser_gain(
@@ -194,12 +195,12 @@ class Deesser:
 
     def process_with_diagnostics(
         self, audio: np.ndarray,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns the gain-reduction and
         detector trajectories (used by the Phase B verification)."""
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x

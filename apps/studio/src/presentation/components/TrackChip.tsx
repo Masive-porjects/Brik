@@ -3,17 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Music4, RefreshCw } from "lucide-react";
 import { useState } from "react";
-
-/**
- * Qué track está sonando, y cómo cambiarlo.
- *
- * Hasta ahora la única salida para subir otro track vivía en el menú móvil y en
- * el panel de análisis, que está oculto por defecto: en escritorio no había
- * forma de cambiar de canción sin recargar.
- *
- * El botón pide confirmación porque cambiar de track descarta el master y los
- * ajustes actuales, y eso no se deshace.
- */
+import { useTranslation } from "@/i18n";
 
 export interface TrackChipProps {
   /** Ruta del archivo original que devolvió el backend. */
@@ -24,29 +14,16 @@ export interface TrackChipProps {
   onChangeTrack: () => void;
 }
 
-const GENRE_LABELS: Record<string, string> = {
-  reggaeton: "reggaetón",
-  hip_hop: "hip hop",
-  electronic: "electrónica",
-  acoustic: "acústico",
-  classical: "clásica",
-  metal: "metal",
-  jazz: "jazz",
-  pop: "pop",
-  rock: "rock",
-  other: "otro",
-};
-
 export default function TrackChip({
   genre,
   disabled = false,
   onChangeTrack,
 }: TrackChipProps) {
+  const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
-  // El backend guarda el archivo como {session_id}.wav — un UUID inentendible
-  // para el usuario. El chip muestra el género detectado por el análisis.
+
   const label = genre
-    ? GENRE_LABELS[genre] ?? genre.charAt(0).toUpperCase() + genre.slice(1)
+    ? t(`trackChip.genres.${genre}`, genre.charAt(0).toUpperCase() + genre.slice(1))
     : undefined;
 
   return (
@@ -71,7 +48,7 @@ export default function TrackChip({
         className="max-w-[10rem] truncate text-xs font-medium tracking-tight"
         style={{ color: "var(--text-primary)" }}
       >
-        {label ?? "Tu track"}
+        {label ?? t("trackChip.yourTrack", "Tu track")}
       </span>
 
       <AnimatePresence mode="wait" initial={false}>
@@ -90,7 +67,7 @@ export default function TrackChip({
               className="rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors duration-200"
               style={{ background: "var(--accent-primary)", color: "var(--text-primary)" }}
             >
-              Sí, cambiar
+              {t("trackChip.confirmYes", "Sí, cambiar")}
             </button>
             <button
               type="button"
@@ -98,7 +75,7 @@ export default function TrackChip({
               className="rounded-full px-2 py-0.5 text-[11px] transition-colors duration-200"
               style={{ color: "var(--text-muted)" }}
             >
-              No
+              {t("trackChip.confirmNo", "No")}
             </button>
           </motion.span>
         ) : (
@@ -112,8 +89,8 @@ export default function TrackChip({
             exit={{ opacity: 0 }}
             whileHover={disabled ? undefined : { rotate: -35 }}
             transition={{ duration: 0.25 }}
-            aria-label="Cambiar de track"
-            title="Cambiar de track"
+            aria-label={t("trackChip.changeTrack", "Cambiar de track")}
+            title={t("trackChip.changeTrack", "Cambiar de track")}
             className="flex size-6 shrink-0 items-center justify-center rounded-full transition-colors
               duration-300 disabled:opacity-30"
             style={{ color: "var(--text-muted)" }}

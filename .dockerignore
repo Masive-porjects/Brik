@@ -1,0 +1,59 @@
+# Build context hygiene — aplica a los Dockerfiles cuyo contexto es la raiz
+# (apps/studio, simulator). apps/audiomind tiene su propio .dockerignore.
+
+.git
+.github
+.vscode
+.idea
+
+# Documentacion y tests end-to-end (no van a la imagen)
+docs
+e2e
+scripts
+
+# Node / bun
+node_modules
+**/node_modules
+.next
+**/.next
+*.tsbuildinfo
+apps/agent/dist
+
+# Python
+.venv
+**/venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Artefactos de audio / demos (gitignored, enormes)
+uploads
+outputs
+samples
+projects
+prebuilt
+**/uploads
+**/outputs
+*.wav
+*.mp3
+
+# Tests y reportes
+.tts-cache
+playwright-report
+test-results
+.playwright-mcp
+
+# Secretos — jamas dentro de la imagen
+.env
+.env.*
+
+# Docker
+.docker
+docker-compose*.yml
+Dockerfile*
+**/Dockerfile*
+**/.dockerignore
+.dockerignore

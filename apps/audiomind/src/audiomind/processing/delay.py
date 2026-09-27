@@ -35,6 +35,7 @@ delay lines and stay identical), with input shape and dtype preserved; mono
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -143,12 +144,12 @@ class Delay:
 
     def process_with_diagnostics(
         self, audio: np.ndarray,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns stage diagnostics: the wet
         RMS, the effective delay (samples) and the engaged parameters."""
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x

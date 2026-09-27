@@ -240,7 +240,7 @@ def run_check(base_url: str, track: Path, duration_s: float) -> dict:
 
 
 def main() -> int:
-    print("=== BRIKMASTER demo duration validation (240 s gate, real HTTP) ===")
+    print("=== WAVEAI demo duration validation (240 s gate, real HTTP) ===")
     print(f"Server env demo: demo_max_duration_seconds=240, max_file_size_mb=100\n")
 
     track_paths: dict[float, Path] = {}

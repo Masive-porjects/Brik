@@ -10,9 +10,27 @@ import AudioSpectrum from "@/presentation/components/AudioSpectrum";
 import { PRESET_COLORS, DEFAULT_PRESET_COLOR } from "@/core/presets";
 import { renderReference, getReferenceAudioUrl } from "@/lib/api";
 import { useCrossfade } from "@/shared/useCrossfade";
+import { useTranslation } from "@/i18n";
 
 /** Listening sources for the fair A/B (Original / Referencia / Master). */
 type SourceKind = "original" | "reference" | "mastered";
+
+import { PRESET_INFO } from "@/core/presets";
+
+const PRESET_NAMES: Record<string, string> = {
+  universal: "Pulido",
+  fuego: "Brutal",
+  claridad: "Cristalino",
+  cinta: "Vintage",
+  natural: "Crudo",
+  espacial: "Envolvente",
+  cinematico: "Épico",
+  empuje: "Muro",
+  calidez: "Cálido",
+  espacio: "Espacial",
+  club: "Club / EDM",
+  dinamico: "Dinámico",
+};
 
 interface PlayerProps {
   originalUrl: string | null;
@@ -96,11 +114,11 @@ function revealWave(
 
 const NOTE_COLORS = ["#ff5a5f", "#ffb347", "#4ecdc4", "#7b68ee", "#ff6b9d"];
 
-export function MusicNote({ color }: { color: string }) {
+export function MusicNote({ color, size = 14 }: { color: string; size?: number }) {
   return (
     <svg
-      width="14"
-      height="14"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
@@ -163,6 +181,7 @@ export default function Player({
   sessionId,
   burstSignal,
 }: PlayerProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayOrigRef = useRef<HTMLDivElement>(null);
   const overlayMastRef = useRef<HTMLDivElement>(null);
@@ -249,6 +268,31 @@ export default function Player({
     }
   }, [source]);
 
+  const wasPlayingBeforeProcessRef = useRef(false);
+  const prevMasteredUrlRef = useRef<string | null>(masteredUrl);
+
+  // Point 3: If audio is currently playing and a mix/process is triggered (disabled becomes true),
+  // pause playback immediately and flag for restart.
+  useEffect(() => {
+    if (disabled) {
+      if (isPlaying) {
+        wasPlayingBeforeProcessRef.current = true;
+        wsOrigRef.current?.pause();
+        wsMastRef.current?.pause();
+        wsRefPtr.current?.pause();
+        setIsPlaying(false);
+      }
+    }
+  }, [disabled, isPlaying]);
+
+  // Point 2: When a new masteredUrl is received, switch source to mastered automatically
+  useEffect(() => {
+    if (masteredUrl && masteredUrl !== prevMasteredUrlRef.current) {
+      prevMasteredUrlRef.current = masteredUrl;
+      setSource("mastered");
+      sourceRef.current = "mastered";
+    }
+  }, [masteredUrl]);
 
   const hasBoth = !!(originalUrl && masteredUrl);
 
@@ -371,6 +415,27 @@ export default function Player({
         }
         const tw = revealWave(overlayMastRef.current, 0.12);
         if (tw) revealTweensRef.current.push(tw);
+
+        // Point 2: Automatically switch to Master tab upon new mix/master
+        setSource("mastered");
+        sourceRef.current = "mastered";
+
+        // Point 3: Reiniciar la pista (reset time to 0)
+        mast.seekTo(0);
+        wsOrigRef.current?.seekTo(0);
+        wsRefPtr.current?.seekTo(0);
+        setCurrentTime(0);
+
+        // Point 3: If it was playing when mixing started, restart playback from beginning
+        if (wasPlayingBeforeProcessRef.current) {
+          wasPlayingBeforeProcessRef.current = false;
+          setTimeout(() => {
+            if (!isCleaningRef.current) {
+              mast.play().catch(() => {});
+              setIsPlaying(true);
+            }
+          }, 200);
+        }
       };
 
       const onMastTime = (t: number) => {
@@ -574,7 +639,7 @@ export default function Player({
   const handleToggleMastered = useCallback(() => setSource("mastered"), []);
 
   /* ── Crudo reference render (first selection triggers it) ── */
-  const handleToggleReference = useCallback(() => {
+  const _handleToggleReference = useCallback(() => {
     setSource("reference");
     if (!sessionId || !presetId || referenceUrl || renderingReference) return;
 
@@ -586,12 +651,12 @@ export default function Player({
       })
       .catch(() => {
         setSource((s) => (s === "reference" ? "original" : s));
-        setReferenceError("No se pudo generar la referencia. Prueba de nuevo.");
+        setReferenceError(t("player.referenceError", "No se pudo generar la referencia. Prueba de nuevo."));
       })
       .finally(() => {
         setRenderingReference(false);
       });
-  }, [sessionId, presetId, referenceUrl, renderingReference]);
+  }, [sessionId, presetId, referenceUrl, renderingReference, t]);
 
   /* ── Transport ───────────────────────────────────── */
   const togglePlay = useCallback(() => {
@@ -672,11 +737,15 @@ export default function Player({
     reference: 0,
   };
 
+  const activePresetName = presetId
+    ? PRESET_INFO[presetId]?.title || PRESET_NAMES[presetId] || presetId
+    : null;
+
   return (
     <div className="rounded-2xl py-2 px-3 overflow-hidden bg-transparent border-none">
       {/* A/B/C Toggle */}
       <div className="flex items-center justify-center gap-3 mb-2">
-        <div className="relative grid grid-cols-2 bg-[var(--surface-hover)] rounded-full p-0.5 w-full max-w-[220px] sm:min-w-[200px]">
+        <div className="relative grid grid-cols-2 bg-[var(--surface-hover)] rounded-full p-0.5 w-full max-w-[280px] sm:min-w-[240px]">
           <div
             className="absolute top-0.5 bottom-0.5 left-0 rounded-full shadow-[0_0_10px_var(--accent-primary)]/40"
             style={{
@@ -690,18 +759,18 @@ export default function Player({
           <button
             onClick={handleToggleOriginal}
             disabled={disabled || !originalUrl}
-            className={`relative z-10 px-2 py-1 rounded-full text-xs font-medium text-center transition-colors duration-200 ${
+            className={`relative z-10 px-2 py-1 rounded-full text-xs font-medium text-center transition-colors duration-200 flex items-center justify-center gap-1 ${
               source === "original"
-                ? "text-[var(--accent-primary)]"
+                ? "text-[var(--accent-primary)] font-semibold"
                 : "text-[var(--text-muted)]"
             } disabled:opacity-30 disabled:cursor-not-allowed`}
-            >
-            Original
+          >
+            <span>{t("player.original", "Original")}</span>
             {source === "original" && (
-              <span className="inline-flex items-center gap-1 ml-1">
+              <span className="inline-flex items-center gap-1 ml-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-success)] shadow-[0_0_5px_var(--accent-success)]" />
                 <span className="text-[9px] font-medium tracking-tight">
-                  Raw
+                  {t("player.raw", "Raw")}
                 </span>
               </span>
             )}
@@ -709,18 +778,26 @@ export default function Player({
           <button
             onClick={handleToggleMastered}
             disabled={disabled || !masteredUrl}
-            className={`relative z-10 px-2 py-1 rounded-full text-xs font-medium text-center transition-colors duration-200 ${
+            className={`relative z-10 px-2 py-1 rounded-full text-xs font-medium text-center transition-colors duration-200 flex items-center justify-center gap-1 ${
               source === "mastered"
-                ? "text-[var(--accent-primary)]"
+                ? "text-[var(--accent-primary)] font-bold"
                 : "text-[var(--text-muted)]"
             } disabled:opacity-30 disabled:cursor-not-allowed`}
           >
-            Master
+            <span>{t("player.master", "Master")}</span>
+            {activePresetName && (
+              <span className="text-[10px] font-semibold opacity-90 truncate max-w-[85px]">
+                • {activePresetName}
+              </span>
+            )}
+            {source === "mastered" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)] shadow-[0_0_5px_var(--accent-primary)] animate-pulse" />
+            )}
           </button>
         </div>
 
         {hasBoth && (
-          <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">Cambio instantáneo</span>
+          <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">{t("player.instantSwitch", "Cambio instantáneo")}</span>
         )}
       </div>
 
@@ -734,10 +811,10 @@ export default function Player({
           }`}
         >
           {renderingReference
-            ? "Generando referencia…"
+            ? t("player.generatingReference", "Generando referencia…")
             : referenceError
               ? referenceError
-              : "Mismo volumen que tu master — compará el carácter, no la fuerza."}
+              : t("player.fairReferenceHint", "Mismo volumen que tu master — compará el carácter, no la fuerza.")}
         </p>
       )}
 
@@ -906,8 +983,8 @@ export default function Player({
             text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]
             disabled:opacity-30 disabled:cursor-not-allowed
             transition-all duration-150"
-          title="Volver al inicio"
-          aria-label="Volver al inicio"
+          title={t("player.restart", "Volver al inicio")}
+          aria-label={t("player.restart", "Volver al inicio")}
         >
           <SkipBack size={14} fill="currentColor" />
         </button>
@@ -940,7 +1017,7 @@ export default function Player({
         <button
           onClick={() => setMinimized((m) => !m)}
           className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all"
-          title={minimized ? "Expandir" : "Minimizar"}
+          title={minimized ? t("player.expand", "Expandir") : t("player.collapse", "Minimizar")}
         >
           {minimized ? (
             <ChevronUp size={14} />

@@ -6,6 +6,8 @@
    "Automatic" leaves target_lufs_db undefined so the engine
    keeps deriving the target from the limiter ceiling. */
 
+import { useTranslation } from "@/i18n";
+
 interface PlatformOption {
   id: string;
   label: string;
@@ -28,11 +30,13 @@ interface PlatformSelectorProps {
 }
 
 export default function PlatformSelector({ value, onChange }: PlatformSelectorProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest">
-          Loudness Target
+          {t("delivery.loudnessTarget", "Loudness Target")}
         </span>
         <span className="text-[10px] font-mono text-[var(--text-muted)] tabular-nums">
           {value === undefined ? "auto" : `\u2212${Math.abs(value)} LUFS`}
@@ -46,6 +50,11 @@ export default function PlatformSelector({ value, onChange }: PlatformSelectorPr
               ? value === undefined
               : value === platform.targetLufs;
 
+          const label =
+            platform.id === "automatic"
+              ? t("delivery.automatic", "Automático")
+              : platform.label;
+
           return (
             <button
               key={platform.id}
@@ -54,7 +63,7 @@ export default function PlatformSelector({ value, onChange }: PlatformSelectorPr
               title={
                 platform.targetLufs === undefined
                   ? "Recommended default"
-                  : `${platform.label} \u2212${Math.abs(platform.targetLufs)} LUFS`
+                  : `${label} \u2212${Math.abs(platform.targetLufs)} LUFS`
               }
               className={`rounded-lg px-3 py-1.5 flex flex-col items-start gap-0.5
                 transition-all duration-200 border
@@ -72,7 +81,7 @@ export default function PlatformSelector({ value, onChange }: PlatformSelectorPr
               }}
             >
               <span className="text-[11px] font-medium leading-none">
-                {platform.label}
+                {label}
               </span>
               <span
                 className={`text-[9px] font-mono tabular-nums leading-none ${

@@ -8,6 +8,10 @@ feature extraction + rule pipeline:
   distortion used to imitate the urban signature).
 - A dark, bass-heavy mid-tempo groove must still classify as reggaeton.
 - A fast bright distorted signal classifies as metal.
+- A heavy-bass rap loop with BRIGHT hats (centroid ~2600 Hz) must classify
+  as hip_hop, not pop (regression: the dark-centroid guard on hip_hop used
+  to send tracked-up urban material to pop).
+- A bright, bass-less mid-tempo loop must still classify as pop.
 """
 import sys
 sys.path.insert(0, "src")
@@ -77,6 +81,73 @@ def _reggaeton_loop() -> np.ndarray:
     return y * (0.85 / max(abs(y)))
 
 
+def _rap_loop() -> np.ndarray:
+    """Heavy-bass rap/hip-hop loop (~95 BPM) with BRIGHT hats.
+
+    808-style sub (55/110 Hz) + 60 Hz kicks at 190 events/min (the beat
+    estimator lands at ~95 BPM) and preemphasized noise hats on 8ths
+    (380 events/min). The hats push the spectral centroid to ~2600 Hz:
+    the middle of the range a real rap cut with sub + bright hats lands
+    in — dark enough for hip_hop, bright enough to trip no reggaeton
+    (< 2200 Hz) guard. Regression target: the old ``centroid < 2200``
+    hip_hop guard dropped this into pop.
+    """
+    duration = 12.0
+    t = np.linspace(0, duration, int(SR * duration), endpoint=False)
+    y = np.zeros_like(t)
+    y += 0.7 * np.sin(2 * np.pi * 55 * t)
+    y += 0.154 * np.sin(2 * np.pi * 110 * t)
+    kick_interval = 60.0 / 190.0
+    for k in range(int(duration / kick_interval)):
+        start = int(k * kick_interval * SR)
+        n = min(int(0.09 * SR), len(t) - start - 1)
+        if n <= 0:
+            break
+        y[start : start + n] += 0.9 * np.sin(2 * np.pi * 60 * t[start : start + n])
+    rng = np.random.default_rng(7)
+    noise = rng.standard_normal(len(t))
+    noise_hp = librosa.effects.preemphasis(noise, coef=0.97)
+    hat_interval = 60.0 / 380.0
+    for k in range(int(duration / hat_interval)):
+        start = int(k * hat_interval * SR)
+        n = min(int(0.03 * SR), len(t) - start - 1)
+        if n <= 0:
+            break
+        env = np.hanning(n)
+        y[start : start + n] += 0.25 * noise_hp[start : start + n] * env
+    return y * (0.85 / max(abs(y)))
+
+
+def _bright_pop_loop() -> np.ndarray:
+    """Bright synth-pad pop loop (~110 BPM) with NO dominant bass.
+
+    Bright sine partials (440–2217 Hz) + preemphasized noise hats and an
+    HF shimmer layer: high centroid (> 2500 Hz), negligible bass energy
+    (< 0.38 bass ratio) and a steady level (small dynamic range, so rock/
+    metal/jazz cannot steal it). Must keep classifying as pop.
+    """
+    duration = 8.0
+    t = np.linspace(0, duration, int(SR * duration), endpoint=False)
+    pad = sum(a * np.sin(2 * np.pi * f * t + 0.7 * i) for i, (f, a) in enumerate([
+        (440, 0.9), (554.37, 0.7), (659.25, 0.7), (880, 0.5),
+        (1108.73, 0.35), (1318.51, 0.3), (1760, 0.22), (2217.46, 0.15),
+    ]))
+    pad *= 1 + 0.15 * np.sin(2 * np.pi * 2.1 * t)
+    rng = np.random.default_rng(11)
+    noise = rng.standard_normal(len(t))
+    noise_hp = librosa.effects.preemphasis(noise, coef=0.97)
+    hat_interval = 60.0 / 220.0
+    for k in range(int(duration / hat_interval)):
+        start = int(k * hat_interval * SR)
+        n = min(int(0.025 * SR), len(t) - start - 1)
+        if n <= 0:
+            break
+        env = np.hanning(n)
+        pad[start : start + n] += 0.5 * noise_hp[start : start + n] * env
+    pad += 0.18 * noise_hp * (1 + 0.2 * np.sin(2 * np.pi * 2.7 * t))
+    return pad * (0.85 / max(abs(pad)))
+
+
 def test_bright_distorted_solo_not_reggaeton():
     # Bright centroid (~4500 Hz) must trip the urban darkness guard even
     # though tempo (~103 BPM) and bass ratio (>0.45) match the old rule.
@@ -104,3 +175,22 @@ def test_other_fallback_intact():
     genre, confidence = _classify(quiet_tone)
     assert genre == "other"
     assert confidence == 0.3
+
+
+def test_heavy_bass_bright_centroid_classifies_hip_hop():
+    """Regression: heavy sub-bass + bright hats (~2600 Hz centroid) at
+    ~95 BPM must classify as hip_hop, NOT pop. Before the fix, the
+    ``spectral_centroid < 2200`` guard on hip_hop dropped this track into
+    pop (score 0.6)."""
+    genre, confidence = _classify(_rap_loop())
+    assert genre == "hip_hop"
+    assert confidence >= 0.75
+    assert genre != "pop"
+
+
+def test_bright_bassless_midtempo_stays_pop():
+    """A bright mid-tempo track with NO dominant bass must keep classifying
+    as pop — the new pop bass guard (bass_ratio < 0.38) must not block it."""
+    genre, confidence = _classify(_bright_pop_loop())
+    assert genre == "pop"
+    assert confidence >= 0.6

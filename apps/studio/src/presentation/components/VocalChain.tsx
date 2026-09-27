@@ -5,6 +5,7 @@ import {
   Play, Pause, Loader2, CheckCircle2, Mic2,
 } from "lucide-react";
 import { API_BASE } from "@/adapters/api/config";
+import { useTranslation } from "@/i18n";
 
 /* ── Types ───────────────────────────────────────────── */
 
@@ -160,6 +161,7 @@ export default function VocalChain({
   processed,
   processing,
 }: VocalChainProps) {
+  const { t } = useTranslation();
   const [params, setParams] = useState<VocalParams>(DEFAULT_VOCAL_PARAMS);
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -202,7 +204,7 @@ export default function VocalChain({
             VoiceChain <span className="serif-accent">Pro</span>
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Cadena de efectos vocales profesional
+            {t("vocal.subtitle", "Cadena de efectos vocales profesional")}
           </p>
         </div>
         <button
@@ -220,11 +222,11 @@ export default function VocalChain({
           }}
         >
           {processing ? (
-            <><Loader2 size={16} className="animate-spin" /> Procesando...</>
+            <><Loader2 size={16} className="animate-spin" /> {t("common.processing", "Procesando...")}</>
           ) : processed ? (
-            <><CheckCircle2 size={16} /> Procesado</>
+            <><CheckCircle2 size={16} /> {t("common.success", "Procesado")}</>
           ) : (
-            <><Mic2 size={16} /> Procesar Voz</>
+            <><Mic2 size={16} /> {t("vocal.processVoice", "Procesar Voz")}</>
           )}
         </button>
       </div>
@@ -243,7 +245,7 @@ export default function VocalChain({
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-[var(--accent-primary)] shadow-lg shadow-[rgba(98,126,132,0.3)]" />
             <span className="text-[10px] font-semibold text-[var(--text-muted)] tracking-[0.2em] uppercase">
-              VoiceChain Pro — Channel Strip
+              {t("vocal.channelStrip", "VoiceChain Pro — Channel Strip")}
             </span>
             <div className="w-2 h-2 rounded-full bg-[var(--accent-secondary)] shadow-lg shadow-[rgba(130,156,161,0.3)]" />
           </div>
@@ -254,7 +256,7 @@ export default function VocalChain({
           {/* De-Esser */}
           <div className="flex flex-col items-center gap-3">
             <VocalKnob
-              label="De-Esser"
+              label={t("vocal.deesser", "De-Esser")}
               value={params.deesser_amount}
               min={0}
               max={1}
@@ -279,14 +281,14 @@ export default function VocalChain({
               <span className="text-[9px] text-[var(--text-muted)]">100%</span>
             </div>
             <p className="text-[10px] text-[var(--text-muted)] text-center leading-relaxed max-w-[160px]">
-              Reduce sibilancias en frecuencias agudas (5-8 kHz)
+              {t("vocal.deesserDesc", "Reduce sibilancias en frecuencias agudas (5-8 kHz)")}
             </p>
           </div>
 
           {/* Auto-Tune Pitch */}
           <div className="flex flex-col items-center gap-3">
             <VocalKnob
-              label="Auto-Tune Pitch"
+              label={t("vocal.pitch", "Auto-Tune Pitch")}
               value={params.pitch_shift_semitones}
               min={-3}
               max={3}
@@ -315,14 +317,14 @@ export default function VocalChain({
               <span className="text-[9px] text-[var(--text-muted)]">+3</span>
             </div>
             <p className="text-[10px] text-[var(--text-muted)] text-center leading-relaxed max-w-[160px]">
-              Corrección tonal con preservación de formantes. {params.pitch_shift_semitones > 0 ? "↑ Agudo" : params.pitch_shift_semitones < 0 ? "↓ Grave" : "Neutral"}
+              {t("vocal.pitchDesc", "Corrección tonal con preservación de formantes.")} {params.pitch_shift_semitones > 0 ? t("vocal.pitchHigh", "↑ Agudo") : params.pitch_shift_semitones < 0 ? t("vocal.pitchLow", "↓ Grave") : t("vocal.pitchNeutral", "Neutral")}
             </p>
           </div>
 
           {/* Cohesion */}
           <div className="flex flex-col items-center gap-3">
             <VocalKnob
-              label="Cohesión"
+              label={t("vocal.cohesion", "Cohesión")}
               value={params.cohesion_amount}
               min={0}
               max={1}
@@ -347,18 +349,18 @@ export default function VocalChain({
               <span className="text-[9px] text-[var(--text-muted)]">100%</span>
             </div>
             <p className="text-[10px] text-[var(--text-muted)] text-center leading-relaxed max-w-[160px]">
-              Compresor óptico analógico. Controla picos dinámicos y adelanta la presencia vocal.
+              {t("vocal.cohesionDesc", "Compresor óptico analógico. Controla picos dinámicos y adelanta la presencia vocal.")}
             </p>
           </div>
         </div>
 
         {/* Chain order indicator */}
         <div className="flex items-center justify-center gap-3 mt-6 pt-4 border-t border-[var(--border-subtle)]">
-          <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">De-Esser</span>
+          <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">{t("vocal.deesser", "De-Esser")}</span>
           <div className="w-4 h-px bg-[var(--border-hover)]" />
-          <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Pitch</span>
+          <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">{t("vocal.pitch", "Pitch")}</span>
           <div className="w-4 h-px bg-[var(--border-hover)]" />
-          <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Compresor</span>
+          <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">{t("vocal.compressor", "Compresor")}</span>
         </div>
       </div>
 
@@ -372,9 +374,9 @@ export default function VocalChain({
             {playing ? <Pause size={18} /> : <Play size={18} />}
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-[var(--text-primary)] font-medium">Voz Procesada</p>
+            <p className="text-sm text-[var(--text-primary)] font-medium">{t("vocal.processedVoice", "Voz Procesada")}</p>
             <p className="text-xs text-[var(--text-muted)]">
-              {playing ? "Reproduciendo..." : "Presioná Play para escuchar el resultado"}
+              {playing ? t("vocal.playingPrompt", "Reproduciendo...") : t("vocal.playPrompt", "Presioná Play para escuchar el resultado")}
             </p>
           </div>
           <a
@@ -382,7 +384,7 @@ export default function VocalChain({
             download
             className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)] transition-all"
           >
-            Descargar WAV
+            {t("splitter.downloadWav", "Descargar WAV")}
           </a>
         </div>
       )}
@@ -390,13 +392,13 @@ export default function VocalChain({
       {/* Status */}
       {!processed && !processing && (
         <p className="text-xs text-[var(--text-muted)] text-center">
-          Ajusta los 3 controles y presiona &quot;Procesar Voz&quot; para aplicar la cadena vocal.
+          {t("vocal.adjustPrompt", "Ajusta los 3 controles y presiona \"Procesar Voz\" para aplicar la cadena vocal.")}
         </p>
       )}
       {processing && (
         <div className="flex items-center justify-center gap-2">
           <Loader2 size={14} className="animate-spin text-[var(--accent-primary)]" />
-          <span className="text-xs text-[var(--text-secondary)]">Aplicando cadena vocal...</span>
+          <span className="text-xs text-[var(--text-secondary)]">{t("vocal.applyingChain", "Aplicando cadena vocal...")}</span>
         </div>
       )}
     </div>

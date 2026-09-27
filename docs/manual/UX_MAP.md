@@ -1,4 +1,4 @@
-# Mapa de UX — Brikmaster Studio
+# Mapa de UX — WaveAI Studio
 
 > Estado del árbol: **septiembre 2026**. Documenta el flujo real de la UI, no la spec 04 (que quedó desactualizada en navegación).
 
@@ -6,17 +6,16 @@
 
 | Ruta | Pantalla | Guarda |
 |---|---|---|
-| `/` | Studio de mastering (upload → mastering) | `AuthGuard` (off por default) + `LicenseGuard` |
-| `/login` | Login | `AuthGuard` (solo si `NEXT_PUBLIC_REQUIRE_AUTH=1`) |
+| `/` | Studio de mastering (upload → mastering) | `WelcomeGate` |
 | `/voz` | Flujo de intención por voz (2 pasos: subir → conversar) | — |
 | `/lab` | Laboratorio de audio aislado (`InteractiveSequencer`) | — |
 
 ```mermaid
 flowchart LR
-    subgraph App["App Shell (/, login, /voz, /lab)"]
-        AG[AuthGuard<br/>off por default] --> LG[LicenseGuard<br/>loading → locked | unlocked]
+    subgraph App["App Shell (/, /voz, /lab)"]
+        WG[WelcomeGate<br/>loading → locked | unlocked]
     end
-    LG --> ROOT
+    WG --> ROOT
 ```
 
 ## 2. Flujo principal (`/`)
@@ -122,11 +121,10 @@ flowchart LR
     LV --> FX[FxSlotPanel<br/>filtro · drive · delay · reverb]
     LV --> Meters[LiveMeters]
     LV --> Rec[LiveRecorderBar]
-    Bridge[Bridge WS :8765] --> LV
 ```
 
 - Requiere **master previo** (empty state si no hay).
-- `bridgeConnected` / `bridgeLatency` vienen del bridge, no de la vista.
+- **`bridgeConnected` / `bridgeLatency` son vestigios del bridge WS removido** — el Live Engine es standalone (knobs → `LiveParams` directos, sin websocket ni MIDI).
 - Patrón React oficial de descarte de buffer: ajuste durante render (`decodedUrl !== masterAudioUrl`).
 
 ## 6. Chat del Asistente IA
@@ -152,12 +150,11 @@ sequenceDiagram
 
 - **`/voz`**: flujo de intención en 2 pasos (subir track → conversar). `speak()` en el drop, el navegador suele permitirlo por gesto del usuario; si bloquea, falla en silencio.
 - **`/lab`**: `InteractiveSequencer` aislado del flujo de mastering.
-- **`/login`**: `LoginScreen` — auth apagado por default (`NEXT_PUBLIC_REQUIRE_AUTH !== "1"`), flag de localStorage sin verificación de servidor.
+- **Login**: removido del frontend (era un flag de localStorage sin verificación de servidor). La app entra directo.
 
 ## 8. Puertas (guards)
 
-1. **`AuthGuard`**: off por default. Envuelve la raíz. Si `REQUIRE_AUTH=1`: redirige a `/login` si no hay flag `waveai-auth`.
-2. **`LicenseGuard`**: `loading → locked | unlocked`. `checkLicense()` en mount contra `/license/status`. Dev sin key → unlocked gratis. Key en `sessionStorage` + header `X-License-Key`. States gestionados con GSAP fade (locked → unlocked).
+1. **`WelcomeGate`**: `loading → locked | unlocked`. `checkLicense()` en mount contra `/license/status`. Dev sin key → unlocked gratis. Key en `sessionStorage` + header `X-License-Key`. States gestionados con GSAP fade (locked → unlocked).
 
 ## 9. Descubrimientos transversales
 

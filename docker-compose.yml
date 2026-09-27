@@ -1,0 +1,67 @@
+# WaveAI — stack local dockerizado.
+#
+#   docker compose up --build
+#
+#   studio     → http://localhost:3000
+#   audiomind  → http://localhost:8000/health
+#
+# El Live Engine es standalone (knobs del navegador, Web Audio — sin
+# WebSocket ni MIDI). El bridge (apps/bridge) y el simulator fueron
+# removidos del producto; el servicio `simulator` que quedaba en este
+# compose apuntaba a un módulo Python inexistente y se eliminó.
+
+services:
+  audiomind:
+    build: ./apps/audiomind
+    environment:
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Sesiones/uploads sobreviven a `docker compose restart`. Las sesiones
+      # en memoria NO: al reiniciar el contenedor el frontend avisa
+      # "Tu sesión anterior expiró" (comportamiento ya documentado).
+      - audiomind-uploads:/app/uploads
+      - audiomind-outputs:/app/outputs
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  studio:
+    build:
+      context: .
+      dockerfile: apps/studio/Dockerfile
+      args:
+        # El browser corre en el host: apunta al puerto publicado de audiomind.
+        # NEXT_PUBLIC_* se inlinean en build — cambiarla exige rebuild.
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api
+    environment:
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      audiomind:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  audiomind-uploads:
+  audiomind-outputs:

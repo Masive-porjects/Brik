@@ -1,4 +1,4 @@
-# Manual de usuario — Brikmaster Studio
+# Manual de usuario — WaveAI Studio
 
 > Versión 0.1 — Mastering profesional asistido por IA.
 
@@ -21,7 +21,7 @@ Dentro de mastering hay **2 modos de trabajo**: toggle **"Manual" / "Asistente I
 - La clave se guarda en la sesión del navegador y se envía como header `X-License-Key` en cada proceso/descarga.
 - Fallas: **"No se pudo conectar con el servidor de licencias."** (servidor caído) o **"Error al activar la licencia"** (clave inválida).
 - Desarrollo local sin `AUDIOMIND_LICENSE_KEY` configurada → desbloqueado automáticamente.
-- Login opcional (`NEXT_PUBLIC_REQUIRE_AUTH=1`): pestañas **Iniciar sesión / Registrarse**, plan **Básico / Premium** (por ahora ambos acceden igual).
+- Sin login: la app entra directo (el flujo de autenticación fue removido del frontend).
 
 ---
 
@@ -32,7 +32,7 @@ Dentro de mastering hay **2 modos de trabajo**: toggle **"Manual" / "Asistente I
 - Errores previos a subir:
   - "Formato no soportado" — *"Solo aceptamos archivos WAV o MP3. ¡Mantengamos la compatibilidad!"*
   - "Archivo demasiado grande" — *"Por favor, sube un archivo que pese menos de 50MB. ¡Mantengamos el estudio ágil!"*
-- Mientras sube: overlay **"Subiendo tu track a Brikmaster..."** con % real → al 100%: **"Cargado"** con check.
+- Mientras sube: overlay **"Subiendo tu track a WaveAI..."** con % real → al 100%: **"Cargado"** con check.
 
 ---
 
@@ -125,7 +125,7 @@ Cadena real: análisis → gain staging a −6 dBFS → HPF 30 Hz → match EQ p
 
 **Player A/B/C**: **Original** (tag "Raw"), **Master** y **Referencia** (render neutral a igual loudness — *"Mismo volumen que tu master — compara el carácter, no la fuerza."*). Cambio instantáneo de 10 ms.
 
-**Descargas**: **WAV** y **MP3** → `brikmaster_{session_id}.wav/.mp3`. **"Compartir"** → tarjeta 1200×630 con stats y "masterizado con Brikmaster" (Web Share o PNG).
+**Descargas**: **WAV** y **MP3** → `waveai_{session_id}.wav/.mp3`. **"Compartir"** → tarjeta 1200×630 con stats y "masterizado con WaveAI" (Web Share o PNG).
 
 ---
 
@@ -143,4 +143,4 @@ Cadena real: análisis → gain staging a −6 dBFS → HPF 30 Hz → match EQ p
 
 ## Live Engine (pestaña del dock)
 
-Requisito: haber masterizado un track (si no: *"Primero necesitas masterizar un track para activar el motor en vivo."*). Bridge MIDI → WebSocket `:8765` → FX en vivo (filtro, drive, delay, echo, reverb). Si el socket se cae > 2 s, el engine **vuelve solo a neutral** para no sonar roto.
+Requisito: haber masterizado un track (si no: *"Primero necesitas masterizar un track para activar el motor en vivo."*). El Live Engine es **standalone** (Web Audio en el navegador): los knobs de la pestaña "Live" generan `LiveParams` directamente → FX en vivo (filtro, drive, delay, echo, reverb). Sin WebSocket ni MIDI — los knobs devueltos a sus defaults = master idéntico al original (neutral = bypass).

@@ -16,6 +16,7 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -75,7 +76,7 @@ class SaveBeatParams(BaseModel):
 
 
 @router.post("/session/{session_id}/beat/generate")
-async def generate_beat(session_id: str, params: BeatGenParams):
+async def generate_beat(session_id: str, params: BeatGenParams) -> BeatData:
     """Generate a beat using the SongStarter engine.
 
     Args:
@@ -133,7 +134,7 @@ async def get_beat_audio(
     session_id: str,
     beat_id: str,
     stem: str | None = Query(None),
-):
+) -> FileResponse:
     """Serve beat audio WAV from the outputs directory.
 
     Without ``stem``: returns the full mix.
@@ -169,7 +170,7 @@ async def get_beat_audio(
 
 
 @router.post("/beat/save")
-async def save_beat(params: SaveBeatParams):
+async def save_beat(params: SaveBeatParams) -> dict[str, str]:
     """Save a generated beat to the projects directory.
 
     Copies the WAV files from ``outputs/{session_id}/{beat_id}/`` to
@@ -221,7 +222,7 @@ async def save_beat(params: SaveBeatParams):
 
 
 @router.get("/beats")
-async def list_beats():
+async def list_beats() -> list[dict[str, Any]]:
     """List all saved beats.
 
     Scans the ``projects/`` directory for ``beat.json`` files and returns
@@ -230,7 +231,7 @@ async def list_beats():
     if not settings.projects_dir.exists():
         return []
 
-    beats: list[dict] = []
+    beats: list[dict[str, Any]] = []
     for beat_dir in sorted(settings.projects_dir.iterdir(), reverse=True):
         if not beat_dir.is_dir():
             continue
@@ -247,7 +248,7 @@ async def list_beats():
 
 
 @router.get("/beat/{beat_id}")
-async def get_beat(beat_id: str):
+async def get_beat(beat_id: str) -> dict[str, Any]:
     """Load a saved beat's metadata from ``beat.json``."""
     beat_json = settings.projects_dir / beat_id / "beat.json"
     if not beat_json.exists():
@@ -257,7 +258,8 @@ async def get_beat(beat_id: str):
         )
 
     try:
-        return json.loads(beat_json.read_text(encoding="utf-8"))
+        data = json.loads(beat_json.read_text(encoding="utf-8"))
+        return dict(data)
     except (json.JSONDecodeError, OSError) as e:
         raise HTTPException(
             status_code=500,
@@ -269,7 +271,7 @@ async def get_beat(beat_id: str):
 async def get_saved_beat_audio(
     beat_id: str,
     stem: str | None = Query(None),
-):
+) -> FileResponse:
     """Serve a saved beat's audio from the projects directory.
 
     Without ``stem``: returns the full mix.
@@ -305,7 +307,7 @@ async def get_saved_beat_audio(
 
 
 @router.delete("/beat/{beat_id}")
-async def delete_beat(beat_id: str):
+async def delete_beat(beat_id: str) -> dict[str, str]:
     """Delete a saved beat and its directory from ``projects/``."""
     beat_dir = settings.projects_dir / beat_id
     if not beat_dir.exists():

@@ -1,11 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { motion, useReducedMotion } from "framer-motion";
 import DockItem from "./DockItem";
 import { LufsTile, MotorTile, ProgressTile } from "./DockTelemetryTile";
 import { DOCK_MODULES, type DockModuleDef, type MasteringTab } from "./types";
+import { useTranslation } from "@/i18n/useTranslation";
+import { useFeatures } from "@/shared/hooks/useFeatures";
+
+/* ── Onboarding micro ───────────────────────────────────
+   The first time the dock mounts in a session, every label
+   reveals for ~2.2s so a new user learns what each module does
+   without a tutorial. sessionStorage = once per session, cheap. */
+const ONBOARD_KEY = "brikmaster-dock-labels-v1";
+const ONBOARD_MS = 2200;
 
 interface ModuleDockProps {
   activeTab: MasteringTab | null;
@@ -55,6 +64,36 @@ export default function ModuleDock({
   const frameRef = useRef(0);
 
   const reduceMotion = useReducedMotion();
+
+  /* Onboarding reveal — once per session (sessionStorage). Skips when
+     reduced motion is preferred: the labels never animate. The state
+     write happens in async timeouts (not sync in the effect body). */
+  const [revealLabels, setRevealLabels] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (reduceMotion || typeof window === "undefined") return;
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem(ONBOARD_KEY) === "1";
+    } catch {
+      // Private mode — replay the micro-tour each session.
+    }
+    if (seen) return;
+
+    const showTimer = setTimeout(() => setRevealLabels(true), 80);
+    const hideTimer = setTimeout(() => {
+      setRevealLabels(false);
+      try {
+        sessionStorage.setItem(ONBOARD_KEY, "1");
+      } catch {
+        // Private mode — fine, this session already saw it.
+      }
+    }, 80 + ONBOARD_MS);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [reduceMotion]);
 
   /* Fisheye only for fine pointers without reduced-motion preference.
      Lazy initializer keeps SSR markup identical (listeners attach in the
@@ -149,20 +188,34 @@ export default function ModuleDock({
     };
   }, [fisheyeEnabled, reduceMotion]);
 
+  const { t } = useTranslation();
+  const { filterDockModules } = useFeatures();
+
+  const enabledModules = useMemo(
+    () => filterDockModules(DOCK_MODULES),
+    [filterDockModules],
+  );
+
+  const splitIndex = Math.min(3, Math.ceil(enabledModules.length / 2));
+  const leftModules = enabledModules.slice(0, splitIndex);
+  const rightModules = enabledModules.slice(splitIndex);
+
   const renderItem = useCallback(
     (mod: DockModuleDef, index: number) => (
       <DockItem
         key={mod.key}
         icon={mod.icon}
-        label={mod.label}
+        label={t(`nav.${mod.key}`, mod.label)}
+        testId={`dock-tab-${mod.key}`}
         active={activeTab === mod.key}
+        revealLabels={revealLabels}
         onSelect={() => onSelect(mod.key)}
         buttonRef={(el) => {
           itemRefs.current[index] = el;
         }}
       />
     ),
-    [activeTab, onSelect],
+    [activeTab, revealLabels, onSelect, t],
   );
 
   return (
@@ -182,7 +235,7 @@ export default function ModuleDock({
         }}
       >
         <div className="flex items-end gap-2">
-          {DOCK_MODULES.slice(0, 3).map((mod, i) => renderItem(mod, i))}
+          {leftModules.map((mod, i) => renderItem(mod, i))}
         </div>
         <div className="mx-1 flex items-center gap-1.5">
           <ProgressTile progress={processingProgress} />
@@ -190,7 +243,7 @@ export default function ModuleDock({
           <MotorTile />
         </div>
         <div className="flex items-end gap-2">
-          {DOCK_MODULES.slice(3).map((mod, i) => renderItem(mod, i + 3))}
+          {rightModules.map((mod, i) => renderItem(mod, i + leftModules.length))}
         </div>
       </motion.div>
     </nav>

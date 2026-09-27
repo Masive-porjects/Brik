@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WaveAI — Masterización Profesional</title>
+  <link rel="icon" type="image/jpeg" href="waveai-logo.jpg" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    :root {
+      --ink: #d8d4ce;
+      --ink2: #a8a29a;
+      --ink3: #6a645c;
+      --paper: #0a0a09;
+      --paper2: #111110;
+      --paper3: #181816;
+      --paper4: #1f1f1c;
+      --accent: #c4b88c;
+      --accent2: #9a8d64;
+      --red: #b84a44;
+      --green: #5e945e;
+      --blue: #5e82a8;
+      --line: rgba(196,184,140,.1);
+      --line2: rgba(196,184,140,.05);
+      --sb-bg: rgba(10,10,9,.92);
+      --sb-border: rgba(196,184,140,.1);
+      --note-col1: rgba(196,184,140,.18);
+      --note-col2: rgba(196,184,140,.09);
+      --note-col3: rgba(196,184,140,.04);
+      --note-col4: rgba(154,141,100,.12);
+    }
+    body.light {
+      --ink: #1a1815;
+      --ink2: #4a4540;
+      --ink3: #8a847c;
+      --paper: #f5f3ef;
+      --paper2: #eae7e1;
+      --paper3: #e0dcd4;
+      --paper4: #d6d1c8;
+      --accent: #8a7a4c;
+      --accent2: #6e6238;
+      --red: #a83e38;
+      --green: #4a7a4a;
+      --blue: #4a6e92;
+      --line: rgba(26,24,21,.1);
+      --line2: rgba(26,24,21,.05);
+      --sb-bg: rgba(245,243,239,.92);
+      --sb-border: rgba(26,24,21,.1);
+      --note-col1: rgba(138,122,76,.14);
+      --note-col2: rgba(138,122,76,.08);
+      --note-col3: rgba(138,122,76,.04);
+      --note-col4: rgba(110,98,56,.10);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.65;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      transition: background .35s ease, color .35s ease;
+    }
+    body *, body *::before, body *::after {
+      transition: background .35s ease, border-color .35s ease, color .35s ease, box-shadow .35s ease;
+    }
+    /* don't transition canvas */
+    #fx { transition: none !important; }
+
+    /* ── CANVAS ── */
+    #fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: 64px; z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: space-between;
+      padding: 16px 0;
+      background: var(--sb-bg);
+      backdrop-filter: blur(16px);
+    }
+    .sidebar::after {
+      content: '';
+      position: absolute; right: 0; top: 0; bottom: 0;
+      width: 1px; background: var(--sb-border);
+    }
+
+    @media(max-width:768px){
+      .sidebar {
+        position: fixed; left: 0; right: 0; top: auto; bottom: 0;
+        width: 100%; height: 56px;
+        flex-direction: row; padding: 0 8px;
+      }
+      .sidebar::after { display: none; }
+      .sidebar::before {
+        content: '';
+        position: absolute; left: 0; right: 0; top: 0;
+        height: 1px; background: var(--line);
+      }
+    }
+
+    /* Brand logo */
+    .brand-logo { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 7px; object-fit: cover; }
+    @media(max-width:768px){ .brand-logo { width: 24px; height: 24px; } }
+
+    /* Nav links */
+    .nav-col {
+      display: flex; flex-direction: column;
+      gap: 4px; align-items: center;
+    }
+    @media(max-width:768px){ .nav-col { flex-direction: row; gap: 2px; } }
+
+    .nav-link {
+      position: relative;
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink3); text-decoration: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 600;
+      border-radius: 8px;
+      transition: color .2s, background .2s;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: var(--accent);
+      background: var(--line2);
+    }
+
+    /* Theme toggle */
+    .theme-toggle {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink3);
+      background: none; border: 1px solid transparent;
+      border-radius: 8px; cursor: pointer;
+      transition: color .2s, background .2s, border-color .2s;
+      flex: 0 0 auto;
+    }
+    .theme-toggle:hover {
+      color: var(--accent);
+      background: var(--line2);
+      border-color: var(--line);
+    }
+    body.light .theme-toggle:hover { background: var(--line2); }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    .theme-toggle .ico-sun { display: none; }
+    body.light .theme-toggle .ico-moon { display: none; }
+    body.light .theme-toggle .ico-sun { display: block; }
+
+    /* Tooltip on hover */
+    .nav-link .tip {
+      position: absolute; left: calc(100% + 12px); top: 50%;
+      transform: translateY(-50%);
+      white-space: nowrap;
+      padding: 5px 10px; border-radius: 6px;
+      background: var(--paper3); border: 1px solid var(--line);
+      color: var(--ink2); font-size: 11px; letter-spacing: .04em;
+      pointer-events: none;
+      opacity: 0; transition: opacity .15s;
+    }
+    .nav-link:hover .tip { opacity: 1; }
+    @media(max-width:768px){ .nav-link .tip { display: none; } }
+
+    /* Brand text on right edge */
+    .brand-edge {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 600;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      color: var(--ink3);
+      opacity: .45;
+      user-select: none;
+      padding: 8px 0;
+    }
+    @media(max-width:768px){ .brand-edge { display: none; } }
+
+    /* ── MAIN ── */
+    .main {
+      margin-left: 64px;
+      position: relative; z-index: 2;
+    }
+    @media(max-width:768px){ .main { margin-left: 0; padding-bottom: 56px; } }
+
+    /* ── DECK (modo presentación) ── */
+    .slide:not(.active) { display: none !important; }
+    .hero.slide { min-height: 100vh; }
+    .pull.slide { display: flex; flex-direction: column; justify-content: center; min-height: 100vh; }
+    section.slide > .sec-pad {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .slide .foot {
+      display: block; border-top: none;
+      padding: 24px 0 0; margin-top: auto;
+    }
+
+    .deck-controls {
+      position: fixed; right: 20px; bottom: 20px; z-index: 100;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .deck-btn {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink3); font-size: 15px;
+      background: var(--sb-bg);
+      border: 1px solid var(--line); border-radius: 8px;
+      cursor: pointer; backdrop-filter: blur(16px);
+      transition: color .2s, border-color .2s;
+    }
+    .deck-btn:hover { color: var(--accent); border-color: var(--accent2); }
+    .deck-btn:disabled { opacity: .35; cursor: default; }
+    .deck-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: .1em; color: var(--ink3);
+      min-width: 42px; text-align: center;
+    }
+    @media(max-width:768px){ .deck-controls { right: 12px; bottom: 64px; } }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: grid; grid-template-columns: 1.2fr .8fr;
+      border-bottom: 1px solid var(--line);
+    }
+    @media(max-width:860px){ .hero { grid-template-columns: 1fr; min-height: auto; } }
+
+    .hero-left {
+      padding: 72px 48px 56px 40px;
+      display: flex; flex-direction: column; justify-content: center;
+      border-right: 1px solid var(--line2);
+    }
+    @media(max-width:860px){
+      .hero-left { padding: 56px 24px 40px; border-right: none; border-bottom: 1px solid var(--line); }
+    }
+
+    .hero-right {
+      padding: 72px 40px 56px 48px;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    @media(max-width:860px){ .hero-right { padding: 36px 24px 48px; } }
+
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: .22em;
+      text-transform: uppercase; color: var(--accent2);
+      margin-bottom: 28px;
+    }
+
+    .hero-title {
+      font-size: clamp(40px, 5.5vw, 68px);
+      line-height: .95; letter-spacing: -.04em;
+      font-weight: 700; margin-bottom: 24px;
+    }
+    .hero-title em {
+      font-style: normal; color: var(--accent);
+      text-decoration: underline;
+      text-decoration-color: var(--line);
+      text-underline-offset: 8px;
+      text-decoration-thickness: 2px;
+    }
+
+    .hero-body {
+      font-size: 15px; color: var(--ink2);
+      max-width: 44ch; line-height: 1.75;
+    }
+
+    .hero-meta {
+      margin-top: 40px;
+      display: flex; gap: 32px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--ink3);
+      letter-spacing: .08em;
+    }
+    .hero-meta .val { color: var(--accent); font-weight: 600; }
+
+    /* Stats right column */
+    .stat-block {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--line2);
+    }
+    .stat-block:last-child { border-bottom: none; }
+    .stat-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: .2em;
+      text-transform: uppercase; color: var(--ink3);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 38px; font-weight: 700;
+      letter-spacing: -.03em; line-height: 1;
+    }
+    .stat-value .unit { font-size: 16px; color: var(--ink3); font-weight: 400; }
+    .stat-value.g { color: var(--green); }
+    .stat-value.b { color: var(--blue); }
+    .stat-value.a { color: var(--accent); }
+    .stat-note { margin-top: 6px; font-size: 12px; color: var(--ink3); }
+
+    /* ── SECTIONS ── */
+    section { border-bottom: 1px solid var(--line); }
+    .sec-pad { padding: 64px 48px; }
+    @media(max-width:768px){ .sec-pad { padding: 48px 24px; } }
+
+    .sec-head {
+      display: flex; align-items: baseline;
+      gap: 16px; margin-bottom: 40px; flex-wrap: wrap;
+    }
+    .sec-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--accent2);
+      letter-spacing: .1em; flex: 0 0 auto;
+    }
+    .sec-title { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+    .sec-line { flex: 1; min-width: 32px; height: 1px; background: var(--line); align-self: center; }
+    .sec-hint { font-size: 11px; color: var(--ink3); font-family: 'JetBrains Mono', monospace; }
+
+    /* ── PULL QUOTE ── */
+    .pull {
+      padding: 56px 48px;
+      border-bottom: 1px solid var(--line);
+    }
+    @media(max-width:768px){ .pull { padding: 40px 24px; } }
+    .pull blockquote {
+      font-size: clamp(22px, 3.2vw, 38px);
+      line-height: 1.2; letter-spacing: -.02em;
+      font-weight: 700; max-width: 18ch;
+    }
+    .pull blockquote em { font-style: normal; color: var(--accent); }
+
+    /* ── GRIDS ── */
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line2); }
+    .g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--line2); }
+    @media(max-width:860px){ .g2, .g3 { grid-template-columns: 1fr; } }
+
+    .cell { background: var(--paper); padding: 32px; }
+    .cell2 { background: var(--paper2); padding: 32px; }
+    .cell-accent {
+      background: var(--paper3); padding: 32px;
+      border-left: 3px solid var(--accent2);
+    }
+
+    .cell-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: .2em;
+      text-transform: uppercase; color: var(--ink3);
+      margin-bottom: 14px;
+    }
+    .cell h3 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 8px; }
+    .cell p, .cell2 p, .cell-accent p { font-size: 14px; color: var(--ink2); line-height: 1.7; }
+
+    /* ── LIST ── */
+    .dlist { list-style: none; }
+    .dlist li {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line2);
+      font-size: 14px; color: var(--ink2); line-height: 1.6;
+    }
+    .dlist li:last-child { border-bottom: none; }
+    .dlist .m { flex: 0 0 auto; width: 18px; font-size: 12px; font-weight: 700; margin-top: 2px; }
+    .dlist .m.ok { color: var(--green); }
+    .dlist .m.no { color: var(--red); }
+    .dlist strong { color: var(--ink); }
+
+    /* ── TABLE ── */
+    .dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .dtable th {
+      text-align: left;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--ink3);
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--line);
+      font-weight: 600;
+    }
+    .dtable td {
+      padding: 16px;
+      border-bottom: 1px solid var(--line2);
+      color: var(--ink2); vertical-align: top;
+    }
+    .dtable tr:hover td { background: var(--line2); }
+    .dtable .pr { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent); }
+    .dtable .tg { font-size: 11px; color: var(--accent2); font-family: 'JetBrains Mono', monospace; }
+    .dtable .rec { color: var(--green); font-size: 11px; }
+
+    /* ── PLATFORM ROWS ── */
+    .plat { display: flex; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line2); }
+    .plat:last-child { border-bottom: none; }
+    .plat svg { width: 40px; height: 40px; flex: 0 0 auto; }
+    .plat-n { font-weight: 700; font-size: 15px; }
+    .plat-s { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink3); margin-top: 2px; }
+
+    /* ── STEPS ── */
+    .st {
+      display: grid; grid-template-columns: 72px 1fr;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--line2);
+    }
+    .st:last-child { border-bottom: none; }
+    .st-n {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 32px; font-weight: 700;
+      color: var(--line);
+      line-height: 1; letter-spacing: -.04em;
+    }
+    .st h3 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .st p { font-size: 13px; color: var(--ink2); }
+
+    /* ── EMBED ── */
+    .emb { border: 1px solid var(--line); overflow: hidden; }
+    iframe { width: 100%; border: 0; display: block; }
+
+    /* ── FOOTER ── */
+    .foot {
+      padding: 48px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 32px; align-items: end;
+      border-top: 1px solid var(--line);
+    }
+    @media(max-width:768px){ .foot { grid-template-columns: 1fr; padding: 40px 24px; } }
+    .foot-n { font-size: 11px; color: var(--ink3); line-height: 1.7; }
+    .foot-s { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+    @media(max-width:768px){ .foot-s { justify-content: flex-start; } }
+    .foot-t { font-size: 12px; color: var(--ink2); font-weight: 600; letter-spacing: .05em; }
+
+    /* ── REVEAL ── */
+    .r { opacity: 0; transform: translateY(10px); transition: opacity .5s ease, transform .5s ease; }
+    .r.on { opacity: 1; transform: translateY(0); }
+
+    /* ── PRINT ── */
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { background: #f5f3ef !important; color: #1a1815 !important; }
+      body * { transition: none !important; }
+
+      /* force light palette for print */
+      :root {
+        --ink: #1a1815; --ink2: #4a4540; --ink3: #8a847c;
+        --paper: #f5f3ef; --paper2: #eae7e1; --paper3: #e0dcd4; --paper4: #d6d1c8;
+        --accent: #8a7a4c; --accent2: #6e6238;
+        --red: #a83e38; --green: #4a7a4a; --blue: #4a6e92;
+        --line: rgba(26,24,21,.12); --line2: rgba(26,24,21,.06);
+        --sb-bg: transparent; --sb-border: transparent;
+      }
+
+      .sidebar, #fx, .scanlines, .theme-toggle, .nav-link .tip { display: none !important; }
+      .main { margin-left: 0 !important; padding-bottom: 0 !important; }
+
+      .hero { min-height: auto !important; page-break-after: always; }
+      .hero-left, .hero-right { padding: 32px 24px !important; }
+
+      section { page-break-inside: avoid; }
+      .sec-pad { padding: 32px 24px !important; }
+
+      .pull { padding: 28px 24px !important; margin: 0 !important; }
+
+      .g2, .g3 { gap: 1px !important; }
+      .cell, .cell2, .cell-accent { padding: 20px !important; }
+
+      .embed { page-break-inside: avoid; }
+
+      .foot { padding: 24px !important; }
+
+      /* deck → una slide por página */
+      .slide { display: block !important; min-height: 0 !important; page-break-after: always; }
+      .pull.slide, section.slide > .sec-pad { display: block !important; min-height: 0 !important; }
+      .deck-controls { display: none !important; }
+
+      a { text-decoration: none !important; }
+      a[href^="mailto"]::after { content: " (" attr(href) ")"; font-size: 10px; color: var(--ink3); }
+
+      .r { opacity: 1 !important; transform: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="fx"></canvas>
+
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="sidebar">
+    <!-- Brand logo -->
+    <img class="brand-logo" src="waveai-logo.jpg" alt="WaveAI">
+
+    <!-- Nav -->
+    <div class="nav-col">
+      <a href="#i" class="nav-link active">I<span class="tip">Inicio</span></a>
+      <a href="#p" class="nav-link">P<span class="tip">Plataformas</span></a>
+      <a href="#f" class="nav-link">F<span class="tip">Flujo</span></a>
+      <a href="#c" class="nav-link">C<span class="tip">Comparativa</span></a>
+      <a href="#e" class="nav-link">E<span class="tip">Entregables</span></a>
+      <a href="#r" class="nav-link">R<span class="tip">Referencias</span></a>
+      <a href="#x" class="nav-link">X<span class="tip">Contacto</span></a>
+    </div>
+
+    <!-- Theme toggle -->
+    <button class="theme-toggle" id="themeBtn" title="Cambiar modo">
+      <!-- Moon icon (dark mode active) -->
+      <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+      <!-- Sun icon (light mode active) -->
+      <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
+
+    <!-- Brand text vertical -->
+    <div class="brand-edge">WaveAI</div>
+  </aside>
+
+  <!-- ─── MAIN ─── -->
+  <div class="main">
+
+    <!-- HERO -->
+    <div class="hero slide" id="i">
+      <div class="hero-left">
+        <div class="eyebrow">WaveAI · Documento de propuesta · 2026</div>
+        <h1 class="hero-title">
+          Masterización<br>
+          <em>profesional</em><br>
+          en segundos.
+        </h1>
+        <p class="hero-body">
+          Engine de masterización en navegador para equipos de producción musical.
+          Flujo rápido, consistente y escalable. Sin colas, sin cajas negras, con control real.
+        </p>
+        <div class="hero-meta">
+          <div><span class="val">13</span> etapas DSP</div>
+          <div><span class="val">8</span> presets de carácter</div>
+          <div><span class="val">Live</span> Engine en tiempo real</div>
+        </div>
+      </div>
+      <div class="hero-right">
+        <div class="stat-block r">
+          <div class="stat-label">Loudness estándar</div>
+          <div class="stat-value g">−14.0 <span class="unit">LUFS</span></div>
+          <div class="stat-note">Target streaming · Spotify · YouTube</div>
+        </div>
+        <div class="stat-block r">
+          <div class="stat-label">True Peak</div>
+          <div class="stat-value b">−1.0 <span class="unit">dBTP</span></div>
+          <div class="stat-note">Inter-sample peak controlado</div>
+        </div>
+        <div class="stat-block r">
+          <div class="stat-label">Dynamic Range</div>
+          <div class="stat-value a">8.2 <span class="unit">dB</span></div>
+          <div class="stat-note">Transientes preservados</div>
+        </div>
+        <div class="stat-block r">
+          <div class="stat-label">Tiempo de procesamiento</div>
+          <div class="stat-value a">&lt; 3 <span class="unit">seg</span></div>
+          <div class="stat-note">Por canción · en navegador</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PULL QUOTE -->
+    <div class="pull slide r">
+      <blockquote>Si no ajusta nada,<br>el audio queda <em>intacto</em>.</blockquote>
+    </div>
+
+    <!-- P — PLATAFORMAS -->
+    <section id="p" class="slide">
+      <div class="sec-pad">
+        <div class="sec-head r">
+          <span class="sec-num">01</span>
+          <h2 class="sec-title">Plataformas objetivo</h2>
+          <div class="sec-line"></div>
+          <span class="sec-hint">Targets por servicio</span>
+        </div>
+        <div class="r">
+          <div class="plat">
+            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#1DB954"/><path d="M28 18c-4.5-2.7-12-3-16.2-1.6-.6.2-1.3-.1-1.5-.9-.2-.6.1-1.3.9-1.5 4.8-1.4 13.3-1.3 18.6 2 .6.3.8 1.1.3 1.7-.3.5-1.1.8-1.6.4zm-1.2 4c-.3.6-1.2.8-1.8.3-3.9-2.4-9.8-3-14.2-1.6-.6.2-1.2-.1-1.4-.8-.2-.6.1-1.2.8-1.4 5.1-1.5 11.7-.8 16.2 2 .5.3.7 1.1.3 1.7zm-1.9 4c-.3.5-1 .6-1.5.3-3.4-2.1-7.7-2.6-12.7-1.4-.5.1-1.1-.2-1.2-.7-.1-.5.2-1.1.7-1.2 5.7-1.4 10.5-.8 14.4 1.6.5.3.7 1 .3 1.4z" fill="#000"/></svg>
+            <div>
+              <div class="plat-n">Spotify</div>
+              <div class="plat-s">−14 LUFS · True Peak ≤ −1.0 dBTP · Normalización automática</div>
+            </div>
+          </div>
+          <div class="plat">
+            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#FC3C44"/><path d="M27.5 18.8c0-3.3-2.7-6-6-6s-6 2.7-6 6 2.7 6 6 6 6-2.7 6-6v-3.2h-2.5v1.8c-.9.9-2.1 1.4-3.5 1.4-2.9 0-5.2-2.3-5.2-5.2s2.3-5.2 5.2-5.2 5.2 2.3 5.2 5.2h1.4z" fill="#000"/></svg>
+            <div>
+              <div class="plat-n">Apple Music</div>
+              <div class="plat-s">−16 LUFS · Sound Check optimizado · Master Quality</div>
+            </div>
+          </div>
+          <div class="plat">
+            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#FF0000"/><path d="M30 18.5v3c0 1.2-1 2.2-2.2 2.2H12.2c-1.2 0-2.2-1-2.2-2.2v-3c0-1.2 1-2.2 2.2-2.2h15.6c1.2 0 2.2 1 2.2 2.2zM17.5 16.2l5.3 3.8-5.3 3.8v-7.6z" fill="#fff"/></svg>
+            <div>
+              <div class="plat-n">YouTube</div>
+              <div class="plat-s">−14 LUFS · −1.0 dBTP · Audio normalization</div>
+            </div>
+          </div>
+          <div class="plat">
+            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#000" stroke="var(--line)" stroke-width="1"/><path d="M12 16l5 5-5 5M17 16l5 5-5 5M22 16l5 5-5 5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            <div>
+              <div class="plat-n">Tidal</div>
+              <div class="plat-s">HiFi · MQA ready · Master Quality Authenticated</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- F — FLUJO -->
+    <section id="f" class="slide">
+      <div class="sec-pad">
+        <div class="sec-head r">
+          <span class="sec-num">02</span>
+          <h2 class="sec-title">Flujo de trabajo</h2>
+          <div class="sec-line"></div>
+          <span class="sec-hint">Tres pasos · Sin tutoriales</span>
+        </div>
+        <div class="r">
+          <div class="st">
+            <div class="st-n">01</div>
+            <div><h3>Cargue su canción</h3><p>WAV o MP3. Singles, demos, EPs, contenidos rápidos para campañas o entregables de catálogo.</p></div>
+          </div>
+          <div class="st">
+            <div class="st-n">02</div>
+            <div><h3>El engine analiza y propone</h3><p>IA + DSP procesan el audio y generan un master. Ustedes ajustan carácter con perillas en tiempo real.</p></div>
+          </div>
+          <div class="st">
+            <div class="st-n">03</div>
+            <div><h3>Exporte y publique</h3><p>WAV 24-bit, WAV 16-bit, MP3 320, versiones por loudness target. Listo para cada plataforma.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- C — COMPARATIVA -->
+    <section id="c" class="slide">
+      <div class="sec-pad">
+        <div class="sec-head r">
+          <span class="sec-num">03</span>
+          <h2 class="sec-title">Comparativa</h2>
+          <div class="sec-line"></div>
+          <span class="sec-hint">Control vs. caja negra</span>
+        </div>
+        <div class="g2 r">
+          <div class="cell">
+            <div class="cell-lbl">Servicios automáticos típicos</div>
+            <ul class="dlist">
+              <li><span class="m no">✕</span><span>Un único resultado. No sabe el "por qué".</span></li>
+              <li><span class="m no">✕</span><span>Otra corrida, otra espera, probando a ciegas.</span></li>
+              <li><span class="m no">✕</span><span>Procesado obligatorio — pierde el original.</span></li>
+              <li><span class="m no">✕</span><span>Sin personalización por género o proyecto.</span></li>
+            </ul>
+          </div>
+          <div class="cell-accent">
+            <div class="cell-lbl">WaveAI</div>
+            <ul class="dlist">
+              <li><span class="m ok">✓</span><span>Escuche <strong>antes/después</strong> y mueva perillas con respuesta instantánea.</span></li>
+              <li><span class="m ok">✓</span><span>Iteración rápida: ideal para equipos y deadlines reales.</span></li>
+              <li><span class="m ok">✓</span><span><strong>Neutral</strong> = intacto si no ajusta nada (bypass real).</span></li>
+              <li><span class="m ok">✓</span><span>Presets por género y targets por plataforma.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- E — ENTREGABLES -->
+    <section id="e" class="slide">
+      <div class="sec-pad">
+        <div class="sec-head r">
+          <span class="sec-num">04</span>
+          <h2 class="sec-title">Entregables</h2>
+          <div class="sec-line"></div>
+          <span class="sec-hint">Formatos por plataforma y uso</span>
+        </div>
+        <div class="g2 r">
+          <div class="cell2">
+            <div class="cell-lbl">Streaming / Digital</div>
+            <ul class="dlist">
+              <li><span class="m ok">✓</span><span>WAV 24-bit / 44.1kHz — master principal</span></li>
+              <li><span class="m ok">✓</span><span>MP3 320kbps — promoción y previews</span></li>
+              <li><span class="m ok">✓</span><span>Versiones por loudness (−14 / −16 LUFS)</span></li>
+              <li><span class="m ok">✓</span><span>True peak controlado (≤ −1.0 dBTP)</span></li>
+            </ul>
+          </div>
+          <div class="cell2">
+            <div class="cell-lbl">Video / Archivo / Broadcast</div>
+            <ul class="dlist">
+              <li><span class="m ok">✓</span><span>WAV 16-bit — CD y archivo</span></li>
+              <li><span class="m ok">✓</span><span>Versión −16 LUFS para video</span></li>
+              <li><span class="m ok">✓</span><span>Versión −24 LUFS para broadcast</span></li>
+              <li><span class="m ok">✓</span><span>Headroom para live / estudio</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- R — REFERENCIAS -->
+    <section id="r" class="slide">
+      <div class="sec-pad">
+        <div class="sec-head r">
+          <span class="sec-num">05</span>
+          <h2 class="sec-title">Referencias musicales</h2>
+          <div class="sec-line"></div>
+          <span class="sec-hint">Requiere conexión</span>
+        </div>
+        <div class="g2 r">
+          <div class="emb"><iframe style="height:352px" src="https://open.spotify.com/embed/artist/6TVffrYkUOFLu72xEKcdQs?utm_source=generator" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe></div>
+          <div class="emb"><iframe style="height:352px" src="https://embed.music.apple.com/tm/artist/mente-y-alma/1503744018" allow="autoplay *; encrypted-media *; fullscreen *; clipboard-write" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation"></iframe></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- X — CONTACTO -->
+    <section id="x" class="slide">
+      <div class="sec-pad">
+        <div class="sec-head r">
+          <span class="sec-num">06</span>
+          <h2 class="sec-title">Siguiente paso</h2>
+          <div class="sec-line"></div>
+          <span class="sec-hint">Definimos volumen, SLA y modelo</span>
+        </div>
+        <div class="g2 r">
+          <div class="cell">
+            <div class="cell-lbl">Agenda sugerida · 20–30 min</div>
+            <ul class="dlist">
+              <li><span class="m ok">✓</span><span>Volumen mensual estimado</span></li>
+              <li><span class="m ok">✓</span><span>Targets: streaming / video / broadcast</span></li>
+              <li><span class="m ok">✓</span><span>Modelo: por canción, pack o partner</span></li>
+            </ul>
+            <a href="mailto:brikpaul569@gmail.com?subject=Consulta%20WaveAI" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:10px 20px;border:1px solid var(--line);background:var(--line2);border-radius:6px;color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;transition:border-color .2s">Enviar consulta →</a>
+          </div>
+          <div class="cell2">
+            <div class="cell-lbl">Personalización</div>
+            <ul class="dlist">
+              <li><span class="m ok">✓</span><span>Branding (colores + tipografía)</span></li>
+              <li><span class="m ok">✓</span><span>Presets y targets personalizados</span></li>
+              <li><span class="m ok">✓</span><span>White-label (opcional)</span></li>
+              <li><span class="m ok">✓</span><span>Modo estudio para live</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="foot">
+          <div class="foot-s">
+            <img class="brand-logo" src="waveai-logo.jpg" alt="WaveAI" width="24" height="24">
+            <span class="foot-t">Hecho por WaveAI · 2026</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ─── DECK CONTROLS ─── -->
+  <div class="deck-controls" title="Navega con las flechas ← →">
+    <button id="prevSlide" class="deck-btn" title="Anterior">←</button>
+    <span id="deckCounter" class="deck-count">1 / 8</span>
+    <button id="nextSlide" class="deck-btn" title="Siguiente">→</button>
+  </div>
+
+  <script>
+    /* ── THEME TOGGLE ── */
+    const themeBtn = document.getElementById('themeBtn');
+    const saved = localStorage.getItem('waveai-theme');
+    if (saved === 'light') document.body.classList.add('light');
+    themeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('light');
+      localStorage.setItem('waveai-theme', document.body.classList.contains('light') ? 'light' : 'dark');
+    });
+
+    /* ── SCROLL REVEAL ── */
+    const obs = new IntersectionObserver(entries => {
+      for (const e of entries) { if (e.isIntersecting) e.target.classList.add("on"); }
+    }, { threshold: 0.08 });
+    document.querySelectorAll(".r").forEach(el => obs.observe(el));
+
+    /* ── DECK NAV ── */
+    const slides = [...document.querySelectorAll('.slide')];
+    const links = [...document.querySelectorAll('.nav-link')];
+    const counter = document.getElementById('deckCounter');
+    const prevBtn = document.getElementById('prevSlide');
+    const nextBtn = document.getElementById('nextSlide');
+    let cur = 0;
+
+    function go(i) {
+      cur = Math.max(0, Math.min(slides.length - 1, i));
+      slides.forEach((s, j) => s.classList.toggle('active', j === cur));
+      const id = slides[cur].id;
+      if (id) links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+      counter.textContent = (cur + 1) + ' / ' + slides.length;
+      prevBtn.disabled = cur === 0;
+      nextBtn.disabled = cur === slides.length - 1;
+      window.scrollTo(0, 0);
+    }
+
+    links.forEach(l => l.addEventListener('click', e => {
+      e.preventDefault();
+      const i = slides.findIndex(s => s.id === l.getAttribute('href').slice(1));
+      if (i > -1) go(i);
+    }));
+    prevBtn.addEventListener('click', () => go(cur - 1));
+    nextBtn.addEventListener('click', () => go(cur + 1));
+
+    addEventListener('keydown', e => {
+      if (e.target.matches('input, textarea')) return;
+      if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+      else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+      else if (e.key === 'Home') go(0);
+      else if (e.key === 'End') go(slides.length - 1);
+    });
+
+    let touchY = null;
+    addEventListener('touchstart', e => touchY = e.touches[0].clientY, { passive: true });
+    addEventListener('touchend', e => {
+      if (touchY === null) return;
+      const d = touchY - e.changedTouches[0].clientY;
+      if (Math.abs(d) > 60) go(cur + (d > 0 ? 1 : -1));
+      touchY = null;
+    }, { passive: true });
+
+    go(0);
+
+    /* ── FLOATING NOTES ── */
+    const fx = document.getElementById("fx");
+    const c = fx.getContext("2d");
+    let W, H, D;
+    const G = ["♪","♫","♬","♩","𝄞"];
+    const isLight = () => document.body.classList.contains('light');
+    const darkCols = ["rgba(196,184,140,.18)","rgba(196,184,140,.09)","rgba(196,184,140,.04)","rgba(154,141,100,.12)"];
+    const lightCols = ["rgba(138,122,76,.14)","rgba(138,122,76,.08)","rgba(138,122,76,.04)","rgba(110,98,56,.10)"];
+    const pts = Array.from({length:36},(_,i)=>({
+      x:Math.random(),y:Math.random(),
+      vx:(Math.random()-.5)*.0003,
+      vy:-.00012-Math.random()*.00035,
+      a:.05+Math.random()*.13,
+      g:G[(Math.random()*G.length)|0],
+      ci:i%4,
+      sz:9+Math.random()*13,
+      rot:Math.random()*6.28,
+      vr:(Math.random()-.5)*.002
+    }));
+
+    function resize(){
+      D=Math.min(2,devicePixelRatio||1);
+      W=fx.width=Math.floor(innerWidth*D);
+      H=fx.height=Math.floor(innerHeight*D);
+      fx.style.width=innerWidth+"px";
+      fx.style.height=innerHeight+"px";
+    }
+    addEventListener("resize",resize);resize();
+
+    let t=performance.now();
+    function loop(now){
+      const dt=Math.min(42,t-now);t=now;
+      c.clearRect(0,0,W,H);
+      for(const p of pts){
+        p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.vr*dt;
+        if(p.y<-.06){p.y=1.06;p.x=Math.random()}
+        if(p.x<-.05)p.x=1.05;if(p.x>1.05)p.x=-.05;
+        c.save();
+        c.translate(p.x*W,p.y*H);
+        c.rotate(p.rot);
+        c.globalAlpha=p.a;
+        c.font=`${p.sz*D}px ui-sans-serif,system-ui`;
+        c.fillStyle=isLight()?lightCols[p.ci]:darkCols[p.ci];
+        c.fillText(p.g,0,0);
+        c.restore();
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

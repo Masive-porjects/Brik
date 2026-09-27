@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Pause, Play } from "lucide-react";
 import StepGrid from "./StepGrid";
 import { GENRE_PRESETS, parsePresetGrid } from "./genrePresets";
-import { SEQUENCER_TRACK_NAMES, useSequencerEngine } from "./useSequencerEngine";
+import { useSequencerEngine } from "./useSequencerEngine";
 import { audioEngine } from "@/adapters/audio/engine";
+import { useTranslation } from "@/i18n";
 
 // Matches the SongStarter stem palette so both sections read as one instrument.
 const TRACK_COLORS: readonly string[] = [
@@ -18,6 +19,7 @@ const TRACK_COLORS: readonly string[] = [
 const INITIAL_PRESET = GENRE_PRESETS[0];
 
 export default function GrooveSequencerImpl() {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState(INITIAL_PRESET.id);
   const {
     playing,
@@ -32,6 +34,16 @@ export default function GrooveSequencerImpl() {
     initialBpm: INITIAL_PRESET.bpm,
     initialBassNotes: INITIAL_PRESET.bassNotes,
   });
+
+  const trackNames = useMemo(
+    () => [
+      t("songstarter.tracks.kick", "Kick"),
+      t("songstarter.tracks.snare", "Caja"),
+      t("songstarter.tracks.hihat", "Hi-Hat"),
+      t("songstarter.tracks.bass", "Bajo"),
+    ],
+    [t],
+  );
 
   const handleGenreSelect = async (id: string): Promise<void> => {
     const preset = GENRE_PRESETS.find((genre) => genre.id === id);
@@ -60,10 +72,10 @@ export default function GrooveSequencerImpl() {
       <header className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            Prueba el groove
+            {t("songstarter.grooveTitle", "Prueba el groove")}
           </h3>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Elige un género y edita los pasos mientras suena
+            {t("songstarter.grooveSubtitle", "Elige un género y edita los pasos mientras suena")}
           </p>
         </div>
         <button
@@ -81,7 +93,7 @@ export default function GrooveSequencerImpl() {
           }}
         >
           {playing ? <Pause size={14} /> : <Play size={14} />}
-          {playing ? "Detener" : "Reproducir"}
+          {playing ? t("songstarter.stop", "Detener") : t("songstarter.play", "Reproducir")}
         </button>
       </header>
 
@@ -134,14 +146,14 @@ export default function GrooveSequencerImpl() {
 
       <StepGrid
         grid={grid}
-        trackNames={SEQUENCER_TRACK_NAMES}
+        trackNames={trackNames}
         onToggleCell={toggleStep}
         trackColors={TRACK_COLORS}
       />
 
       <footer className="mt-4 flex items-center justify-between">
         <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          {playing ? "Reproduciendo" : "Listo"}
+          {playing ? t("songstarter.playing", "Reproduciendo") : t("songstarter.ready", "Listo")}
         </span>
         <span
           className="rounded-md px-2 py-0.5 text-[10px] font-medium"

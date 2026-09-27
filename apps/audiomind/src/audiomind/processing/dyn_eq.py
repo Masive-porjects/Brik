@@ -45,6 +45,7 @@ ratio-1.0 defaults, so existing masters pass through unchanged.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from scipy.signal import sosfilt
@@ -171,17 +172,17 @@ class DynamicEQ:
 
     def process_with_diagnostics(
         self, audio: np.ndarray,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns per-band gain-reduction and
         gain trajectories (used by the Sprint 5 A/B verification)."""
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x
         n = x2.shape[-1]
-        empty_diag = {"gr_db": [], "gr_mean_db": [], "gain_db": []}
+        empty_diag: dict[str, Any] = {"gr_db": [], "gr_mean_db": [], "gain_db": []}
         if n == 0:
             return audio.copy(), empty_diag
 

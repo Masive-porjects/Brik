@@ -41,6 +41,7 @@ pass through unchanged.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from scipy.signal import butter, sosfilt
@@ -108,7 +109,7 @@ def _build_hp_sos(
     measurable.
     """
     nyquist = float(sr) / 2.0
-    return butter(order, low_cut_hz / nyquist, btype="highpass", output="sos")
+    return np.asarray(butter(order, low_cut_hz / nyquist, btype="highpass", output="sos"))
 
 
 class Exciter:
@@ -167,9 +168,9 @@ class Exciter:
         drive = 10.0 ** (band.drive_db / 20.0)
         odd = np.tanh(x * drive)
         if band.mode == "odd":
-            return odd
+            return np.asarray(odd)
         even = np.abs(x)
-        return (1.0 - band.harmonic_blend) * even + band.harmonic_blend * odd
+        return np.asarray((1.0 - band.harmonic_blend) * even + band.harmonic_blend * odd)
 
     def process(self, audio: np.ndarray) -> np.ndarray:
         """Apply the exciter, returning audio with input shape/dtype."""
@@ -178,18 +179,18 @@ class Exciter:
 
     def process_with_diagnostics(
         self, audio: np.ndarray,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns per-band excited RMS and the
         harmonic-injection ratio (used by the Sprint 6 spectral
         verification)."""
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x
         n = x2.shape[-1]
-        empty_diag = {
+        empty_diag: dict[str, Any] = {
             "excited_rms": [],
             "thd": [],
             "band_mode": [],

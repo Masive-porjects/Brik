@@ -20,6 +20,7 @@ bypass — the same contract every DSP stage in this project follows.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.signal import butter, sosfilt
@@ -132,10 +133,12 @@ class StereoImaging:
         processed, _ = self._process(audio)
         return processed
 
-    def process_with_diagnostics(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def process_with_diagnostics(
+        self, audio: np.ndarray
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         if x.ndim == 1:
             return x, {"neutral": True, "mono_input": True, "correlation_in": 1.0,
@@ -145,7 +148,7 @@ class StereoImaging:
                 f"Stereo imaging expects (2, N) stereo or (N,) mono; got {x.shape}"
             )
 
-        diag: dict = {
+        diag: dict[str, Any] = {
             "neutral": False,
             "mono_input": False,
             "correlation_in": self._correlation(x),

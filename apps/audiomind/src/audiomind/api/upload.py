@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 
@@ -16,11 +17,11 @@ router = APIRouter()
 sessions: dict[str, SessionData] = load_sessions()
 
 # Strong references to background analysis tasks so they are never GC'd
-_background_tasks: set[asyncio.Future] = set()
+_background_tasks: set[asyncio.Future[Any]] = set()
 
 
 @router.post("/upload", response_model=SessionData)
-async def upload_audio(file: UploadFile = File(...)):
+async def upload_audio(file: UploadFile = File(...)) -> SessionData:
     """Upload an audio file for mastering analysis."""
     # Validate file type
     if not file.filename:
@@ -124,7 +125,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
 
 @router.post("/session/new")
-async def create_session(data: dict | None = None):
+async def create_session(data: dict[str, Any] | None = None) -> dict[str, str]:
     """Create a new processing session (used by SongStarter tests)."""
     session_id = str(uuid.uuid4())
     sessions[session_id] = SessionData(
@@ -136,7 +137,7 @@ async def create_session(data: dict | None = None):
 
 
 @router.get("/session/{session_id}", response_model=SessionData)
-async def get_session(session_id: str):
+async def get_session(session_id: str) -> SessionData:
     """Get session status and data."""
     session = sessions.get(session_id)
     if not session:

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslation } from "@/i18n";
+
 const PIPELINE_STEPS = [
   {
     step: "01",
@@ -65,70 +67,83 @@ const TIPS = [
 ];
 
 export default function MasteringGuide() {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-8">
       {/* Pipeline */}
       <section>
         <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-1" style={{ letterSpacing: "-0.02em" }}>
-          Cadena de <span className="serif-accent">Master</span>
+          {t("pipeline.title", "Cadena de")}{" "}
+          <span className="serif-accent">{t("pipeline.titleAccent", "Master")}</span>
         </h2>
         <p className="text-sm text-[var(--text-secondary)] mb-5">
-          Cómo funciona WaveIA paso a paso — cadena DSP profesional
+          {t("pipeline.subtitle", "Cómo funciona WaveIA paso a paso — cadena DSP profesional")}
         </p>
 
         <div className="space-y-3">
-          {PIPELINE_STEPS.map((step) => (
-            <div
-              key={step.step}
-              className="flex gap-4 p-4 rounded-xl transition-colors hover:bg-[var(--surface-hover)]"
-              style={{
-                background: "var(--surface-hover)",
-                border: "1px solid var(--border-subtle)",
-              }}
-            >
-              <span
-                className="text-xs font-bold font-mono w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          {PIPELINE_STEPS.map((step) => {
+            const localizedTitle = t(`pipeline.steps.${step.step}.title`, step.title);
+            const localizedDesc = t(`pipeline.steps.${step.step}.description`, step.description);
+
+            return (
+              <div
+                key={step.step}
+                className="flex gap-4 p-4 rounded-xl transition-colors hover:bg-[var(--surface-hover)]"
                 style={{
-                  background: "rgba(98, 126, 132, 0.1)",
-                  color: "var(--accent-primary)",
+                  background: "var(--surface-hover)",
+                  border: "1px solid var(--border-subtle)",
                 }}
               >
-                {step.step}
-              </span>
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">{step.title}</h3>
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{step.description}</p>
+                <span
+                  className="text-xs font-bold font-mono w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{
+                    background: "rgba(98, 126, 132, 0.1)",
+                    color: "var(--accent-primary)",
+                  }}
+                >
+                  {step.step}
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">{localizedTitle}</h3>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{localizedDesc}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       {/* Tips */}
       <section>
         <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-1" style={{ letterSpacing: "-0.02em" }}>
-          Tips para un Master Exitoso
+          {t("pipeline.tipsTitle", "Tips para un Master Exitoso")}
         </h2>
         <p className="text-sm text-[var(--text-secondary)] mb-5">
-          Antes de subir tu audio, revisá estos puntos
+          {t("pipeline.tipsSubtitle", "Antes de subir tu audio, revisá estos puntos")}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {TIPS.map((tip) => (
-            <div
-              key={tip.title}
-              className="p-4 rounded-xl"
-              style={{
-                background: "var(--surface-hover)",
-                border: "1px solid var(--border-subtle)",
-              }}
-            >
-              <h3 className="text-sm font-semibold text-[var(--accent-primary)] mb-2">
-                {tip.title}
-              </h3>
-              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{tip.body}</p>
-            </div>
-          ))}
+          {TIPS.map((tip, idx) => {
+            const localizedTipTitle = t(`pipeline.tips.${idx}.title`, tip.title);
+            const localizedTipBody = t(`pipeline.tips.${idx}.body`, tip.body);
+
+            return (
+              <div
+                key={tip.title}
+                className="p-4 rounded-xl"
+                style={{
+                  background: "var(--surface-hover)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <h3 className="text-sm font-semibold text-[var(--accent-primary)] mb-2">
+                  {localizedTipTitle}
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{localizedTipBody}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -147,11 +162,10 @@ export default function MasteringGuide() {
           <span className="text-lg">🎧</span>
         </div>
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed max-w-2xl mx-auto">
-          <strong className="text-[var(--text-primary)]">Brikman Paul</strong>, el creador de WaveIA,
-          se ha tomado el trabajo de pulir meticulosamente cada algoritmo y modelo matemático DSP
-          para garantizar que cada canción que pase por la plataforma suene{' '}
-          <strong className="text-[var(--accent-primary)]">superbién</strong>, competitiva y lista
-          para la industria musical internacional.
+          {t(
+            "pipeline.authorship",
+            "Brikman Paul, el creador de WaveIA, se ha tomado el trabajo de pulir meticulosamente cada algoritmo y modelo matemático DSP para garantizar que cada canción que pase por la plataforma suene superbién, competitiva y lista para la industria musical internacional."
+          )}
         </p>
       </section>
     </div>

@@ -12,13 +12,12 @@
     "build": "bun run --filter studio build",
     "start": "bun run --filter studio start",
     "dev:studio": "bun run --filter studio dev",
-    "dev:convex": "bun run --filter studio dev:convex",
     "build:studio": "bun run --filter studio build",
     "lint:studio": "bun run --filter studio lint",
     "test:studio": "bun run --filter studio test",
     "dev:audiomind": "cd apps/audiomind && uvicorn audiomind.main:app --reload --port 8000",
     "test:backend": "cd apps/audiomind && python -m pytest -v",
-    "contracts:gen": "cd packages/contracts/scripts && python gen_types.py"
+    "contracts:gen": "bash packages/contracts/scripts/gen_types.sh"
   },
   "devDependencies": {}
 }

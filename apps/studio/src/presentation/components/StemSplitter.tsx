@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 import { getStemUrl, type StemSplitResult } from "@/lib/api";
+import { useTranslation } from "@/i18n";
 
 /* ── Types ───────────────────────────────────────────── */
 
@@ -185,6 +186,7 @@ function StemCard({
   disabled?: boolean;
 }) {
   const { playing, toggle, setVolume, containerRef } = useStemPlayer(stemUrl ?? "", stem.color);
+  const { t } = useTranslation();
   const pct = ((stemState.gain + 12) / 24) * 100;
 
   // Sync volume when gain changes
@@ -241,7 +243,9 @@ function StemCard({
             <stem.icon size={16} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[var(--text-primary)] truncate">{stem.label}</p>
+            <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+              {t(`splitter.${stem.name}`, stem.label)}
+            </p>
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
               {stemState.gain > 0 ? `+${stemState.gain}` : stemState.gain} dB
             </p>
@@ -279,7 +283,7 @@ function StemCard({
                 ? "bg-[rgba(255,59,48,0.2)] text-[#ff3b30]"
                 : "bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)]"
             }`}
-            title="Mute"
+            title={t("splitter.mute", "Silenciar")}
           >
             {stemState.mute ? <VolumeX size={13} /> : <Volume2 size={13} />}
           </button>
@@ -291,7 +295,7 @@ function StemCard({
                 ? "bg-[rgba(255,159,10,0.2)] text-[#ff9f0a]"
                 : "bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)]"
             }`}
-            title="Solo"
+            title={t("splitter.solo", "Solo")}
           >
             <Headphones size={13} />
           </button>
@@ -303,7 +307,7 @@ function StemCard({
             href={stemUrl}
             download
             className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)] transition-all shrink-0"
-            title="Descargar WAV"
+            title={t("splitter.downloadWav", "Descargar WAV")}
           >
             <Download size={13} />
           </a>
@@ -322,6 +326,8 @@ export default function StemSplitter({
   sessionId,
   disabled,
 }: StemSplitterProps) {
+  const { t } = useTranslation();
+
   const updateStem = useCallback(
     (name: StemName, updates: Partial<StemState>) => {
       onChange({
@@ -348,10 +354,10 @@ export default function StemSplitter({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-[var(--text-primary)]" style={{ letterSpacing: "-0.02em" }}>
-            Stem <span className="serif-accent">Splitter</span>
+            {t("splitter.title", "Stem")} <span className="serif-accent">{t("splitter.titleAccent", "Splitter")}</span>
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Separá tu mezcla en 4 pistas independientes
+            {t("splitter.subtitle", "Separá tu mezcla en 4 pistas independientes")}
           </p>
         </div>
 
@@ -370,11 +376,11 @@ export default function StemSplitter({
           }}
         >
           {state.splitting ? (
-            <><Loader2 size={16} className="animate-spin" /> Separando...</>
+            <><Loader2 size={16} className="animate-spin" /> {t("splitter.splitting", "Separando...")}</>
           ) : state.splitDone ? (
-            <><CheckCircle2 size={16} /> Separado</>
+            <><CheckCircle2 size={16} /> {t("splitter.splitDone", "Separado")}</>
           ) : (
-            <><Waves size={16} /> Separar Stems</>
+            <><Waves size={16} /> {t("splitter.splitButton", "Separar Stems")}</>
           )}
         </button>
       </div>
@@ -400,14 +406,13 @@ export default function StemSplitter({
       {/* Status messages */}
       {!state.splitDone && !state.splitting && (
         <p className="text-xs text-[var(--text-muted)] text-center pt-2">
-          Presioná &quot;Separar Stems&quot; para empezar. La primera vez descarga el modelo (~1.9 GB) y puede
-          demorar un minuto.
+          {t("splitter.firstTimeNotice", "Presioná \"Separar Stems\" para empezar. La primera vez descarga el modelo (~1.9 GB) y puede demorar un minuto.")}
         </p>
       )}
       {state.splitting && (
         <div className="flex items-center justify-center gap-2 pt-2">
           <Loader2 size={14} className="animate-spin text-[#5e5ce6]" />
-          <span className="text-xs text-[var(--text-secondary)]">Separando pistas...</span>
+          <span className="text-xs text-[var(--text-secondary)]">{t("splitter.splittingTracks", "Separando pistas...")}</span>
         </div>
       )}
       {state.splitDone && (
@@ -415,12 +420,11 @@ export default function StemSplitter({
           <div className="flex items-center justify-center gap-2">
             <CheckCircle2 size={14} className="text-[#30d158]" />
             <p className="text-xs text-[var(--text-secondary)]">
-              Separación completa — 4 stems generados
+              {t("splitter.splitDoneCount", "Separación completa — 4 stems generados")}
             </p>
           </div>
           <p className="text-xs text-[var(--text-muted)] text-center">
-            Usa los botones <Play size={10} className="inline" /> para escuchar cada stem, los faders para ajustar
-            volumen, Mute/Solo para aislar, y <Download size={10} className="inline" /> para descargar.
+            {t("splitter.guideNotice", "Usa los botones de reproducción para escuchar cada stem, los faders para ajustar volumen, Mute/Solo para aislar, y Descargar para guardar.")}
           </p>
         </div>
       )}

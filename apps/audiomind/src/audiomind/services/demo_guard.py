@@ -23,6 +23,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 from audiomind.config import settings
 
@@ -206,8 +207,9 @@ def prune_expired_sessions(now: float | None = None) -> list[str]:
     if ttl_minutes <= 0:
         return []
     from audiomind.api.mastering import _prerender_cache
-    from audiomind.api.upload import save_sessions, sessions
+    from audiomind.api.upload import sessions
     from audiomind.models.audio import ProcessingStatus
+    from audiomind.session_store import save_sessions
 
     cutoff = (time.time() if now is None else now) - ttl_minutes * 60.0
     pruned: list[str] = []
@@ -223,8 +225,7 @@ def prune_expired_sessions(now: float | None = None) -> list[str]:
         ):
             continue  # never delete active work
         if any(
-            entry.status == "processing"
-            for entry in session.preset_masters.values()
+            entry.status == "processing" for entry in session.preset_masters.values()
         ):
             continue
         _remove_session_files(session_id, _prerender_cache)
@@ -237,7 +238,7 @@ def prune_expired_sessions(now: float | None = None) -> list[str]:
 
 
 def _remove_session_files(
-    session_id: str, prerender_cache: dict[str, dict[str, dict]]
+    session_id: str, prerender_cache: dict[str, dict[str, dict[str, Any]]]
 ) -> None:
     """Delete every file owned by the session (upload + output + cache)."""
     for pattern, directory in (

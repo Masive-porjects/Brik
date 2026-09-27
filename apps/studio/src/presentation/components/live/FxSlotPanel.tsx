@@ -231,7 +231,7 @@ export function FxSlotPanel({ params, onParamsChange, onPresetChange, disabled =
               gap: 10,
             }}
           >
-            {/* Slot Header + Gesture Badge */}
+            {/* Slot Header */}
             <div
               style={{
                 display: 'flex',
@@ -262,6 +262,7 @@ export function FxSlotPanel({ params, onParamsChange, onPresetChange, disabled =
               color={slot.color}
               disabled={disabled}
               size={72}
+              dataTestid={slot.key === 'filter_cutoff' ? 'knob-filter_cutoff' : undefined}
               decimals={slot.param === 'filter_cutoff' ? 0 : slot.param === 'delay_time' ? 0 : 2}
               formatValue={slot.param === 'filter_cutoff' ? formatFilterValue : slot.param === 'delay_time' ? formatDelayValue : undefined}
             />

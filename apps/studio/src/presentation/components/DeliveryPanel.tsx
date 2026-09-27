@@ -2,6 +2,7 @@
 
 import type { MasteringParameters } from "@/lib/api";
 import PlatformSelector from "@/components/PlatformSelector";
+import { useTranslation } from "@/i18n";
 
 /* ── Delivery / Compliance Phase 1 (Entrega) ────────────────
    Controls the delivery chain: processing mode, platform target
@@ -49,6 +50,7 @@ const SR_OPTIONS: Array<{ id: MasteringParameters["output_sr"]; label: string }>
 ];
 
 export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) {
+  const { t } = useTranslation();
   const set = (patch: Partial<MasteringParameters>) =>
     onChange((prev) => ({ ...prev, ...patch }));
 
@@ -87,7 +89,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
             className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest"
             title='Creativo = cadena completa (mastering). Transparente = solo entrega (loudness/SRC/bit depth), no toca el timbre.'
           >
-            Modo de procesamiento
+            {t("delivery.processingMode", "Modo de procesamiento")}
           </span>
         </div>
         <div className="relative grid grid-cols-2 bg-[var(--surface-hover)] rounded-full p-0.5">
@@ -103,7 +105,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
           />
           <button
             type="button"
-            title="Cadena completa: ecualización, compresión, saturación, loudness."
+            title={t("delivery.creativeTooltip", "Cadena completa: ecualización, compresión, saturación, loudness.")}
             onClick={() => set({ processing_mode: "master" })}
             className={`relative z-10 px-2 py-1.5 rounded-full text-xs font-medium text-center transition-colors duration-200 ${
               params.processing_mode === "master"
@@ -111,11 +113,11 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
                 : "text-[var(--text-muted)]"
             }`}
           >
-            Creativo
+            {t("delivery.creative", "Creativo")}
           </button>
           <button
             type="button"
-            title="Solo entrega: loudness (si hay target/plataforma), limiter, SRC y bit depth. No moldea el timbre."
+            title={t("delivery.transparentTooltip", "Solo entrega: loudness (si hay target/plataforma), limiter, SRC y bit depth. No moldea el timbre.")}
             onClick={() => set({ processing_mode: "transparent" })}
             className={`relative z-10 px-2 py-1.5 rounded-full text-xs font-medium text-center transition-colors duration-200 ${
               params.processing_mode === "transparent"
@@ -123,7 +125,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
                 : "text-[var(--text-muted)]"
             }`}
           >
-            Transparente
+            {t("delivery.transparent", "Transparente")}
           </button>
         </div>
       </div>
@@ -132,7 +134,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest">
-            Plataforma de entrega
+            {t("delivery.platformTitle", "Plataforma de entrega")}
           </span>
           <span className="text-[9px] font-mono text-[var(--text-muted)] tabular-nums">
             {params.target_lufs_db === undefined
@@ -144,6 +146,12 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
         <div className="flex flex-wrap gap-1.5">
           {PLATFORM_OPTIONS.map((option) => {
             const active = platformId === option.id;
+            const label =
+              option.id === "automatic"
+                ? t("delivery.automatic", "Automático")
+                : option.id === "custom"
+                  ? t("delivery.custom", "Personalizado")
+                  : option.label;
             return (
               <button
                 key={option.id}
@@ -163,7 +171,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
                     : "var(--border-subtle)",
                 }}
               >
-                {option.label}
+                {label}
               </button>
             );
           })}
@@ -174,8 +182,10 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
         {freePlatform && (
           <div className="space-y-1.5">
             <p className="text-[9px] text-[var(--text-muted)] leading-relaxed">
-              Ajuste manual — aplica cuando la plataforma es Automático o
-              Personalizado.
+              {t(
+                "delivery.manualTweakNote",
+                "Ajuste manual — aplica cuando la plataforma es Automático o Personalizado."
+              )}
             </p>
             <PlatformSelector
               value={params.target_lufs_db}
@@ -188,16 +198,20 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
       {/* ── Output SR + bit depth ──────────────────────────── */}
       <div className="space-y-2">
         <span className="block text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest">
-          Formato de salida
+          {t("delivery.outputFormat", "Formato de salida")}
         </span>
 
         <div className="space-y-1">
           <span className="text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-widest">
-            Sample rate
+            {t("delivery.sampleRateLabel", "Sample rate")}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {SR_OPTIONS.map((opt) => {
               const active = params.output_sr === opt.id;
+              const label =
+                opt.id === "same_as_input"
+                  ? t("delivery.sameAsInput", "Misma que la entrada")
+                  : opt.label;
               return (
                 <button
                   key={opt.id}
@@ -217,7 +231,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
                       : "var(--border-subtle)",
                   }}
                 >
-                  {opt.label}
+                  {label}
                 </button>
               );
             })}
@@ -226,7 +240,7 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
 
         <div className="space-y-1">
           <span className="text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-widest">
-            Bit depth
+            {t("delivery.bitDepthLabel", "Bit depth")}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {([16, 24] as const).map((bits) => {
@@ -268,13 +282,13 @@ export default function DeliveryPanel({ params, onChange }: DeliveryPanelProps) 
       >
         <div className="min-w-0">
           <p className="text-[11px] font-medium text-[var(--text-primary)]">
-            QC estricto
+            {t("delivery.strictQc", "QC estricto")}
           </p>
           <p
             className="text-[9px] text-[var(--text-muted)] leading-relaxed"
             title="Rechaza material dañado (clipping / true peak alto) con error claro en vez de procesarlo."
           >
-            Rechaza material dañado con error claro
+            {t("delivery.strictQcDesc", "Rechaza material dañado con error claro")}
           </p>
         </div>
         <button

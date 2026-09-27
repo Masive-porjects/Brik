@@ -66,6 +66,7 @@ not fast; a vectorized/Cython pass is a possible follow-up.
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.signal import butter, sosfilt, sosfreqz
@@ -250,7 +251,7 @@ class TapeSaturation:
 
     def process_with_diagnostics(
         self, audio: np.ndarray,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns stage diagnostics: the
         effective HF roll-off at 10 kHz (dB), the output-peak change (dB,
         positive when drive raises the peak, negative when it is reduced),
@@ -258,7 +259,7 @@ class TapeSaturation:
         the mean roll-off blend."""
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x

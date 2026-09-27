@@ -1,6 +1,6 @@
 /**
- * LiveView — Main Live Engine container (3-column layout).
- * Combines Input, FX Slots, and Meters into the Live tab.
+ * LiveView — Main Live Engine container.
+ * Standalone Web Audio player controlled by knobs (no camera/WS).
  */
 
 'use client';
@@ -8,9 +8,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveEngine } from '@/adapters/live/useLiveEngine';
+import { safeCloseAudioContext } from '@/lib/live/audioContextUtils';
 import { FxSlotPanel } from './FxSlotPanel';
-import { LiveMeters } from './LiveMeters';
+import { LiveMeterDeck } from './LiveMeterDeck';
 import { LiveRecorderBar } from './LiveRecorderBar';
+import type { LiveSide, LiveStaticMetrics } from './PresetHeader';
 
 interface LiveViewProps {
   /** Master audio buffer URL or blob */
@@ -19,10 +21,12 @@ interface LiveViewProps {
   masterAudioBuffer?: AudioBuffer | null | undefined;
   /** Whether the Live tab is active */
   isActive?: boolean;
-  /** Connection status from bridge */
-  bridgeConnected?: boolean;
-  /** Bridge latency in ms */
-  bridgeLatency?: number;
+  /** Preset activo del flujo de mastering (para preset header + target LUFS). */
+  presetId?: string | null;
+  /** Métricas estáticas del original (session.analysis) — campos reales de los tipos API. */
+  originalMetrics?: LiveStaticMetrics | null;
+  /** Métricas estáticas del master (session.master_result). */
+  masterMetrics?: LiveStaticMetrics | null;
 }
 
 /** Parámetros iniciales (neutrales) del Live Engine — el hook ya inicializa con defaults del schema. */
@@ -31,12 +35,17 @@ export function LiveView({
   masterAudioUrl,
   masterAudioBuffer,
   isActive = false,
-  bridgeConnected = false,
-  bridgeLatency,
+  presetId = null,
+  originalMetrics = null,
+  masterMetrics = null,
 }: LiveViewProps) {
-  // Master real del flujo de mastering: el padre pasa la URL del masterizado
-  // (getAudioUrl(session_id, "mastered")). La decodificamos a AudioBuffer para
-  // el Live Engine (AudioContext efímero; el hook usa el suyo para el graph).
+  // Lado del A/B estático (Original | Master) — estado lento del deck.
+  const [side, setSide] = useState<LiveSide>('original');
+
+  // ── Master real del flujo de mastering ─────────────────────────────
+  // El padre pasa la URL del masterizado (getAudioUrl(session_id, "mastered")).
+  // La decodificamos a AudioBuffer para el Live Engine. Con un AudioContext
+  // efímero (el decode es puntual; el hook usa el suyo para el graph).
   const [masterBuffer, setMasterBuffer] = useState<AudioBuffer | null>(null);
   const [decodedUrl, setDecodedUrl] = useState<string | null>(null);
 
@@ -62,7 +71,7 @@ export function LiveView({
         if (!cancelled) setMasterBuffer(audioBuf);
       })
       .catch((err) => console.error('[LiveView] decode master:', err))
-      .finally(() => { void ctx.close(); });
+      .finally(() => { void safeCloseAudioContext(ctx); });
 
     return () => { cancelled = true; };
   }, [masterAudioUrl]);
@@ -70,10 +79,6 @@ export function LiveView({
   // Use the live engine hook
   const {
     params,
-    connectionState,
-    latency,
-    outputLevel,
-    analyserData,
     recorderState,
     isPlaying,
     setParams,
@@ -98,8 +103,6 @@ export function LiveView({
       fx_preset: null,
     },
     onParamsChange: (p) => {}, // Handled by hook internally
-    onConnectionStateChange: () => {},
-    onLatencyUpdate: () => {},
     onError: (err) => console.error('[LiveEngine]', err),
   });
 
@@ -107,6 +110,9 @@ export function LiveView({
   useEffect(() => {
     return () => destroy();
   }, [destroy]);
+
+  // Hay master disponible (buffer decodificado o URL pendiente de decode).
+  const hasMaster = !!(masterBuffer ?? masterAudioBuffer) || !!masterAudioUrl;
 
   if (!isActive) {
     return (
@@ -130,70 +136,21 @@ export function LiveView({
 
   return (
     <motion.div
+      data-testid="live-view"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
       style={{
         flex: 1,
         display: 'grid',
-        gridTemplateColumns: '1fr 1.2fr 1fr',
+        gridTemplateColumns: '1.2fr 1fr',
         gridTemplateRows: '1fr auto',
         gap: 16,
         height: '100%',
         overflow: 'hidden',
       }}
     >
-      {/* Column 1: Input */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.05 }}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          overflow: 'auto',
-          paddingRight: 8,
-        }}
-      >
-        {/* Audio Source Selector */}
-        <div
-          style={{
-            padding: '12px 16px',
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.05)',
-            borderRadius: 10,
-            fontSize: 12,
-            color: '#8a8a8a',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#627e84' }} />
-            <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
-              Fuente de audio
-            </span>
-          </div>
-          <select
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
-              color: '#e8e8e8',
-              fontSize: 12,
-            }}
-            defaultValue="master"
-            disabled
-          >
-            <option value="master">Master Output (WaveIA)</option>
-            <option value="mic" disabled>Micrófono (próximamente)</option>
-            <option value="file" disabled>Archivo local (próximamente)</option>
-          </select>
-        </div>
-      </motion.div>
-
-      {/* Column 2: FX Chain */}
+      {/* Column 1: FX Chain */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -221,45 +178,6 @@ export function LiveView({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8' }}>LIVE ENGINE</span>
-            <span
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                background: connectionState === 'connected'
-                  ? 'rgba(52,199,89,0.15)'
-                  : 'rgba(255,149,0,0.15)',
-                border: `1px solid ${connectionState === 'connected' ? 'rgba(52,199,89,0.3)' : 'rgba(255,149,0,0.3)'}`,
-                borderRadius: 20,
-                fontSize: 11,
-                color: connectionState === 'connected' ? '#34c759' : '#ff9500',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: connectionState === 'connected' ? '#34c759' : '#ff9500',
-                  animation: connectionState === 'connecting' ? 'pulse 1s infinite' : 'none',
-                }}
-              />
-              {connectionState === 'connected' ? 'Conectado' : connectionState === 'connecting' ? 'Conectando...' : 'Desconectado'}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {latency > 0 && (
-              <span style={{ color: '#627e84', fontSize: 11, fontFamily: 'Inter, monospace' }}>
-                RTT: {latency.toFixed(1)}ms
-              </span>
-            )}
-            <span style={{ color: '#8a8a8a', fontSize: 11 }}>
-              {bridgeConnected ? '🎮 Bridge OK' : '⏳ Esperando Bridge'}
-            </span>
           </div>
         </div>
 
@@ -271,7 +189,7 @@ export function LiveView({
         />
       </motion.div>
 
-      {/* Column 3: Meters & Recorder */}
+      {/* Column 2: Meters (recorder lives full-width below) */}
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
@@ -284,24 +202,17 @@ export function LiveView({
           paddingLeft: 8,
         }}
       >
-        <LiveMeters
-          analyserData={analyserData}
-          outputLevel={outputLevel}
-          latency={latency}
-          connectionState={connectionState}
+        <LiveMeterDeck
           width={280}
-          height={320}
-        />
-
-        <LiveRecorderBar
-          recorderState={recorderState}
+          height={400}
+          presetId={presetId}
           isPlaying={isPlaying}
-          onPlay={play}
-          onPause={pause}
-          onStop={stop}
-          onStartRecording={startRecording}
-          onStopRecording={stopRecording}
-          onDownload={downloadRecording}
+          isActive={isActive}
+          hasMaster={hasMaster}
+          side={side}
+          originalMetrics={originalMetrics}
+          masterMetrics={masterMetrics}
+          onSideChange={setSide}
         />
       </motion.div>
 

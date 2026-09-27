@@ -38,6 +38,8 @@ The gate is strictly evidence-based and conservative:
 """
 from __future__ import annotations
 
+from typing import Literal, TypedDict
+
 from audiomind.models.audio import AnalysisResult, MasteringParameters
 from audiomind.processing.validation import (
     CREST_MINIMUM_DB,
@@ -127,11 +129,20 @@ def _signature_engaged(params: MasteringParameters) -> list[str]:
     return engaged
 
 
+class SmartGateReport(TypedDict):
+    """Decision report of ``decide_smart_gate`` (engine result conventions)."""
+
+    applied: bool
+    tier: Literal["full", "conservative", "none"]
+    gated_modules: list[str]
+    evidence: dict[str, object]
+
+
 def decide_smart_gate(
     params: MasteringParameters,
     analysis: AnalysisResult | None,
     effective_ceiling_db: float = _DEFAULT_CEILING_DB,
-) -> dict[str, object]:
+) -> SmartGateReport:
     """Decide whether (and which) chain modules can be gated.
 
     Returns a report-dict following the engine result conventions:
@@ -193,7 +204,7 @@ def decide_smart_gate(
         # and stays.
         if "compression" not in engaged:
             gated.append("compressor")
-        tier = "conservative"
+        tier: Literal["conservative", "full"] = "conservative"
     else:
         gated = list(FULL_GATE_MODULES)
         tier = "full"

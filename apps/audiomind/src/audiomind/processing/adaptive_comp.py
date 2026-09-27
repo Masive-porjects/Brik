@@ -71,6 +71,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+from typing import Any
 
 from audiomind.processing.multiband import detect_envelope
 
@@ -181,7 +182,7 @@ class AdaptiveCompressor:
         sums = cum[idx] - cum[np.maximum(idx - window, 0)]
         denom = np.minimum(idx, window)
         rms = np.sqrt(np.maximum(sums / denom, RMS_FLOOR))
-        return np.maximum(20.0 * np.log10(rms), LEVEL_FLOOR_DB)
+        return np.asarray(np.maximum(20.0 * np.log10(rms), LEVEL_FLOOR_DB))
 
     def _detector_paths(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute (rms_db, peak_env_db, crest_db) for the detector signal.
@@ -252,7 +253,7 @@ class AdaptiveCompressor:
 
     def process_with_diagnostics(
         self, audio: np.ndarray, sidechain: np.ndarray | None = None,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns per-frame diagnostics:
         ``gr_db`` (smoothed gain reduction), ``threshold_db``, ``crest_db``,
         ``attack_ms``/``release_ms`` trajectories and their scalar summaries."""
@@ -260,7 +261,7 @@ class AdaptiveCompressor:
 
     def _process(
         self, audio: np.ndarray, sidechain: np.ndarray | None,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x

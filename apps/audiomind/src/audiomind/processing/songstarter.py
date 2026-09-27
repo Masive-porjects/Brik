@@ -15,14 +15,20 @@ from typing import Any
 
 import numpy as np
 import soundfile as sf
+import pedalboard
 from pedalboard import (
     Compressor,
     Distortion,
     HighShelfFilter,
     Limiter,
     LowpassFilter,
-    Pedalboard,
 )
+
+# pedalboard's __init__ re-exports Pedalboard via a plain named import and
+# defines no __all__; with implicit_reexport=False (mypy strict) the name is
+# not treated as exported. Bind the module attribute explicitly — identical
+# runtime behavior, satisfies mypy.
+Pedalboard = pedalboard.Pedalboard
 
 from audiomind.config import settings
 
@@ -198,7 +204,7 @@ class BeatGenerator:
         bpm: float,
         swing_amount: float = 0.3,
         num_bars: int = 2,
-    ) -> dict[str, dict[str, Any]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """Generate a drum pattern as a dict of step events.
 
         Each stem has a list of dicts::
@@ -541,19 +547,6 @@ class BeatGenerator:
         for stem_events in pattern.values():
             for ev in stem_events:
                 t = ev["timing_offset_s"]
-                # Add sample duration
-                sample_name = {
-                    "kick": "kick.wav",
-                    "snare": "snare.wav",
-                    "hihat_closed": "hihat-closed.wav",
-                    "hihat_open": "hihat-open.wav",
-                    "clap": "clap.wav",
-                }
-                sname = sample_name.get(
-                    [k for k in sample_name if k in str(stem_events)][0]
-                    if False else None,
-                    "kick.wav",
-                )
                 last_time = max(last_time, t)
 
         # Better: compute total length from pattern

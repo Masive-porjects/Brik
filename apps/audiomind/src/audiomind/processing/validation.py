@@ -7,6 +7,7 @@ whether to retry processing; this module only judges.
 from __future__ import annotations
 
 from audiomind.models.audio import AnalysisResult, MasterResultMetrics
+from typing import Any
 
 # ── Layer 2 tolerances ────────────────────────────────────────────────
 LUFS_TOLERANCE_DB = 1.5      # |measured − target| above this → issue
@@ -33,7 +34,7 @@ DR_COLLAPSE_RATIO = 0.5       # output_lra < input_dr * this → issue
 DR_MINIMUM_LU = 3.0           # absolute loudness-range floor for delivery
 
 
-def _lufs_issue(measured: float, target: float) -> dict:
+def _lufs_issue(measured: float, target: float) -> dict[str, Any]:
     delta = measured - target
     direction = "bajo" if delta < 0 else "alto"
     return {
@@ -47,7 +48,7 @@ def _lufs_issue(measured: float, target: float) -> dict:
     }
 
 
-def _crest_issue(measured: float) -> dict:
+def _crest_issue(measured: float) -> dict[str, Any]:
     return {
         "metric": "crest",
         "measured": float(measured),
@@ -59,7 +60,7 @@ def _crest_issue(measured: float) -> dict:
     }
 
 
-def _true_peak_issue(measured: float, ceiling: float) -> dict:
+def _true_peak_issue(measured: float, ceiling: float) -> dict[str, Any]:
     excess = measured - ceiling
     return {
         "metric": "true_peak",
@@ -71,7 +72,7 @@ def _true_peak_issue(measured: float, ceiling: float) -> dict:
     }
 
 
-def _correlation_issue(measured: float) -> dict:
+def _correlation_issue(measured: float) -> dict[str, Any]:
     return {
         "metric": "correlation",
         "measured": float(measured),
@@ -83,7 +84,7 @@ def _correlation_issue(measured: float) -> dict:
     }
 
 
-def _dr_issue(output_lra: float, input_dr_db: float) -> dict:
+def _dr_issue(output_lra: float, input_dr_db: float) -> dict[str, Any]:
     return {
         "metric": "dr",
         "measured": float(output_lra),
@@ -101,9 +102,9 @@ def _dr_issue(output_lra: float, input_dr_db: float) -> dict:
 
 def validate_master(
     master_result: MasterResultMetrics | None,
-    preset: dict,
+    preset: dict[str, Any],
     analysis: AnalysisResult | None = None,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Judge the measured master against the active preset targets.
 
     Args:
@@ -123,7 +124,7 @@ def validate_master(
     if master_result is None:
         return None
 
-    issues: list[dict] = []
+    issues: list[dict[str, Any]] = []
 
     target_lufs = preset.get("target_lufs")
     ceiling = preset.get("limiter_ceiling_db")

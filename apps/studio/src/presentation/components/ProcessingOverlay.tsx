@@ -11,14 +11,14 @@ interface ProcessingOverlayProps {
   phase?: Phase;
 }
 
-function getSubtext(progress: number, phase: Phase = "process"): string {
+export function getSubtext(progress: number, phase: Phase = "process"): string {
   if (phase === "upload") {
     if (progress < 100) return "Subiendo tu track a WaveIA...";
     return "Subido — preparando el análisis...";
   }
   if (progress < 30) return "Analizando espectro y aplicando Gain Staging...";
   if (progress < 70) return "Aplicando algoritmos DSP de Brikman Paul...";
-  if (progress < 99) return "Modelando True Peak y Noise Shaping...";
+  if (progress < 100) return "Modelando True Peak y Noise Shaping...";
   return "Cargado";
 }
 

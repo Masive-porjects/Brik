@@ -6,7 +6,9 @@ saturation type, and target loudness. The engine dynamically calculates
 DSP parameters based on input analysis (proportional mastering).
 """
 
-PRESET_CHAINS: dict[str, dict] = {
+from typing import Any
+
+PRESET_CHAINS: dict[str, dict[str, Any]] = {
     "universal": {
         "display_name": "Pulido",
         "style": "Equilibrado",
@@ -187,12 +189,12 @@ PRESET_CHAINS: dict[str, dict] = {
 }
 
 
-def get_preset(name: str) -> dict | None:
+def get_preset(name: str) -> dict[str, Any] | None:
     """Get a preset definition by name."""
     return PRESET_CHAINS.get(name)
 
 
-def list_presets() -> list[dict]:
+def list_presets() -> list[dict[str, Any]]:
     """List all available presets with summary info."""
     return [
         {

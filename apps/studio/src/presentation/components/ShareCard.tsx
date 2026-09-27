@@ -106,7 +106,7 @@ async function renderCard(opts: {
 
   // Ghost watermark — low opacity, right side (best-effort)
   try {
-    const ghost = await loadImage("/brand/BrikMasters.png");
+    const ghost = await loadImage("/brand/WaveAI.png");
     const h = CARD_H * 0.92;
     const w = (ghost.width / ghost.height) * h;
     ctx.save();
@@ -119,7 +119,7 @@ async function renderCard(opts: {
 
   // Logo top-left (SVG; styled-text fallback)
   try {
-    const logo = await loadImage("/brand/BrikMaster.svg");
+    const logo = await loadImage("/brand/WaveAI.svg");
     const h = 84;
     const w = (logo.width / logo.height) * h;
     ctx.drawImage(logo, PAD, PAD - 10, w, h);
@@ -223,7 +223,7 @@ export default function ShareCard({
     }
     if (!blob) return;
 
-    const fileName = `brikmaster_${sessionId}_card.png`;
+    const fileName = `waveai_${sessionId}_card.png`;
     const file = new File([blob], fileName, { type: "image/png" });
 
     if (navigator.canShare?.({ files: [file] })) {

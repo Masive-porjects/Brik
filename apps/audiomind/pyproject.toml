@@ -17,6 +17,7 @@ dependencies = [
     "soxr>=1.0.0",
     "pydub>=0.25.1",
     "demucs-onnx>=0.3.0",
+    "supabase>=2.31.0",
 ]
 
 [project.optional-dependencies]
@@ -43,8 +44,23 @@ target-version = "py311"
 select = ["E", "F", "I", "N", "UP", "B"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# Third-party libs without stubs: restrict ignore_missing_imports to these
+# modules only — global strict stays intact.
+module = ["scipy.*", "soundfile", "soxr", "demucs_onnx"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pedalboard's __init__ imports Pedalboard from the compiled _pedalboard
+# module without an __all__ re-export, so strict implicit_reexport flags
+# every consumer of `from pedalboard import Pedalboard`. Scope the
+# allowance to this third-party boundary only.
+module = ["pedalboard"]
+implicit_reexport = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

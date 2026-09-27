@@ -157,7 +157,7 @@ def _adaptive_release_ms(audio: np.ndarray, nominal_ms: float) -> float:
     short_ms = nominal_ms * 0.9
     long_ms = nominal_ms * 4.0
     t = np.clip((CREST_HIGH_DB - crest) / (CREST_HIGH_DB - CREST_LOW_DB), 0.0, 1.0)
-    return short_ms + t * (long_ms - short_ms)
+    return float(short_ms + t * (long_ms - short_ms))
 
 
 def _lookahead_gain_stage(
@@ -235,7 +235,7 @@ def measure_true_peak(
     peak_linear = float(np.max(np.abs(audio_up)))
     if peak_linear <= 0:
         return -np.inf
-    return 20 * np.log10(peak_linear)
+    return float(20 * np.log10(peak_linear))
 
 
 # ── Codec Pre-Matching ────────────────────────────────────────────────
@@ -267,7 +267,7 @@ def calculate_crest_factor(audio: np.ndarray) -> float:
     if rms <= 0:
         return 40.0  # effectively silence, return safe high value
 
-    return 20.0 * np.log10(peak / rms)
+    return float(20.0 * np.log10(peak / rms))
 
 
 def compute_codec_safe_ceiling(

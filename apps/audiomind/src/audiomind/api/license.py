@@ -51,7 +51,7 @@ def require_license(
 
 
 @router.get("/license/status", response_model=LicenseStatus)
-async def license_status():
+async def license_status() -> LicenseStatus:
     """Return whether the system is licensed.
 
     In development (no AUDIOMIND_LICENSE_KEY set), the system reports
@@ -74,7 +74,7 @@ async def license_status():
 
 
 @router.post("/license/activate", response_model=ActivationResponse)
-async def activate_license(req: ActivationRequest):
+async def activate_license(req: ActivationRequest) -> ActivationResponse:
     """Validate and activate a license key.
 
     The key must match the AUDIOMIND_LICENSE_KEY environment variable.

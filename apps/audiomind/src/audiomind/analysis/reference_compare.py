@@ -64,7 +64,7 @@ def _measure_crest_db(mono: np.ndarray) -> float | None:
     rms = float(np.sqrt(np.mean(mono**2)))
     if peak <= 0.0 or rms <= 0.0:
         return None
-    return 20.0 * np.log10(peak / rms)
+    return float(20.0 * np.log10(peak / rms))
 
 
 def _sub_delta(

@@ -16,13 +16,6 @@ export interface FxPresetDef {
   icon: string;
 }
 
-/**
- * Preset definitions matching the Bridge's note-to-preset mapping:
- * Note 36 (Kick) → clean
- * Note 38 (Snare) → dub
- * Note 42 (Closed HH) → big_room
- * Note 49 (Open HH) → radio
- */
 export const FX_PRESETS: Record<FxPresetName, FxPresetDef> = {
   clean: {
     name: 'clean',
@@ -100,19 +93,6 @@ export const FX_PRESET_ORDER: FxPresetName[] = ['clean', 'dub', 'big_room', 'rad
  */
 export function getPreset(name: string): FxPresetDef {
   return FX_PRESETS[name as FxPresetName] ?? FX_PRESETS.clean;
-}
-
-/**
- * Get preset corresponding to MIDI note (Bridge mapping)
- */
-export function getPresetByNote(note: number): FxPresetDef {
-  switch (note) {
-    case 36: return FX_PRESETS.clean;      // Kick
-    case 38: return FX_PRESETS.dub;        // Snare
-    case 42: return FX_PRESETS.big_room;   // Closed HH
-    case 49: return FX_PRESETS.radio;      // Open HH
-    default: return FX_PRESETS.clean;
-  }
 }
 
 /**

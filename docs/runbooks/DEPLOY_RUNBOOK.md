@@ -47,7 +47,7 @@ Verified source: `config.py` lines 40–55 (license, prerender, concurrency, dur
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `https://<backend-railway>/api` | Contract: must end in `/api` (backend mounts all routers under that prefix). Trailing slash / double `/api` are auto-normalized client-side. Inlined at build time — set it before the first deploy. |
 | `NEXT_PUBLIC_BASE_PATH` | **leave unset** | `""` = serve at the Vercel domain root. Only needed if the app is later mounted under a subpath (e.g. `/waveai`). |
-| `NEXT_PUBLIC_REQUIRE_AUTH` | **leave unset** | Auth is disabled (`AuthGuard` only enforces when `= "1"`). |
+| ~~`NEXT_PUBLIC_REQUIRE_AUTH`~~ | **removed** | The login flow was removed from the frontend — the env var no longer does anything. |
 | `NEXT_PUBLIC_CONVEX_URL` | **not needed** | `ConvexClientProvider` is a passthrough; the app has zero `convex/_generated` imports today. |
 | `ELEVENLABS_*` | **not needed** | Voice agent runtime is off in the demo UI. |
 
@@ -121,7 +121,7 @@ railway up                   # deploy the current branch service (root dir apps/
    - Build Command: `bun run build` (package script: `bun run --filter @midimastering/agent build && next build`, verified locally in SETUP.md §6)
    - Install Command: `bun install` (auto-detected, do not override)
    - Root Directory: `apps/studio` (dashboard setting, step 3)
-5. **Settings → Git → Production Branch:** set the **Production Branch** to `demo/vercel-railway-client` so production deploys track the demo branch (branch-level deployments otherwise act as Preview).
+5. **Settings → Git → Production Branch:** set the **Production Branch** to **`main`** (decision 2026-09-13): **any merge/push to `main` deploys directly to production.** Do not use a demo branch as the production source — main is always up to date and is the single source of truth for what ships.
 6. **Settings → Environment Variables:** add the table in §1.2 (`NEXT_PUBLIC_API_URL=https://<backend-railway>/api`). `NEXT_PUBLIC_*` is inlined at build time — it must exist before the build starts.
 7. Click **Deploy**. Copy the production URL, e.g. `https://waveai-studio.vercel.app`.
 8. **Smoke (frontend standalone):** the page loads, the mastering tab renders, no console 4xx to `/api/*` on the Vercel origin.
@@ -165,6 +165,7 @@ vercel --prod                      # deploys apps/studio as the linked project
 | 6.7 | **PENDING — RAM cap** | The effective per-replica RAM on the Hobby plan must be verified in the Railway dashboard before each canary stage (§2 gate). The plan does not declare Hobby a no-go: it says verify. |
 | 6.8 | **PENDING — exact Vercel domain** | Unknown until the Vercel project is created; it is a required input for `AUDIOMIND_CORS_ORIGINS` (§5). |
 | 6.9 | **PENDING — Railway uses latest commit** | Railway deploys from GitHub commits; the branch must be pushed via the `waveia` remote before the service can build (orchestrator handles commits/push). |
+| 6.10 | **Production Branch = `main` (decision 2026-09-13)** | Vercel **wave-ia-studio** Production Branch must be `main`. Merging/pushing to `main` = direct production deploy. Build Command override: **disable it** so `apps/studio/vercel.json` applies (`bun run build`) — a bare `next build` fails because `@midimastering/agent` `dist/` is not committed (tsc must run first via the workspace filter). |
 
 ---
 

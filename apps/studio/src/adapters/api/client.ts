@@ -55,6 +55,18 @@ export interface MasteringReport {
   warnings: string[]; // en español neutro latinoamericano
 }
 
+/**
+ * Lifecycle of the Mix Engine output of a session (backend contract, T2).
+ * ``completed`` is the ONLY value that makes ``mix_path`` masterable, so it
+ * is also the client-side meaning of ``hasMix`` (see ``hasCompletedMix``).
+ * Optional here so sessions saved before the field existed keep typing.
+ */
+export type MixStatus = "none" | "processing" | "completed" | "failed";
+
+/** Which audio file a mastering run consumes: the uploaded original or the
+ *  delivered Mix Engine output (``POST /process?source=``). */
+export type MasterSource = "original" | "mix";
+
 export interface SessionData {
   session_id: string;
   status: "uploaded" | "analyzing" | "processing" | "completed" | "error";
@@ -67,6 +79,16 @@ export interface SessionData {
   master_result?: MasterResultMetrics | null;
   validation?: ValidationReport | null;
   mastering_report?: MasteringReport | null;
+  /* ── Mix Engine ── the mix is NOT the master: it lives on its own
+     pointer/analysis pair so the mastering pipeline is never affected. */
+  mix_path?: string | null;
+  mix_analysis?: MixResult | null;
+  /* Live state of the mix, owned by the backend (T2): ``processing`` while
+     the pipeline runs, ``completed`` when the WAV was delivered, ``failed``
+     on error (the last DELIVERED mix_path survives). Kept out of
+     ``mix_analysis`` because that one is the snapshot of the last SUCCESSFUL
+     mix. Absent = "none" (session predates the field). */
+  mix_status?: MixStatus;
   preset_masters?: Record<
     string,
     {
@@ -198,10 +220,17 @@ export async function processAudio(
   parameters: MasteringParameters,
   signal?: AbortSignal,
   presetId?: string,
+  source?: MasterSource,
 ): Promise<SessionData> {
   const url = new URL(`${API_BASE}/session/${sessionId}/process`);
   if (presetId) {
     url.searchParams.set("preset_id", presetId);
+  }
+  // Explicit source (T2): the client decides WHICH file the run consumes
+  // instead of relying on the backend's smart default. Omitting it keeps the
+  // historic smart resolution (mix only when it is completed and on disk).
+  if (source) {
+    url.searchParams.set("source", source);
   }
   const res = await fetch(url, {
     method: "POST",
@@ -429,6 +458,106 @@ export async function processVocalChain(
   return res.json();
 }
 
+/* ── Mix Engine ─────────────────────────────────────── */
+
+/**
+ * JSON payload served in the ``X-Mix-Result`` header by
+ * POST /session/{id}/mix (and mirrored on the session as
+ * ``mix_analysis``). Every field is optional on purpose: the backend
+ * includes or omits each report depending on which DSP steps ran, so
+ * parsing never breaks when a key is missing.
+ */
+export interface MixResult {
+  analysis?: Record<string, unknown>;
+  /** Real per-stem presence measured by the backend (per-stem RMS ≥
+   *  −50 dBFS on the source stems). Optional/backward-compatible: older
+   *  mixes without the key simply show no stem chips. */
+  stem_presence?: Record<string, boolean>;
+  tempo_bpm?: number | null;
+  genre?: string | null;
+  genre_confidence?: number | null;
+  sample_rate?: number | null;
+  duration_seconds?: number | null;
+  pan_report?: unknown;
+  dimension_report?: unknown;
+  compressor_report?: unknown;
+  emphasis_report?: unknown;
+  qc_report?: unknown;
+  versions?: Record<string, unknown> | null;
+  /** T4 — stem auto-balance report (backend, only when auto_balance=true).
+   *  Shape: { genre, genre_confidence, status, stem_lufs,
+   *  groove_level_lufs, vocal_target_lufs, d, gains, applied }. */
+  balance_report?: unknown;
+  /** T5 — manual stem faders report (backend, only when a trim ≠ 0 is
+   *  sent). Shape: { gains: {*_db}, applied }. */
+  trim_report?: unknown;
+}
+
+/**
+ * Run the Mix Engine (8-step DSP build) for a session and return the
+ * mixed WAV as a blob objectURL plus the analysis JSON parsed from the
+ * ``X-Mix-Result`` response header. The optional JSON body toggles the
+ * spatial dimension stage (Paso 04: tempo delay + reverb per stem):
+ * ``dimensionEnabled`` defaults to ``true`` (current behaviour);
+ * ``false`` routes the stems exactly like Paso 03 — the backend omits
+ * ``dimension_report`` from the payload. The same body accepts the stem
+ * balance options (T5/T6): ``autoBalance`` sends ``auto_balance: true``
+ * (the engine measures and corrects the voice toward the genre target,
+ * reporting ``balance_report``) and ``stemTrims`` sends the manual
+ * faders as ``stem_trims`` (only keys ≠ 0; all-zero/absent keeps the
+ * previous payload exactly — no ``trim_report``).
+ */
+export async function mixTracks(
+  sessionId: string,
+  options?: {
+    signal?: AbortSignal;
+    dimensionEnabled?: boolean;
+    autoBalance?: boolean;
+    stemTrims?: Record<string, number>;
+  },
+): Promise<{ audioUrl: string; audioBlob: Blob; result: MixResult | null }> {
+  const body: Record<string, unknown> = {
+    dimension_enabled: options?.dimensionEnabled ?? true,
+  };
+  if (options?.autoBalance) body.auto_balance = true;
+  const stemTrims = Object.fromEntries(
+    Object.entries(options?.stemTrims ?? {}).filter(([, db]) => db !== 0),
+  );
+  if (Object.keys(stemTrims).length > 0) body.stem_trims = stemTrims;
+  const res = await fetch(`${API_BASE}/session/${sessionId}/mix`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    body: JSON.stringify(body),
+    ...(options?.signal ? { signal: options.signal } : {}),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Mix failed" }));
+    throw new Error(
+      (err as { detail?: string }).detail || "Mix failed",
+    );
+  }
+  const audioBlob = await res.blob();
+  let result: MixResult | null = null;
+  // HTTP headers are case-insensitive; read both spellings defensively.
+  const raw =
+    res.headers.get("X-Mix-Result") ?? res.headers.get("x-mix-result");
+  if (raw) {
+    try {
+      result = JSON.parse(raw) as MixResult;
+    } catch {
+      result = null; // header malformed → analysis unavailable, audio still works
+    }
+  }
+  return { audioUrl: URL.createObjectURL(audioBlob), audioBlob, result };
+}
+
+/** Stable URL of the persisted mix WAV (survives session reload). */
+export function getMixAudioUrl(sessionId: string): string {
+  return `${API_BASE}/session/${sessionId}/audio/mix`;
+}
+
 /* ── SongStarter ──────────────────────────────────── */
 
 export interface BeatParams {
@@ -551,3 +680,88 @@ export async function downloadMastered(
   }
   return res.blob();
 }
+
+/** Payload for submitting a cloud DSP mastering job (Fase 6). */
+export interface MasterJobPayload {
+  track_id: string;
+  user_id?: string;
+  version_id?: string;
+  input_audio_url?: string;
+  input_storage_path?: string;
+  preset_id?: string;
+  parameters?: Partial<MasteringParameters>;
+  platform_target?: "spotify" | "apple_music" | "youtube" | "tidal" | "club" | "cd" | "custom";
+  format?: "wav" | "mp3";
+  output_bit_depth?: number;
+  master_name?: string;
+  is_async?: boolean;
+}
+
+/** Result from a synchronous or completed mastering worker job. */
+export interface MasterJobResult {
+  success: boolean;
+  job_id: string;
+  track_id: string;
+  master_id: string;
+  status: string;
+  storage_path?: string;
+  download_url?: string;
+  file_size_bytes: number;
+  format: "wav" | "mp3";
+  metrics?: MasterResultMetrics;
+  validation?: ValidationReport;
+  report?: MasteringReport;
+  error?: string;
+}
+
+/** Async job status returned when polling background jobs. */
+export interface AsyncJobStatus {
+  job_id: string;
+  track_id: string;
+  status: "processing" | "completed" | "error";
+  result?: MasterJobResult;
+  error?: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+/**
+ * Submits a stateless DSP mastering job to AudioMind.
+ * Can execute synchronously or enqueued in the background.
+ */
+export async function submitMasterJob(
+  payload: MasterJobPayload,
+): Promise<MasterJobResult> {
+  const res = await fetch(`${API_BASE}/jobs/master`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...licenseHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Mastering job failed" }));
+    throw new ApiError(err.detail || "Mastering job failed", res.status);
+  }
+
+  return res.json();
+}
+
+/**
+ * Polls the current status of an asynchronous mastering job.
+ */
+export async function getMasterJobStatus(jobId: string): Promise<AsyncJobStatus> {
+  const res = await fetch(`${API_BASE}/jobs/master/${encodeURIComponent(jobId)}`, {
+    headers: { ...licenseHeaders() },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Job status check failed" }));
+    throw new ApiError(err.detail || "Job status check failed", res.status);
+  }
+
+  return res.json();
+}
+

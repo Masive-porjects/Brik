@@ -33,7 +33,7 @@ DEFAULT_WINDOW: tuple[str, float] = ("kaiser", 8.6)
 def oversample_up(
     audio: np.ndarray,
     factor: int,
-    window: tuple[str, float] = DEFAULT_WINDOW,
+    window: tuple[str, float] | np.ndarray = DEFAULT_WINDOW,
 ) -> np.ndarray:
     """Upsample ``audio`` by ``factor`` along the last axis.
 
@@ -51,14 +51,14 @@ def oversample_up(
     Returns:
         Upsampled audio of length ``ceil(n * factor)``.
     """
-    return resample_poly(audio, factor, 1, axis=-1, window=window)
+    return np.asarray(resample_poly(audio, factor, 1, axis=-1, window=window))
 
 
 def oversample_down(
     audio: np.ndarray,
     factor: int,
     original_length: int,
-    window: tuple[str, float] = DEFAULT_WINDOW,
+    window: tuple[str, float] | np.ndarray = DEFAULT_WINDOW,
 ) -> np.ndarray:
     """Downsample ``audio`` back to the original sample grid.
 
@@ -77,7 +77,7 @@ def oversample_down(
     Returns:
         Downsampled audio with ``original_length`` samples.
     """
-    out = resample_poly(audio, 1, factor, axis=-1, window=window)
+    out = np.asarray(resample_poly(audio, 1, factor, axis=-1, window=window))
     if out.shape[-1] == original_length:
         return out
     if out.shape[-1] > original_length:

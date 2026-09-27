@@ -1,12 +1,19 @@
-import { convexAuthNextjsMiddleware } from "@convex-dev/auth/nextjs/server";
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-/**
- * Requerido por Convex Auth para refrescar la cookie de sesión en SSR.
- * No redirige nada todavía — la protección de rutas (ej. /panel) la agrega
- * Andrés en las pantallas cuando estén listas, usando `isAuthenticatedNextjs()`.
- */
-export default convexAuthNextjsMiddleware();
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
+}
 
 export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images, audio, static assets
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp3|wav|ogg)$).*)",
+  ],
 };

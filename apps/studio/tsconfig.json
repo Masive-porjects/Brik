@@ -31,8 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  // convex/ se despliega por separado con la CLI de Convex, que hace su propio
-  // type check contra los tipos que genera en convex/_generated. Next no lo
-  // empaqueta, y sin el codegen corrido rompia `next build` en el deploy.
-  "exclude": ["node_modules", "convex"]
+  "exclude": ["node_modules"]
 }

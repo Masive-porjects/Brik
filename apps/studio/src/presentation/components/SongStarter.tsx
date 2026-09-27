@@ -16,6 +16,7 @@ import {
   type SavedBeat,
 } from "@/lib/api";
 import GrooveSequencer from "@/components/audio/GrooveSequencer";
+import { useTranslation } from "@/i18n";
 
 /* ── Constants ─────────────────────────────────────── */
 
@@ -172,6 +173,7 @@ interface SongStarterProps {
 }
 
 export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
+  const { t } = useTranslation();
   const [params, setParams] = useState<BeatParams>(DEFAULT_BEAT_PARAMS);
   const [generating, setGenerating] = useState(false);
   const [beat, setBeat] = useState<BeatResponse | null>(null);
@@ -450,10 +452,10 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
   // Derive stem list from the beat's stems
   const stemEntries = beat
     ? [
-        { name: "mix", label: STEM_LABELS.mix, color: STEM_COLORS.mix },
+        { name: "mix", label: t("songstarter.tracks.mix", STEM_LABELS.mix), color: STEM_COLORS.mix },
         ...Object.keys(beat.stems).map((name) => ({
           name,
-          label: STEM_LABELS[name] ?? name,
+          label: t(`songstarter.tracks.${name}`, STEM_LABELS[name] ?? name),
           color: STEM_COLORS[name] ?? "#888",
         })),
       ]
@@ -470,7 +472,7 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
             SongStarter
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Generá bases rítmicas y armónicas al instante
+            {t("songstarter.subtitle", "Generá bases rítmicas y armónicas al instante")}
           </p>
         </div>
       </div>
@@ -502,7 +504,7 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
           {/* BPM */}
           <div className="flex flex-col gap-2">
             <label className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">
-              BPM <span className="text-[#f59e0b] font-bold">{params.bpm}</span>
+              {t("songstarter.bpm", "BPM")} <span className="text-[#f59e0b] font-bold">{params.bpm}</span>
             </label>
             <input
               type="range"
@@ -524,7 +526,9 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
 
           {/* Scale */}
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">Modo</label>
+            <label className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">
+              {t("songstarter.scale", "Modo")}
+            </label>
             <select
               value={params.scale}
               onChange={(e) => setParams({ ...params, scale: e.target.value })}
@@ -542,7 +546,9 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
 
           {/* Root note */}
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">Tónica</label>
+            <label className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">
+              {t("songstarter.rootNote", "Tónica")}
+            </label>
             <div className="flex flex-wrap gap-1">
               {ROOT_NOTES.map((note) => (
                 <button
@@ -564,7 +570,7 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
           {/* Swing */}
           <div className="flex flex-col gap-2">
             <label className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">
-              Swing <span className="text-[#f59e0b] font-bold">{Math.round((params.swing_amount ?? 0) * 100)}%</span>
+              {t("songstarter.swing", "Swing")} <span className="text-[#f59e0b] font-bold">{Math.round((params.swing_amount ?? 0) * 100)}%</span>
             </label>
             <input
               type="range"
@@ -602,11 +608,11 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
             }}
           >
             {generating ? (
-              <><Loader2 size={16} className="animate-spin" /> Generando...</>
+              <><Loader2 size={16} className="animate-spin" /> {t("songstarter.generating", "Generando...")}</>
             ) : beat ? (
-              <><Music2 size={16} /> Regenerar Beat</>
+              <><Music2 size={16} /> {t("songstarter.regenerate", "Regenerar Beat")}</>
             ) : (
-              <><Music2 size={16} /> Generar Beat</>
+              <><Music2 size={16} /> {t("songstarter.generateBeat", "Generar Beat")}</>
             )}
           </button>
         </div>
@@ -623,7 +629,9 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
       {beat && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stems</h3>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+              {t("songstarter.stemsTitle", "Stems")}
+            </h3>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-[var(--text-muted)]">
                 {beat.bpm} BPM · {beat.scale} · {beat.root_note} · {beat.duration.toFixed(1)}s
@@ -650,7 +658,11 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
                 ) : (
                   <Download size={12} />
                 )}
-                {saving ? "Guardando..." : saved ? "Guardado" : "Guardar"}
+                {saving
+                  ? t("common.saving", "Guardando...")
+                  : saved
+                    ? t("songstarter.saved", "Guardado")
+                    : t("songstarter.saveBeat", "Guardar")}
               </button>
             </div>
           </div>
@@ -672,7 +684,7 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
             }}
           >
             {mixPlaying ? <Pause size={16} /> : <Play size={16} />}
-            {mixPlaying ? "Pausar" : "Escuchar todo"}
+            {mixPlaying ? t("player.pause", "Pausar") : t("songstarter.listenAll", "Escuchar todo")}
           </button>
 
           <div className="space-y-1.5">
@@ -704,13 +716,15 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
            ═══════════════════════════════════════════════ */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Beats Guardados</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+            {t("songstarter.savedBeats", "Beats Guardados")}
+          </h3>
           <button
             onClick={refreshBeats}
             disabled={loadingBeats}
             className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
-            {loadingBeats ? "Cargando..." : "Actualizar"}
+            {loadingBeats ? t("common.loading", "Cargando...") : t("common.refresh", "Actualizar")}
           </button>
         </div>
 
@@ -720,7 +734,7 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
             style={{ background: "var(--surface-hover)", border: "1px solid var(--border-subtle)" }}
           >
             <p className="text-xs text-[var(--text-muted)]">
-              No hay beats guardados todavía. Genera uno y presiona Guardar.
+              {t("songstarter.noSavedBeats", "No hay beats guardados todavía. Genera uno y presiona Guardar.")}
             </p>
           </div>
         )}
@@ -747,7 +761,7 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
                     {saved.name ?? `Beat ${saved.id.slice(0, 8)}`}
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
-                    {new Date(saved.created_at).toLocaleDateString("es-CO", {
+                    {new Date(saved.created_at).toLocaleDateString(undefined, {
                       day: "numeric",
                       month: "short",
                       hour: "2-digit",
@@ -775,12 +789,12 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
                   onClick={() => handleLoadBeat(saved)}
                   className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all bg-[rgba(245,158,11,0.1)] text-[#f59e0b] hover:brightness-110"
                 >
-                  Cargar
+                  {t("songstarter.load", "Cargar")}
                 </button>
                 <button
                   onClick={() => handleDeleteBeat(saved.id)}
                   className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[#ff3b30] hover:bg-[rgba(255,59,48,0.1)] transition-all"
-                  title="Eliminar"
+                  title={t("common.delete", "Eliminar")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -795,13 +809,15 @@ export default function SongStarter({ sessionId, disabled }: SongStarterProps) {
            ═══════════════════════════════════════════════ */}
       {!beat && !generating && (
         <p className="text-xs text-[var(--text-muted)] text-center">
-          Ajusta los parámetros y presiona &quot;Generar Beat&quot; para empezar.
+          {t("songstarter.startPrompt", "Ajusta los parámetros y presiona \"Generar Beat\" para empezar.")}
         </p>
       )}
       {generating && (
         <div className="flex items-center justify-center gap-2">
           <Loader2 size={14} className="animate-spin text-[#f59e0b]" />
-          <span className="text-xs text-[var(--text-secondary)]">Generando beat...</span>
+          <span className="text-xs text-[var(--text-secondary)]">
+            {t("songstarter.generatingBeat", "Generando beat...")}
+          </span>
         </div>
       )}
     </div>

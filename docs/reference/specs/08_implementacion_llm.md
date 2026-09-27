@@ -314,7 +314,7 @@ pytest tests/ -v                   # 26 tests (o los equivalentes recreados) ver
 ### 7.3 Verificación bridge
 ```bash
 cd apps/bridge && pip install -r requirements.txt
-python main.py &                    # escucha MIDI + WS :8765
+python -m src.main &                # escucha MIDI + WS :8765
 # Test sintético: python tools/midi_test_send.py   (envía CCs 74/92/71/73/16 + nota por el puerto)
 #   → websocat ws://localhost:8765  →  ver live_params con ts
 pytest tests/ -q

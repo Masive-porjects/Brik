@@ -43,6 +43,7 @@ ratio-1.0 defaults, so existing masters pass through unchanged.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from scipy.signal import butter, sosfilt
@@ -183,7 +184,7 @@ def detect_envelope(
 
 def _level_to_db(env: np.ndarray) -> np.ndarray:
     """Convert a linear envelope to dB with a floor at silence."""
-    return np.maximum(20.0 * np.log10(np.maximum(env, 1e-12)), FLOOR_DB)
+    return np.asarray(np.maximum(20.0 * np.log10(np.maximum(env, 1e-12)), FLOOR_DB))
 
 
 def gain_computer(
@@ -256,12 +257,12 @@ class MultibandCompressor:
         out, _ = self._process(audio)
         return out
 
-    def process_with_diagnostics(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def process_with_diagnostics(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Like :meth:`process` but also returns per-band gain-reduction and
         makeup data (used by the Sprint 4 A/B verification)."""
         return self._process(audio)
 
-    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict]:
+    def _process(self, audio: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         x = np.asarray(audio)
         mono = x.ndim == 1
         x2 = x[np.newaxis, :] if mono else x

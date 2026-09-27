@@ -18,6 +18,7 @@ import {
   Info,
 } from "lucide-react";
 import PresetTooltip from "@/components/PresetTooltip";
+import { useTranslation } from "@/i18n";
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -201,9 +202,15 @@ function MacroCard({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
   const Icon = preset.icon;
   const presetColor = PRESET_COLORS[preset.id]?.wave ?? DEFAULT_PRESET_COLOR.wave;
+
+  const title = t(`mastering.presets.${preset.id}.name`, preset.title);
+  const description = t(`mastering.presets.${preset.id}.description`, preset.description);
+  const genre = t(`mastering.presets.${preset.id}.genre`, preset.genre);
+  const tooltip = t(`mastering.presets.${preset.id}.tooltip`, preset.tooltip);
 
   /* Entry animation — runs once on mount */
   useGSAP(
@@ -303,14 +310,14 @@ function MacroCard({
           }}
         />
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          {preset.title}
+          {title}
         </h3>
-        <PresetTooltip text={preset.tooltip} color={presetColor} />
+        <PresetTooltip text={tooltip} color={presetColor} />
       </div>
 
       {/* Description */}
       <p className="text-[var(--text-secondary)] text-[11px] tracking-wide mt-1.5 leading-relaxed">
-        {preset.description}
+        {description}
       </p>
 
       {/* Genre tag */}
@@ -326,7 +333,7 @@ function MacroCard({
             : "1px solid var(--border-subtle)",
         }}
       >
-        {preset.genre}
+        {genre}
       </span>
     </div>
   );
@@ -476,6 +483,7 @@ export default function ModulePanel({
   activePresetId,
   onPresetSelect,
 }: ModulePanelProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [fineTuneOpen, setFineTuneOpen] = useState(false);
 
@@ -542,7 +550,7 @@ export default function ModulePanel({
         <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-[var(--surface-hover)] transition-colors list-none select-none">
           <GripVertical size={14} className="text-[var(--text-muted)]" />
           <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest">
-            Ajuste Fino
+            {t("mastering.fineTune", "Ajuste Fino")}
           </span>
           <svg
             width="12"
@@ -573,8 +581,7 @@ export default function ModulePanel({
             >
               <Info size={12} className="shrink-0 mt-0.5" />
               <span>
-                Modo transparente: las perillas creativas no se aplican — solo
-                entrega (loudness / SRC / bit depth).
+                {t("mastering.transparentWarning", "Modo transparente: las perillas creativas no se aplican — solo entrega (loudness / SRC / bit depth).")}
               </span>
             </div>
           )}
@@ -588,7 +595,7 @@ export default function ModulePanel({
           >
             {/* Clarity */}
             <Knob3D
-              label="Reverb"
+              label={t("mastering.knobs.reverb", "Reverb")}
               value={params.clarity_wet}
               min={0}
               max={1}
@@ -598,7 +605,7 @@ export default function ModulePanel({
               disabled={disabled}
             />
             <Knob3D
-              label="Brillo"
+              label={t("mastering.knobs.brightness", "Brillo")}
               value={params.clarity_brightness_db}
               min={-6}
               max={6}
@@ -610,7 +617,7 @@ export default function ModulePanel({
 
             {/* Dynamics */}
             <Knob3D
-              label="Ratio"
+              label={t("analysis.ratio", "Ratio")}
               value={params.compression_ratio}
               min={1}
               max={10}
@@ -620,7 +627,7 @@ export default function ModulePanel({
               disabled={disabled}
             />
             <Knob3D
-              label="Ceiling"
+              label={t("analysis.ceiling", "Ceiling")}
               value={params.limiter_ceiling_db}
               min={-3}
               max={0}
@@ -630,7 +637,7 @@ export default function ModulePanel({
               disabled={disabled}
             />
             <Knob3D
-              label="Punch"
+              label={t("mastering.knobs.transients", "Punch")}
               value={params.transient_boost_db}
               min={0}
               max={6}
@@ -642,7 +649,7 @@ export default function ModulePanel({
 
             {/* Saturation */}
             <Knob3D
-              label="Drive"
+              label={t("mastering.knobs.saturation", "Drive")}
               value={params.saturation_drive_db}
               min={0}
               max={10}
@@ -652,7 +659,7 @@ export default function ModulePanel({
               disabled={disabled}
             />
             <Knob3D
-              label="Warmth"
+              label={t("mastering.knobs.warmth", "Warmth")}
               value={params.saturation_warmth_db}
               min={-6}
               max={6}
@@ -664,7 +671,7 @@ export default function ModulePanel({
 
             {/* Spatial */}
             <Knob3D
-              label="Width"
+              label={t("mastering.knobs.stereoWidth", "Width")}
               value={params.stereo_width}
               min={0.5}
               max={2.0}
@@ -674,7 +681,7 @@ export default function ModulePanel({
               disabled={disabled}
             />
             <Knob3D
-              label="Haas"
+              label={t("mastering.knobs.haasDelay", "Haas")}
               value={params.haas_delay_ms}
               min={0}
               max={40}

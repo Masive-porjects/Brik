@@ -207,7 +207,7 @@ WaveAI/
 
 ## Block B — HumanMidi (removed)
 
-> **❌ Removido del producto el 2026-09-11.** HumanMidi (visión por cámara, MediaPipe, hand tracking, gestos → MIDI) dejó de pertenecer a BrikMaster2027. El directorio `apps/humanmidi/`, sus tests, configs y dependencias (`mediapipe`, `cv2` legacy) fueron eliminados; `CameraOverlay` y `GestureBadge` salieron del Live Engine; todos los scripts de arranque/verificación fueron limpiados. Detalle completo: `HUMANMIDI_REMOVAL_REPORT.md`.
+> **❌ Removido del producto el 2026-09-11.** HumanMidi (visión por cámara, MediaPipe, hand tracking, gestos → MIDI) dejó de pertenecer a WaveAI. El directorio `apps/humanmidi/`, sus tests, configs y dependencias (`mediapipe`, `cv2` legacy) fueron eliminados; `CameraOverlay` y `GestureBadge` salieron del Live Engine; todos los scripts de arranque/verificación fueron limpiados. Detalle completo: `HUMANMIDI_REMOVAL_REPORT.md`.
 
 ### Lo que era (histórico)
 

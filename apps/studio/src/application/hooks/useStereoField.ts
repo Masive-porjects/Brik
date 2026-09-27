@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import { safeCloseAudioContext } from "@/lib/live/audioContextUtils";
 
 /* ── Stereo Field Analysis Hook ─────────────────────────────
    Decodes an audio URL into a stereo buffer, then analyses the
@@ -109,12 +110,14 @@ export function useStereoField(
     const preCtx = new AudioContext();
 
     decodeAudio(audioUrl, preCtx).then(() => {
-      if (!disposed) preCtx.close();
+      // safeClose es idempotente: si el cleanup ya cerró preCtx (Strict Mode /
+      // carrera), esto es no-op en vez de InvalidStateError.
+      void safeCloseAudioContext(preCtx);
     });
 
     return () => {
       disposed = true;
-      preCtx.close();
+      void safeCloseAudioContext(preCtx);
     };
   }, [audioUrl, decodeAudio]);
 
@@ -266,9 +269,7 @@ export function useStereoField(
     analyserLRef.current?.disconnect();
     analyserRRef.current?.disconnect();
 
-    if (ctxRef.current && ctxRef.current.state !== "closed") {
-      ctxRef.current.close().catch(() => {});
-    }
+    void safeCloseAudioContext(ctxRef.current);
 
     ctxRef.current = null;
     sourceRef.current = null;
@@ -307,9 +308,7 @@ export function useStereoField(
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       try { sourceRef.current?.stop(); } catch { /* */ }
-      if (ctxRef.current && ctxRef.current.state !== "closed") {
-        ctxRef.current.close().catch(() => {});
-      }
+      void safeCloseAudioContext(ctxRef.current);
     };
   }, []);
 

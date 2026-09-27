@@ -72,9 +72,8 @@ function Wait-ForService {
 }
 
 $results = @()
-$results += Wait-ForService "audiomind" { Test-HealthEndpoint "http://localhost:8000/health" } 15 1
-$results += Wait-ForService "bridge" { Test-TcpPort "localhost" 8765 } 15 1
-$results += Wait-ForService "studio" { Test-HealthEndpoint "http://localhost:3000" } 15 1
+$results += Wait-ForService "audiomind" { Test-HealthEndpoint "http://localhost:8000/health" } 30 1
+$results += Wait-ForService "studio" { Test-HealthEndpoint "http://localhost:3000" } 20 1
 
 if ($results -contains $false) {
     Write-Host "`nAlgunos servicios no responden. Revisa las ventanas de PowerShell." -ForegroundColor Red

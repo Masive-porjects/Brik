@@ -140,7 +140,7 @@ def _sliding_block_means(x: np.ndarray, block: int, hop: int) -> np.ndarray:
 
 def _block_loudness(z_block: np.ndarray) -> np.ndarray:
     """Loudness (LKFS) per block from per-block mean squares."""
-    return ABS_ZERO_OFFSET + 10.0 * np.log10(np.maximum(z_block, 1e-30))
+    return np.asarray(ABS_ZERO_OFFSET + 10.0 * np.log10(np.maximum(z_block, 1e-30)))
 
 
 def integrated_loudness(audio: np.ndarray, sr: float) -> float:
@@ -240,7 +240,7 @@ def true_peak_db(
     peak = float(np.max(np.abs(up)))
     if peak <= 0.0:
         return -np.inf
-    return 20.0 * np.log10(peak)
+    return float(20.0 * np.log10(peak))
 
 
 def match_lufs(

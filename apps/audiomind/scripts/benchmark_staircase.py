@@ -338,7 +338,7 @@ def main() -> int:
     avail_ram = psutil.virtual_memory().available
     gate_bytes = SAFETY_FRACTION * total_ram
 
-    print("=== BRIKMASTER 4-MIN CLIENT DEMO — STAIRCASE RESOURCE BENCHMARK ===")
+    print("=== WAVEAI 4-MIN CLIENT DEMO — STAIRCASE RESOURCE BENCHMARK ===")
     print(f"Machine: total RAM {total_ram/1e9:.1f} GB, available {avail_ram/1e9:.1f} GB, "
           f"cpus {os.cpu_count()}")
     print(f"Safety gate: single-job peak > {gate_bytes/1e9:.1f} GB -> NO-GO stop "

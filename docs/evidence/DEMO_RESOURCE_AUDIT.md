@@ -1,4 +1,4 @@
-# DEMO_RESOURCE_AUDIT.md — Auditoría de recursos del pipeline BrikMaster (WaveAI demo, presupuesto $0)
+# DEMO_RESOURCE_AUDIT.md — Auditoría de recursos del pipeline WaveAI (demo, presupuesto $0)
 
 > **Fecha:** 2026-09-11 · **Método:** medición REAL sobre el stack del proyecto (backend FastAPI + DSP de audiomind + Studio Next.js), NO estimaciones de papel.
 > **Alcance:** dictar cuánto cuesta ejecutar el flujo completo *mastering → Live* para decidir un deploy demo de $0.

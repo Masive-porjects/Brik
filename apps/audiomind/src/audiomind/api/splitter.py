@@ -6,6 +6,7 @@ GET  /api/session/{id}/stem/{stem} — serve individual stem WAV
 """
 
 from pathlib import Path
+from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 
@@ -21,8 +22,8 @@ router = APIRouter()
 async def split_session(
     session_id: str,
     model: str = "htdemucs",
-    _=Depends(require_license),
-):
+    _: object = Depends(require_license),
+) -> dict[str, Any]:
     """Run stem isolation (Demucs source separation) on a session's audio.
 
     Args:
@@ -61,7 +62,7 @@ async def split_session(
 
 
 @router.get("/session/{session_id}/stems")
-async def list_stems(session_id: str):
+async def list_stems(session_id: str) -> dict[str, Any]:
     """List available stems for a session."""
     session = sessions.get(session_id)
     if not session:
@@ -90,7 +91,7 @@ async def list_stems(session_id: str):
 
 
 @router.get("/session/{session_id}/stem/{stem_name}")
-async def get_stem_audio(session_id: str, stem_name: str):
+async def get_stem_audio(session_id: str, stem_name: str) -> FileResponse:
     """Serve an individual stem WAV file."""
     if stem_name not in STEM_NAMES:
         raise HTTPException(

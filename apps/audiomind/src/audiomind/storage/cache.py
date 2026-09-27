@@ -7,7 +7,7 @@ from audiomind.models.audio import SessionData
 
 
 class SessionCache:
-    def __init__(self):
+    def __init__(self) -> None:
         self._store: dict[str, SessionData] = {}
 
     def get(self, session_id: str) -> SessionData | None:

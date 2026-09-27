@@ -33,7 +33,9 @@ from __future__ import annotations
 
 import asyncio
 import statistics
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -43,7 +45,7 @@ from audiomind.api.mastering import (
     _master_result_from_engine,
     _mastering_report_from_engine,
 )
-from audiomind.api.upload import save_sessions, sessions
+from audiomind.api.upload import sessions
 from audiomind.config import settings
 from audiomind.models.audio import (
     AlbumNegotiateRequest,
@@ -52,6 +54,7 @@ from audiomind.models.audio import (
     AlbumProcessRequest,
     AlbumProcessResult,
     AlbumProcessTrack,
+    MasteringParameters,
     ProcessingStatus,
     SessionData,
 )
@@ -60,16 +63,17 @@ from audiomind.processing.album import (
     DEFAULT_ALBUM_TARGET_LUFS_DB,
     negotiate_targets,
 )
+from audiomind.session_store import save_sessions
 
 
 # Lazy module-level names for the heavy DSP entry points — same pattern as
 # ``mastering.py``: the wrapper imports the real implementation on first
 # call, and monkeypatching this module's attribute replaces the wrapper
 # itself (the technique the route tests rely on).
-def _lazy_dsp_call(module_name: str, attr: str):
+def _lazy_dsp_call(module_name: str, attr: str) -> Callable[..., Any]:
     """Return a wrapper that late-imports ``module_name.attr`` per call."""
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         import importlib
 
         impl = getattr(importlib.import_module(module_name), attr)
@@ -78,9 +82,16 @@ def _lazy_dsp_call(module_name: str, attr: str):
     return wrapper
 
 
-process_audio = _lazy_dsp_call("audiomind.processing.engine", "process_audio")
+# The aliases carry the REAL signatures of the targets (engine.process_audio
+# returns ``dict[str, Any]``; loudness.measure_lra returns ``float``) so the
+# wrappers stay honest for callers while still importing lazily.
+process_audio: Callable[..., dict[str, Any]] = _lazy_dsp_call(
+    "audiomind.processing.engine", "process_audio"
+)
 _load_audio = _lazy_dsp_call("librosa", "load")
-measure_lra = _lazy_dsp_call("audiomind.processing.loudness", "measure_lra")
+measure_lra: Callable[..., float] = _lazy_dsp_call(
+    "audiomind.processing.loudness", "measure_lra"
+)
 
 router = APIRouter()
 
@@ -170,8 +181,8 @@ async def _measure_and_negotiate(
 @router.post("/album/negotiate", response_model=AlbumNegotiationResult)
 async def negotiate_album_targets(
     req: AlbumNegotiateRequest,
-    _=Depends(require_license),  # noqa: B008 — repo-wide FastAPI convention
-):
+    _: object = Depends(require_license),  # noqa: B008 — repo-wide FastAPI convention
+) -> AlbumNegotiationResult:
     """Measure per-track loudness/LRA and negotiate relative album targets.
 
     Measurement-only: no DSP, no audio mutation, so the neutral contract
@@ -213,8 +224,8 @@ async def negotiate_album_targets(
 
 
 def _run_track_processing(
-    session: SessionData, params, output_path: Path
-) -> dict:
+    session: SessionData, params: MasteringParameters, output_path: Path
+) -> dict[str, Any]:
     """Run the existing single-track engine on the DSP executor.
 
     Only ``target_lufs_db`` is overridden per track — the rest of the
@@ -232,8 +243,8 @@ def _run_track_processing(
 @router.post("/album/process", response_model=AlbumProcessResult)
 async def process_album(
     req: AlbumProcessRequest,
-    _=Depends(require_license),  # noqa: B008 — repo-wide FastAPI convention
-):
+    _: object = Depends(require_license),  # noqa: B008 — repo-wide FastAPI convention
+) -> AlbumProcessResult:
     """Master a batch of sessions toward negotiated relative targets.
 
     Runs the EXISTING single-track pipeline once per session, IN ORDER,

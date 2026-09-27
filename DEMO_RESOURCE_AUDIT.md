@@ -1,4 +1,4 @@
-# DEMO_RESOURCE_AUDIT.md — Auditoría de recursos del flujo completo BrikMaster2027
+# DEMO_RESOURCE_AUDIT.md — Auditoría de recursos del flujo completo WaveAI
 
 > **Estado:** auditoría COMPLETA (mediciones reales locales). Objetivo: dimensionar un deploy DEMO EN VIVO con presupuesto ≈ $0.
 > **Fecha de medición:** 2026-09-10 · **Máquina local:** AMD Ryzen 5 7520U (4C/8T) · 15.6 GB RAM · Windows 11 · Python 3.12 (venv uv) · uvicorn single-process.
@@ -522,7 +522,7 @@ Basado en mediciones reales, para el flujo Studio real (upload → analysis → 
 - [HECHO] DSP directa (`engine-direct` A_45s: 6.4 s / 208 MB, piso sin análisis) + one-master real (`solo-master`: 22.2 s / 1951 MB) → §11.2
 - [HECHO] Comparación Studio upload / one-master (CPU ~6×, wall ~6×, disco 8×, RAM 1.25×) → §11.3
 - [HECHO] Desglose temporal por preset (TEST C) → §9
-- [HECHO] Dimensionamiento final + tabla BRIKMASTER DEMO METRICS → §16-18
+- [HECHO] Dimensionamiento final + tabla WAVEAI DEMO METRICS → §16-18
 
 **Pendientes post-auditoría (NO ejecutados, por decisión del usuario "NO optimices todavía"):**
 - Validar retención de RAM entre jobs (sesión larga > 10 jobs) — indicio, no leak probado.
@@ -540,7 +540,7 @@ Basado en mediciones reales, para el flujo Studio real (upload → analysis → 
 
 ---
 
-=== BRIKMASTER DEMO METRICS ===
+=== WAVEAI DEMO METRICS ===
 
 Machine used: AMD Ryzen 5 7520U (4C/8T) · Windows 11 64-bit · Python 3.12 (uv venv) — local
 OS: Windows 11 (build 26200)

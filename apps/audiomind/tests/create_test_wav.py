@@ -1,5 +1,5 @@
 import wave, struct, random
-w = wave.open('C:/Users/brik3/Desktop/BrikMaster2027/apps/audiomind/tests/test_upload.wav', 'w')
+w = wave.open('C:/Users/brik3/Desktop/WaveAI/apps/audiomind/tests/test_upload.wav', 'w')
 w.setnchannels(1)
 w.setsampwidth(2)
 w.setframerate(44100)

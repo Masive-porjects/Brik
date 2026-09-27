@@ -29,6 +29,8 @@ interface Knob3DProps {
   decimals?: number;
   /** Custom value formatter */
   formatValue?: (v: number) => string;
+  /** Test id for E2E */
+  dataTestid?: string;
 }
 
 const COLOR_THEMES: Record<string, { track: string; fill: string; glow: string; knob: string }> = {
@@ -51,6 +53,7 @@ export function Knob3D({
   showValue = true,
   decimals = 2,
   formatValue,
+  dataTestid,
 }: Knob3DProps) {
   const theme = COLOR_THEMES[color] || COLOR_THEMES.primary;
   const knobRef = useRef<HTMLDivElement>(null);
@@ -151,6 +154,7 @@ export function Knob3D({
     <div
       ref={knobRef}
       className="knob3d"
+      data-testid={dataTestid}
       tabIndex={disabled ? -1 : 0}
       role="slider"
       aria-label={label}

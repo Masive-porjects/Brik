@@ -10,7 +10,7 @@
 
 ## 1. El producto
 
-Plataforma web de mastering asistido por IA, con manipulación posterior por gestos de mano.
+Plataforma web de mastering asistido por IA, con reproducción en vivo del master con FX (Live Engine Web Audio).
 
 ```
 1. Login
@@ -18,7 +18,7 @@ Plataforma web de mastering asistido por IA, con manipulación posterior por ges
 3. Chat IA · "quiero que suene de tal manera"
 4. Dashboard · perillas, acentos, módulos
 5. Procesar → finalizar
-6. Descargar + HumanMIDI (mover con las manos)
+6. Descargar + Live Engine (FX en vivo con knobs)
 ```
 
 ---
@@ -51,7 +51,7 @@ Convex (auth, projects,          ▼
 |---|---|---|---|
 | `IntentProfile` | Lo que **la IA** entiende del usuario. Vocabulario semántico. | ~12 | Miguel |
 | `MasteringSettings` | Lo que **el motor** ejecuta. Parámetros técnicos reales. | ~40 | Brickman |
-| `LiveParams` | Lo que **HumanMIDI** mueve en tiempo real. Nodos Web Audio. | 8 | David |
+| `LiveParams` | Lo que el **Live Engine** mueve en tiempo real. Nodos Web Audio. | 8 | — |
 
 **La IA no emite parámetros técnicos.** Emite `IntentProfile`; un **mapper propiedad de Brickman** lo traduce a `MasteringSettings`. Así Brickman ajusta el sonido sin tocar el prompt, y Miguel mejora el agente sin tocar el DSP.
 
@@ -61,7 +61,7 @@ Lenguaje natural → IA → IntentProfile → [mapper] → MasteringSettings →
                           validación Zod           validación Pydantic
 ```
 
-### D3 · HumanMIDI controla `LiveParams`, no `MasteringSettings`
+### D3 · El Live Engine controla `LiveParams`, no `MasteringSettings`
 
 Ya está implementado y funcionando. El Live Engine **no reprocesa el track**: son nodos Web Audio sobre el master ya renderizado. Las perillas del Dashboard (paso 4) y las del Live (paso 6) son **conjuntos distintos** y se ven distinto en la UI.
 
@@ -134,7 +134,7 @@ Todos los ejes van de `0.0` a `1.0`, donde **`0.5` = neutral = master transparen
 | Chat IA | Burbujas, typing indicator, sugerencias rápidas, tarjeta de "configuración propuesta" con diff vs. actual |
 | Dashboard mastering | Perillas por módulo (Claridad, Fuego, Cinta, Espacial, Loudness), acentos, valor + unidad visible |
 | Procesar | Botón, progreso, mensajes de estado, errores |
-| Resultado | Player A/B antes/después, descarga, métricas (LUFS, true peak), entrada a HumanMIDI |
+| Resultado | Player A/B antes/después, descarga, métricas (LUFS, true peak), entrada al Live Engine |
 
 **Ya existe y se reutiliza:** `Knob3D`, `ModulePanel`, `SignalChain`, `Player`, `DropZone`, `ProcessingOverlay`, `PresetSelector`, `ThemeToggle`.
 
@@ -223,24 +223,21 @@ users
 
 ---
 
-### 🖐️ David — HumanMIDI
+### 🎚️ Live Engine — FX en vivo (sobre el master real)
 
-**Dueño de:** `apps/humanmidi/`, `apps/bridge/`, `apps/studio/src/lib/live/`, `apps/studio/src/components/live/`, `simulator/`.
+**Dueño de:** `apps/studio/src/lib/live/`, `apps/studio/src/presentation/components/live/`.
 
-**Punto de partida — buena noticia:** el pipeline completo **ya funciona**. Cámara → MediaPipe → gestos → MIDI CC → bridge → WS `:8765` → Live Engine Web Audio → knobs y meters.
+**Punto de partida — buena noticia:** el Live Engine **ya funciona** como reproductor standalone: knobs (mouse/teclado) → `LiveParams` → Web Audio → knobs y meters. La visión/gestos/MIDI/bridge fueron eliminados.
 
 **Entregables:**
 
 1. Conectar el Live Engine al **master real** del proyecto (hoy es independiente del flujo).
-2. Mapeo de gestos → `LiveParams` acordado con Brickman y Andrés.
-3. **Persistir "escenas"** en Convex: el usuario guarda una posición de manos como preset.
-4. Grabar la salida del Live (`recorder.ts` ya existe) y poder descargarla.
-5. **Camino sin cámara** para la demo: `simulator/` con escenario de presets, por si la cámara falla en vivo.
-6. Robustez: socket caído > 2 s → vuelta a neutral. Heartbeat cada 5 s.
+2. Grabar la salida del Live (`recorder.ts` ya existe) y poder descargarla.
+3. Robustez de audio: sin glitches al girar knobs mientras suena.
 
 **No toca:** el motor de mastering offline, el schema de Convex, prompts.
 
-**Listo cuando:** se sube una canción, se masteriza, se abre Live, y las manos mueven el filtro y el delay sobre el master real, sin glitches de audio.
+**Listo cuando:** se sube una canción, se masteriza, se abre Live, y los knobs mueven el filtro y el delay sobre el master real, sin glitches de audio.
 
 ---
 
@@ -252,13 +249,13 @@ Se escriben y congelan los 4 schemas. Nadie integra antes de esto.
 
 ### Hito 1 · Vertical slice (lo más importante)
 
-**Login → subir → procesar con defaults → descargar.** Sin IA, sin dashboard bonito, sin gestos.
+**Login → subir → procesar con defaults → descargar.** Sin IA, sin dashboard bonito.
 Demuestra que la tubería completa funciona de punta a punta. Si esto no está, nada más importa.
 
 - Tomás: auth + storage + job + llamada a AudioMind
 - Brickman: endpoint stateless
 - Andrés: las 3 pantallas en versión mínima
-- Miguel y David: avanzan en paralelo sin bloquear
+- Miguel: avanza en paralelo sin bloquear
 
 ### Hito 2 · Inteligencia y control
 
@@ -267,9 +264,9 @@ Demuestra que la tubería completa funciona de punta a punta. Si esto no está, 
 - Andrés: dashboard de perillas completo
 - Tomás: persistencia de chat y settings
 
-### Hito 3 · HumanMIDI y pulido
+### Hito 3 · Live Engine y pulido
 
-- David: Live sobre el master real + escenas
+- Live: publisher del Live sobre el master real + grabación
 - Andrés: A/B, métricas, pantalla de resultado
 - Todos: ensayo de demo
 
@@ -284,9 +281,8 @@ Contratos (todos) ──> desbloquea a todos
 
 Brickman ──[mastering_settings]──> Miguel  (necesita el target del mapper)
 Brickman ──[lista de perillas]───> Andrés  (necesita saber qué dibujar)
-Tomás    ──[schema Convex]───────> Miguel, Andrés, David
+Tomás    ──[schema Convex]───────> Miguel, Andrés
 Miguel   ──[intent_profile]──────> Andrés  (tarjeta de propuesta en el chat)
-David    ──[live_params]─────────> Andrés  (UI del Live)   ✅ ya resuelto
 ```
 
 **Regla anti-bloqueo:** si estás esperando a alguien, trabajá contra el **schema** con datos falsos. El contrato existe justamente para eso.
@@ -300,7 +296,7 @@ David    ──[live_params]─────────> Andrés  (UI del Live) 
 - **Commits semánticos:** `feat:`, `fix:`, `test:`, `docs:`, `chore:`.
 - **Contratos primero.** Si cambia un schema, se avisa al equipo y se regeneran los tipos. Nunca se editan tipos generados a mano.
 - **Neutral = bypass.** Parámetro neutral ⇒ audio idéntico. En el motor y en el Live Engine. Se preserva en todas las rutas.
-- **El audio nunca viaja por el socket del Live** — solo `LiveParams` y estado.
+- **El audio nunca viaja por la red del Live** — los knobs escriben `LiveParams` directamente en el grafo Web Audio del navegador.
 - **Web Audio:** todo cambio con `setTargetAtTime(value, ctx.currentTime, 0.02)`, nunca asignación directa.
 - **Microcopy en español rioplatense** (voseo).
 - Tests junto al código. No se rompe la suite existente.
@@ -316,14 +312,14 @@ David    ──[live_params]─────────> Andrés  (UI del Live) 
 | 3 | Chat IA | Una frase en lenguaje natural produce un `IntentProfile` válido y explicado |
 | 4 | Dashboard | Las perillas reflejan la propuesta de la IA y se pueden corregir a mano |
 | 5 | Procesar | Un solo job, progreso real, resultado descargable |
-| 6 | HumanMIDI | Las manos mueven el master real en tiempo real, sin glitches |
+| 6 | Live Engine | Los knobs mueven el master real en tiempo real, sin glitches |
 
 ---
 
 ## 9. Estado del repo
 
 - `main` y `develop` en el mismo commit.
-- Instalado y verificado localmente: `apps/studio` (:3000), `apps/audiomind`, `apps/bridge`, `apps/humanmidi`, `ffmpeg`.
+- Instalado y verificado localmente: `apps/studio` (:3000), `apps/audiomind`, `ffmpeg`.
 - **Falta por crear:** `apps/studio/convex/`, `apps/agent/`, los 3 schemas nuevos.
 
 Cómo levantar cada pieza: ver [`README.md`](../../README.md).

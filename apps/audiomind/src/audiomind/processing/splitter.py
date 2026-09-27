@@ -5,6 +5,7 @@ Uses demucs-onnx (ONNX Runtime) so it does NOT require PyTorch.
 """
 
 from pathlib import Path
+from typing import Any
 import numpy as np
 import soundfile as sf
 
@@ -17,7 +18,7 @@ def split_audio(
     input_path: str | Path,
     output_dir: str | Path | None = None,
     model: str = "htdemucs",
-) -> dict:
+) -> dict[str, Any]:
     """Run Demucs source separation on an audio file.
 
     Args:

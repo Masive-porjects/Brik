@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { ConvexClientProvider } from "./ConvexClientProvider";
+import { I18nProvider } from "@/i18n/I18nContext";
+import { AuthProvider } from "@/features/auth";
+import { MasteringProvider } from "@/features/mastering";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,12 +10,6 @@ export const metadata: Metadata = {
   description: "Professional audio mastering powered by AI",
 };
 
-/**
- * Convex está desconectado de la UI (el provider es un passthrough).
- * Se quitó ConvexAuthNextjsServerProvider del layout: exigía
- * NEXT_PUBLIC_CONVEX_URL y crasheaba la app con 500 sin ella.
- * Se mantiene force-dynamic para cuando el client real de Convex se conecte.
- */
 export const dynamic = "force-dynamic";
 
 /**
@@ -36,7 +32,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased min-h-screen">
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <MasteringProvider>{children}</MasteringProvider>
+          </AuthProvider>
+        </I18nProvider>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem("waveai-theme");if(t==="light"){document.documentElement.dataset.theme="light";}}catch(e){}})();`}
         </Script>

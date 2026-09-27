@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslation } from "@/i18n";
+
 const GENRES = [
   {
     id: "urban",
@@ -82,50 +84,60 @@ const COLORS = [
 ];
 
 export default function GenreGuide() {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-4">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-1" style={{ letterSpacing: "-0.02em" }}>
-          Géneros <span className="serif-accent">Musicales</span>
+          {t("genreGuide.title", "Géneros")}{" "}
+          <span className="serif-accent">{t("genreGuide.titleAccent", "Musicales")}</span>
         </h2>
         <p className="text-sm text-[var(--text-secondary)]">
-          Cómo suena cada género en el mastering comercial — guía educativa
+          {t("genreGuide.subtitle", "Cómo suena cada género en el mastering comercial — guía educativa")}
         </p>
       </div>
 
-      {GENRES.map((genre, i) => (
-        <div
-          key={genre.id}
-          className="rounded-xl p-5 transition-all duration-200 hover:brightness-110"
-          style={{
-            background: COLORS[i % COLORS.length],
-            border: `1px solid ${genre.color}12`,
-          }}
-        >
-          <div className="flex items-start gap-4">
-            <span className="text-2xl mt-0.5">{genre.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-base font-semibold text-[var(--text-primary)] mb-2">{genre.name}</h3>
-              <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-3">
-                {genre.description}
-              </p>
-              <ul className="space-y-1.5">
-                {genre.details.map((detail, j) => (
-                  <li key={j} className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
-                    <span style={{ color: genre.color }}>▸</span>
-                    {detail}
-                  </li>
-                ))}
-              </ul>
+      {GENRES.map((genre, i) => {
+        const localizedName = t(`genreGuide.genres.${genre.id}.name`, genre.name);
+        const localizedDesc = t(`genreGuide.genres.${genre.id}.description`, genre.description);
+
+        return (
+          <div
+            key={genre.id}
+            className="rounded-xl p-5 transition-all duration-200 hover:brightness-110"
+            style={{
+              background: COLORS[i % COLORS.length],
+              border: `1px solid ${genre.color}12`,
+            }}
+          >
+            <div className="flex items-start gap-4">
+              <span className="text-2xl mt-0.5">{genre.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-[var(--text-primary)] mb-2">
+                  {localizedName}
+                </h3>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-3">
+                  {localizedDesc}
+                </p>
+                <ul className="space-y-1.5">
+                  {genre.details.map((detail, j) => (
+                    <li key={j} className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
+                      <span style={{ color: genre.color }}>▸</span>
+                      {t(`genreGuide.genres.${genre.id}.details.${j}`, detail)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       <p className="text-[11px] text-[var(--text-muted)] text-center pt-2 italic">
-        Basado en estándares de la industria de mastering comercial y análisis espectral
-        de lanzamientos certificados.
+        {t("genreGuide.footnote", "Basado en estándares de la industria de mastering comercial y análisis espectral de lanzamientos certificados.")}
       </p>
     </div>
   );
 }
+

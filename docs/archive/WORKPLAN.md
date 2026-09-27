@@ -7,19 +7,17 @@
 
 ---
 
-## 0. Baseline del repo (verificado 2026-08-29)
+## 0. Baseline del repo (septiembre 2026 — post-cleanup)
 
 | Ítem | Estado | Nota |
 |---|---|---|
 | `apps/studio` build + typecheck | ✅ OK | `npx tsc --noEmit` + `npm run build` |
 | `apps/studio` unit tests | ✅ 6/6 | vitest 2.1.9 + jsdom 24 (nuevo: `npm test`) |
 | `apps/studio` lint | ✅ 0 errores | warnings pre-existentes, no bloqueantes |
-| `apps/humanmidi` + `apps/bridge` pytest | ⚠️ **bridge 53/53 ✅ · humanmidi 16 failed + 8 errors** | entorno listo (venv Python 3.12 + mediapipe 0.10.33); humanmidi depende de `mp.solutions.hands` que **no existe en wheels arm64** |
-| `mediapipe` pin | 🔴 **bloqueante en macOS arm64** | `0.10.14` no tiene wheel arm64; los wheels arm64 disponibles (0.10.30–0.10.33) **no incluyen `mp.solutions`** (verificado 0.10.30 y 0.10.33). El código de humanmidi usa la API legacy → **migrar a `mp.tasks.vision.HandLandmarker`** o correr humanmidi en Linux |
-| CI | ❌ no existe | el PR #1 no tiene checks automáticos; la verificación es manual por ahora |
-| Studio post-merge develop (2026-08-29) | ⚠️ typecheck global falla en esta máquina | **no es del merge**: develop trajo Convex (Tomás) y agent (Miguel). Faltan: `npx convex codegen` (genera `convex/_generated`, por eso los implicit any) y el link del workspace `@midimastering/agent`. **0 errores en archivos live** (PR #1). El equipo migró a **bun** (`bun.lock`; package-lock.json del PR #1 queda obsoleto — decidir si se elimina). |
+| `apps/audiomind` pytest | ✅ verde | suite backend de mastering intacta |
+| CI | ❌ no existe | la verificación es manual por ahora |
 
-**Hallazgo**: el `INTEGRATION_REPORT.md` describe 49/49 + 53/53 tests, pero esa verificación fue en otra máquina. En esta Mac el entorno no estaba instalado (faltaba `rtmidi`, `mediapipe`). El repo recién queda "verificado" cuando la suite pasa en la máquina de cada dev.
+> **Post-cleanup:** el stack de visión/gestos/control en tiempo real fue eliminado del monorepo. El Live Engine es standalone (knobs → Web Audio). La suite de mastering (audiomind) no cambió.
 
 ---
 
@@ -27,7 +25,7 @@
 
 | Dev | Área (PLAN §4) | Estado | PR / Rama | DoD pendiente |
 |---|---|---|---|---|
-| **David** | Live Engine (humanmidi, bridge, studio/live, simulator) | 🔵 4/6 tareas completas | `feat/live-robustez` → PR #1 | demo manual: mano 10 s sin cortes |
+| **David** | Live Engine (studio/live) | ✅ standalone | post-cleanup | demo: knobs sobre el master real sin cortes |
 | **Andrés** | UI/UX (studio components + app) | ⚪ sin datos | — | — |
 | **Miguel** | Agente IA (`apps/agent/`, intent_profile) | ⚪ sin datos | rama `miguel` | — |
 | **Tomás** | Backend/Convex (`apps/studio/convex/`, deploy) | ⚪ sin datos | rama `feat/backend` | — |
@@ -37,33 +35,29 @@
 
 ---
 
-## 2. Detalle área Live (David)
+## 2. Detalle área Live (standalone)
 
-| # | Tarea (PLAN §4 David) | Estado | Verificación | PR |
+| # | Tarea | Estado | Verificación | PR |
 |---|---|---|---|---|
-| 1 | Robustez socket (heartbeat 5 s, watchdog stale, neutral > 2 s) | ✅ | 4 unit tests (`liveSocket.test.ts`) + 1 e2e existente | #1 |
-| 2 | Fix glitch: grafo no se recrea al cambiar params | ✅ | test de regresión red/green (`useLiveEngine.test.ts`) | #1 |
-| 3 | Grabar + descargar sesión Live | ✅ | UI cableada al hook (antes: callbacks no-op) | #1 |
-| 4 | Conectar master real del flujo de mastering | ✅ | LiveView decodifica `masterAudioUrl` → hook (contrato intacto) | #1 |
-| 5 | Mapeo gestos acordado (con Brickman/Andrés) | ⏳ bloqueado | espera lista de perillas de Brickman | — |
-| 6 | Escenas en Convex | ⏳ bloqueado | espera schema Convex de Tomás; puente: localStorage | — |
+| 1 | Fix glitch: grafo no se recrea al cambiar params | ✅ | test de regresión red/green (`useLiveEngine.test.ts`) | — |
+| 2 | Grabar + descargar sesión Live | ✅ | UI cableada al hook (antes: callbacks no-op) | — |
+| 3 | Conectar master real del flujo de mastering | ✅ | LiveView decodifica `masterAudioUrl` → hook (contrato intacto) | — |
+| 4 | Remover stack visión/gestos/control en tiempo real (cleanup) | ✅ | aplicaciones y tooling de entrada real-time eliminados; apps restantes build + tests verdes | — |
 
-### Verificación del PR #1 (rama `feat/live-robustez`)
+### Verificación (post-cleanup)
 
 ```bash
 cd apps/studio
 npx tsc --noEmit          # OK
-npm test                  # 6/6 (vitest)
+npm test                  # vitest
 npx eslint src/lib/live/  # 0 errores
 npm run build             # OK
 ```
 
 ### Pendientes del área live
 
-- [ ] DoD manual: subir track → masterizar → Live → mover la mano 10 s sin cortes de audio (verificación en demo)
+- [ ] DoD manual: subir track → masterizar → Live → girar knobs 10 s sin cortes de audio (verificación en demo)
 - [ ] e2e `master_to_live.spec.ts` contra el flujo real (requiere backend + fixture)
-- [ ] Escenas: diseñar contra `project_state.schema.json` cuando exista; mientras, localStorage
-- [ ] Decidir con Brickman el mapeo final gestos → LiveParams (hoy: CC74/92/71/73/16 + notas 36/38/42/49)
 
 ---
 
@@ -74,4 +68,4 @@ npm run build             # OK
 | Flujo de trabajo | ✅ **Ramas `feat/*` desde `develop` + PR a `develop`** (PLAN §7). `main` solo recibe merges de develop. |
 | Contratos (Hito 0) | `live_params.schema.json` ✅ · `mastering_settings` ⬜ Brickman · `intent_profile` ⬜ Miguel · `project_state` ⬜ Tomás |
 | CI/CD | ❌ pendiente: Playwright job en GitHub Actions (next step del INTEGRATION_REPORT) |
-| `mediapipe` pin | ⚠️ decidir: `0.10.14` (Linux) vs `0.10.33` (macOS arm64) — o versionar por plataforma |
+| Stack visión/gestos/control en tiempo real | ✅ **removido** (post-cleanup): aplicaciones y tooling de entrada real-time eliminados; Live Engine standalone con knobs |

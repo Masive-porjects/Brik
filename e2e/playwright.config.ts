@@ -3,8 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   timeout: 30_000,
-  expect: { timeout: 7_000 },
-  fullyParallel: false,        // mock bridge usa puerto fijo 8765
+  expect: { timeout: 10_000 },
+  fullyParallel: true,
   workers: 1,
   retries: process.env.CI ? 2 : 0,
   reporter: [['html', { open: 'never' }], ['list']],

@@ -2,7 +2,7 @@
 
 > Instrucciones para levantar el entorno **completo** en una máquina nueva.
 > Cualquier agente de IA puede seguir esto literalmente: comandos exactos, output esperado, pitfalls reales.
-> Stack: Studio (Next.js :3000) · Bridge (WS :8765) · AudioMind (FastAPI :8000) · Simulator · Convex (cloud).
+> Stack: Studio (Next.js :3000) · AudioMind (FastAPI :8000) · Convex (cloud). El Live Engine es standalone (Web Audio, sin WS ni MIDI — bridge y simulator fueron removidos).
 
 ---
 
@@ -32,14 +32,15 @@ bun install          # workspaces: apps/* (studio, agent) + packages/contracts
 ```bash
 python3.12 -m venv .venv
 
-# Instalar los requirements de los apps Python (bridge + simulator):
-grep -hv '^#' apps/bridge/requirements.txt simulator/requirements.txt \
-  | grep -v '^$' > /tmp/reqs-combined.txt
-
-./.venv/bin/pip install --retries 15 --timeout 90 -r /tmp/reqs-combined.txt
+# AudioMind va editable (src-layout): expone `audiomind.main:app` y sus deps
+# (uvicorn, fastapi, librosa, pedalboard...) al venv compartido.
+./.venv/bin/pip install -e apps/audiomind
 ```
 
-**Esperado:** `import rtmidi, websockets, mido` sin errores.
+**Esperado:** `uvicorn --version` sin errores.
+
+En Windows el venv queda en `.venv\Scripts\` (no `.venv/bin`):
+`py -3.12 -m venv .venv` y `.\.venv\Scripts\pip install ...`.
 
 ---
 
@@ -77,20 +78,14 @@ cd apps/agent && bun run build && cd ../..
 
 ---
 
-## 5. Levantar el stack (4 terminales)
+## 5. Levantar el stack (2 terminales)
 
 ```bash
 # T1 — AudioMind (DSP)
-cd apps/audiomind && ../.venv/bin/uvicorn audiomind.main:app --port 8000
+cd apps/audiomind && ../../.venv/bin/uvicorn audiomind.main:app --port 8000
 
-# T2 — Bridge (MIDI → WS)
-cd apps/bridge && ../.venv/bin/python main.py          # WS :8765
-
-# T3 — Studio
+# T2 — Studio
 cd apps/studio && bun run dev                           # http://localhost:3000
-
-# T4 — Simulator (demo sin MIDI, mock del bridge)
-python -m simulator.main --mode server --scenario sweep # desde la raíz
 ```
 
 ---
@@ -100,15 +95,12 @@ python -m simulator.main --mode server --scenario sweep # desde la raíz
 ```bash
 # Studio
 cd apps/studio
-npx tsc --noEmit        # ⚠️ 3 errores residuales esperados en convex/mastering.ts (código de Tomás, ciclo de tipos) — NO son tuyos
-npx vitest run          # 6/6 passing (live engine)
+npx tsc --noEmit        # ⚠️ errores residuales en convex/mastering.ts (ciclo de tipos) — NO son tuyos
+npx vitest run          # 57/57 passing
 npm run build           # OK
 
 # Python
-cd apps/bridge && ../.venv/bin/python -m pytest tests/ -q      # 53/53 passing
-
-# Integral
-python -m simulator.main --mode server --scenario sweep       # WS mock :8765
+cd apps/audiomind && ../../.venv/bin/python -m pytest tests/ -q      # 628/628 passing
 ```
 
 ---
@@ -126,9 +118,9 @@ python -m simulator.main --mode server --scenario sweep       # WS mock :8765
 
 ---
 
-## 8. Estado conocido del repo (2026-08-29)
+## 8. Estado conocido del repo (2026-08-29; verificado 2026-09-23)
 
-- ✅ bridge 53/53 · studio tsc (salvo mastering.ts) + 6/6 vitest + build · contrato live_params congelado
-- ✅ HumanMidi **removido del producto** (2026-09-11) — ver `../archive/HUMANMIDI_REMOVAL_REPORT.md`
+- ✅ audiomind 628 tests · studio tsc (salvo mastering.ts) + 57 vitest + build · contrato live_params congelado
+- ✅ HumanMidi **removido del producto** (2026-09-11) — ver `../archive/HUMANMIDI_REMOVAL_REPORT.md`; bridge y simulator **removidos** también — ver `../ESTADO_PROYECTO.md` §5 (el Live Engine es standalone)
 - ⚠️ Convex: deployment de David `proper-scorpion-625` (WaveIA) — el del equipo llega cuando Tomás comparta el suyo
 - ⚠️ CI inexistente — la verificación es manual (sección 6)

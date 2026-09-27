@@ -59,7 +59,7 @@ def _antialiasing_fir(factor: int) -> np.ndarray:
     acceptance passes with margin. Same FIR is used in both directions (the
     matched pair keeps the up/down round trip time-aligned).
     """
-    return firwin(FIR_TAPS, 1.0 / factor, window=("kaiser", FIR_BETA))
+    return np.asarray(firwin(FIR_TAPS, 1.0 / factor, window=("kaiser", FIR_BETA)))
 
 
 #: Cached FIR for the default factor.

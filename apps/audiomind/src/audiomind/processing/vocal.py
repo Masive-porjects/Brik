@@ -8,9 +8,10 @@ Professional vocal processing chain with 3 modules:
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 import numpy as np
+import pedalboard
 from pedalboard import (
-    Pedalboard,
     PeakFilter,
     HighShelfFilter,
     Compressor,
@@ -18,6 +19,12 @@ from pedalboard import (
     Gain,
 )
 from pedalboard.io import AudioFile
+
+# pedalboard's __init__ re-exports Pedalboard via a plain named import and
+# defines no __all__; with implicit_reexport=False (mypy strict) the name is
+# not treated as exported. Bind the module attribute explicitly — identical
+# runtime behavior, satisfies mypy.
+Pedalboard = pedalboard.Pedalboard
 
 from audiomind.config import settings
 
@@ -44,7 +51,7 @@ def process_vocal(
     output_path: str | Path,
     params: VocalParameters,
     progress_cb: Callable[[float], None] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Process audio through the VoiceChain Pro vocal chain.
 
     Chain order: De-Esser → Pitch Shift → Optical Compressor
@@ -142,8 +149,9 @@ def process_vocal(
 
     # ── Write output ──────────────────────────────────────────────────
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with AudioFile(str(output_path), "w", sr, audio.shape[0]) as f:
-        f.write(audio)
+    out_f = AudioFile(str(output_path), "w", sr, audio.shape[0])
+    out_f.write(audio)
+    out_f.close()
 
     report(95)
 
