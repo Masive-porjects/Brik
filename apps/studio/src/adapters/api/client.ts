@@ -427,37 +427,6 @@ export async function downloadStem(
   return res.blob();
 }
 
-/* ── Vocal Chain ─────────────────────────────────────── */
-
-export interface VocalChainParams {
-  deesser_amount: number;
-  pitch_shift_semitones: number;
-  cohesion_amount: number;
-}
-
-export interface VocalChainResult {
-  session_id: string;
-  status: string;
-  gain_reduction_db: number;
-  output_path: string;
-}
-
-export async function processVocalChain(
-  sessionId: string,
-  params: VocalChainParams,
-): Promise<VocalChainResult> {
-  const res = await fetch(`${API_BASE}/session/${sessionId}/vocal`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...licenseHeaders() },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Vocal processing failed" }));
-    throw new Error(err.detail || "Vocal processing failed");
-  }
-  return res.json();
-}
-
 /* ── Mix Engine ─────────────────────────────────────── */
 
 /**

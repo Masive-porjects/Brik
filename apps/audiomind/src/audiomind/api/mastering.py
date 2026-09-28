@@ -1183,11 +1183,6 @@ async def reset_session_master(session_id: str) -> SessionData:
     written ``mix_path`` / ``mix_analysis`` survive (the WAV stays
     downloadable from its stable URL); running the mix again re-marks the
     session as ``completed``.
-
-    ``vocal_path`` is cleared for the same reason: the processed vocal is a
-    stem artifact tracked on its own pointer, and a reset drops every derived
-    output pointer so the client stops advertising a vocal it is not using.
-    The rendered WAV stays on disk, untracked, exactly like the masters.
     """
     session = sessions.get(session_id)
     if not session:
@@ -1202,7 +1197,6 @@ async def reset_session_master(session_id: str) -> SessionData:
     session.reference_comparison = None
     session.preset_masters = {}
     session.mix_status = "none"
-    session.vocal_path = None
     session.status = ProcessingStatus.UPLOADED
     session.progress = 0.0
     session.error = None

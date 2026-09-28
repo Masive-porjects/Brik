@@ -48,17 +48,6 @@ class AnalysisResult(BaseModel):
     is_already_mastered: bool = False
     mastering_confidence: float = 0.0
 
-    # ── Vocal register / f0 (Eje A adaptive voice treatment — measurement) ──
-    # Populated by analyze_audio via librosa.pyin over the analyzed signal
-    # (the vocal stem when the mix engine analyzes per-stem files). All fields
-    # default to neutral (None/0) so they are backward compatible and so a
-    # signal without a credible voice never invents a register. Measurement
-    # only: the neutral/bypass chain of the master is untouched.
-    vocal_median_f0_hz: float | None = None
-    vocal_register: str | None = None  # "grave" | "medio" | "agudo" | None
-    vocal_f0_voiced_ratio: float = 0.0
-    vocal_phrase_count: int = 0
-
 
 class MasteringParameters(BaseModel):
     """Module-based mastering parameters — replaces fixed presets.
@@ -813,13 +802,6 @@ class SessionData(BaseModel):
         default=None,
         description="Metadatos de mezcla serializados (MixMetadata.model_dump()) para master adaptativo"
     )
-    # Vocal Chain (VoiceChain Pro) output pointer. The processed vocal is a
-    # STEM artifact, never a master: it keeps its own field so ``POST /vocal``
-    # can never overwrite ``mastered_path`` (which ``/audio/mastered``,
-    # ``/raw-mastered``, ``/download`` and the reference comparison all read
-    # as "the master"). Same pattern as ``mix_path``: an additive optional
-    # pointer, so sessions persisted before the field existed load unchanged.
-    vocal_path: str | None = None
 
 
 class BeatData(BaseModel):

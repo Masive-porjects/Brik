@@ -101,12 +101,13 @@ class TestCombinationRules:
         assert warm_vintage.tape_drive_db < warm_only.tape_drive_db
         assert warm_vintage.tape_drive_db > 0.0
 
-    def test_dyn_eq_shared_by_clarity_and_vocal_focus(self):
-        clarity_only = map_intent_to_mastering(IntentProfile(clarity=0.8))
-        vocal_only = map_intent_to_mastering(IntentProfile(vocal_focus=0.8))
-        assert clarity_only.dyn_eq_enabled is True
-        assert vocal_only.dyn_eq_enabled is True
-        assert vocal_only.dyn_eq_band2_ratio > 1.0
+    def test_dyn_eq_engaged_by_clarity(self):
+        neutral = map_intent_to_mastering(IntentProfile(clarity=0.5))
+        clarity = map_intent_to_mastering(IntentProfile(clarity=0.8))
+        assert neutral.dyn_eq_enabled is False
+        assert clarity.dyn_eq_enabled is True
+        assert clarity.dyn_eq_band2_ratio > 1.0
+        assert clarity.dyn_eq_band2_freq_hz == 2500.0
 
 
 class TestValidation:

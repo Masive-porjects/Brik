@@ -14,7 +14,6 @@ INTENT_AXES = (
     "brightness",
     "width",
     "bass_weight",
-    "vocal_focus",
     "vintage",
     "loudness",
 )
@@ -55,10 +54,6 @@ class IntentProfile(BaseModel):
     bass_weight: float = Field(
         0.5, ge=0.0, le=1.0,
         description="Low-end weight and low-band compression. 0.5 = neutral.",
-    )
-    vocal_focus: float = Field(
-        0.5, ge=0.0, le=1.0,
-        description="Vocal presence via dynamic EQ at 2.5 kHz. 0.5 = neutral.",
     )
     vintage: float = Field(
         0.5, ge=0.0, le=1.0,

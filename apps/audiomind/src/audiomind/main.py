@@ -15,7 +15,6 @@ from audiomind.api.mix import router as mix_router
 from audiomind.api.songstarter import router as songstarter_router
 from audiomind.api.splitter import router as splitter_router
 from audiomind.api.upload import router as upload_router
-from audiomind.api.vocal import router as vocal_router
 from audiomind.config import settings
 from audiomind.services import demo_guard
 
@@ -78,7 +77,6 @@ app.include_router(mix_router, prefix="/api")
 app.include_router(mastering_router, prefix="/api")
 app.include_router(license_router, prefix="/api")
 app.include_router(splitter_router, prefix="/api")
-app.include_router(vocal_router, prefix="/api")
 app.include_router(songstarter_router, prefix="/api")
 app.include_router(batch_router, prefix="/api")
 app.include_router(jobs_router, prefix="/api")

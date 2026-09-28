@@ -7,7 +7,6 @@ from pathlib import Path
 import librosa
 import numpy as np
 
-from audiomind.analysis.register_detection import detect_vocal_register
 from audiomind.models.audio import AnalysisResult
 from audiomind.processing.loudness import measure_lufs
 
@@ -178,20 +177,8 @@ def _detect_already_mastered(
 
 def analyze_audio(
     file_path: str | Path,
-    *,
-    detect_vocal: bool = False,
 ) -> AnalysisResult:
-    """Analyze an audio file and extract key metrics.
-
-    ``detect_vocal`` opts into the vocal register measurement
-    (``librosa.pyin``), which is expensive: ~396 ms of CPU per second of
-    audio. It is OFF by default because ``build_mix`` analyzes four stems
-    plus the mix and reads none of the register fields it produces — the
-    stem projection keeps only ``_STEM_ANALYSIS_FIELDS`` and the mix result
-    keeps only duration/tempo/genre. Pass ``detect_vocal=True`` at the one
-    call site that consumes the register (``vocal_treatment``); the result
-    otherwise carries the model defaults.
-    """
+    """Analyze an audio file and extract key metrics."""
     file_path = Path(file_path)
 
     # Load audio
@@ -257,26 +244,6 @@ def analyze_audio(
         crest_factor_db=crest_factor_db,
     )
 
-    # Vocal register / f0 (Eje A): librosa.pyin over the signal — the vocal
-    # stem when the mix engine analyzes per-stem files. Measurement only:
-    # None register when no credible voice (silence/noise/instrumental);
-    # the master's neutral/bypass chain is untouched.
-    #
-    # Opt-in via ``detect_vocal``: pyin dominates this function's cost, so
-    # the default skips it and leaves the register fields at their model
-    # defaults rather than paying for a measurement nobody reads.
-    if detect_vocal:
-        register = detect_vocal_register(y_mono, sr)
-        vocal_median_f0_hz: float | None = register.median_f0_hz
-        vocal_register: str | None = register.register
-        vocal_f0_voiced_ratio = round(register.voiced_ratio, 3)
-        vocal_phrase_count = len(register.phrase_medians_hz)
-    else:
-        vocal_median_f0_hz = None
-        vocal_register = None
-        vocal_f0_voiced_ratio = 0.0
-        vocal_phrase_count = 0
-
     return AnalysisResult(
         integrated_lufs=round(integrated_lufs, 1),
         true_peak_db=round(true_peak_db, 1),
@@ -291,10 +258,6 @@ def analyze_audio(
         crest_factor_db=round(crest_factor_db, 1),
         is_already_mastered=is_mastered,
         mastering_confidence=round(mastering_conf, 2),
-        vocal_median_f0_hz=vocal_median_f0_hz,
-        vocal_register=vocal_register,
-        vocal_f0_voiced_ratio=vocal_f0_voiced_ratio,
-        vocal_phrase_count=vocal_phrase_count,
     )
 
 

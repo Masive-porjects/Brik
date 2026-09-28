@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import gsap from "gsap";
 import { motion, AnimatePresence } from "framer-motion";
 import { VIEW_TRANSITION, fadeUp } from "@/shared/motion";
-import { API_BASE } from "@/adapters/api/config";
 import LicenseGuard from "@/components/LicenseGuard";
 import MobileDrawer from "@/components/MobileDrawer";
 import ModuleDock from "@/components/dock/ModuleDock";
@@ -38,10 +37,7 @@ const TABS: { key: MasteringTab; label: string }[] = [
   { key: "mezcla", label: "Mezcla de Audio" },
   { key: "modules", label: "Masterizar Audio" },
   { key: "splitter", label: "Splitter" },
-  { key: "vocal", label: "Vocal" },
   { key: "songstarter", label: "Beats" },
-  { key: "genres", label: "Guía de Géneros" },
-  { key: "pipeline", label: "Cadena de Master" },
   { key: "analysis", label: "Análisis" },
   { key: "stereo", label: "Estéreo" },
   { key: "album", label: "Álbum" },
@@ -322,9 +318,6 @@ function MezclasContent() {
                           stemState={workflow.stemState}
                           setStemState={workflow.setStemState}
                           onStemSplit={workflow.handleStemSplit}
-                          onVocalProcess={workflow.handleVocalProcess}
-                          vocalProcessing={workflow.vocalProcessing}
-                          vocalProcessed={workflow.vocalProcessed}
                           masteringMode={masteringMode}
                           onNavigateTab={handleModuleClick}
                           onMixSettled={workflow.handleMixSettled}
@@ -378,44 +371,6 @@ function MezclasContent() {
                         </motion.div>
                       )}
 
-                      {/* Vocal Result Banner */}
-                      {workflow.vocalProcessed && workflow.session && (
-                        <div className="shrink-0 px-4 lg:px-6 py-2">
-                          <div
-                            className="flex items-center gap-3 rounded-xl px-4 py-2"
-                            style={{
-                              background: "rgba(94, 92, 230, 0.06)",
-                              border: "1px solid rgba(94, 92, 230, 0.12)",
-                            }}
-                          >
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#5e5ce6] shadow-lg shadow-[rgba(94,92,230,0.3)]" />
-                            <span className="text-xs text-[var(--text-secondary)]">
-                              Voz procesada —{" "}
-                              <a
-                                href={`${API_BASE}/session/${workflow.session.session_id}/vocal/audio`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[#5e5ce6] hover:underline"
-                              >
-                                escuchar resultado vocal
-                              </a>
-                            </span>
-                            <button
-                              onClick={() => {
-                                if (!workflow.session) return;
-                                const a = document.createElement("a");
-                                a.href = `${API_BASE}/session/${workflow.session.session_id}/vocal/audio`;
-                                a.download = `${workflow.session.session_id}_vocal.wav`;
-                                a.click();
-                              }}
-                              className="ml-auto text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                            >
-                              {t("common.download", "Descargar")} WAV
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Scrollable Tab Canvas */}
                       <div
                         className={`relative z-[1] overflow-y-auto px-4 lg:px-6 pt-4 pb-40 ${
@@ -464,9 +419,6 @@ function MezclasContent() {
                                 stemState={workflow.stemState}
                                 setStemState={workflow.setStemState}
                                 onStemSplit={workflow.handleStemSplit}
-                                onVocalProcess={workflow.handleVocalProcess}
-                                vocalProcessing={workflow.vocalProcessing}
-                                vocalProcessed={workflow.vocalProcessed}
                                 masteringMode={masteringMode}
                                 onNavigateTab={handleModuleClick}
                                 onMixSettled={workflow.handleMixSettled}
@@ -505,7 +457,6 @@ function MezclasContent() {
               currentTab={currentTab}
               onSelectTab={handleModuleClick}
               session={workflow.session}
-              params={workflow.params}
               activePresetId={workflow.activePresetId}
               onDownload={workflow.handleDownload}
               onFileSelected={workflow.handleFileSelected}
@@ -524,15 +475,11 @@ function MezclasContent() {
             subtitle={
               sheetTab === "splitter"
                 ? "Separar en stems"
-                : sheetTab === "vocal"
-                  ? "Cadena vocal pro"
-                  : sheetTab === "songstarter"
-                    ? "Generador de ideas"
-                    : sheetTab === "genres"
-                      ? "Guía de géneros"
-                      : sheetTab === "mezcla"
-                        ? "Mezclar stems en un bus"
-                        : undefined
+                : sheetTab === "songstarter"
+                  ? "Generador de ideas"
+                  : sheetTab === "mezcla"
+                    ? "Mezclar stems en un bus"
+                    : undefined
             }
           >
             <MasteringCanvas
@@ -548,9 +495,6 @@ function MezclasContent() {
               stemState={workflow.stemState}
               setStemState={workflow.setStemState}
               onStemSplit={workflow.handleStemSplit}
-              onVocalProcess={workflow.handleVocalProcess}
-              vocalProcessing={workflow.vocalProcessing}
-              vocalProcessed={workflow.vocalProcessed}
               masteringMode={masteringMode}
               onNavigateTab={handleModuleClick}
               onMixSettled={workflow.handleMixSettled}

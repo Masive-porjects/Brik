@@ -6,12 +6,10 @@ import {
   type MasteringParameters,
   type MixStatus,
   DEFAULT_PARAMS,
-  type VocalChainParams,
   uploadAudio,
   processAudio,
   downloadMastered,
   splitStems,
-  processVocalChain,
   resetSession,
   getSession,
   ApiError,
@@ -107,10 +105,6 @@ export function useMasteringWorkflow(
   // Stem splitter state
 
   const [stemState, setStemState] = useState<StemSplitterState>(createDefaultStemState());
-
-  // Vocal chain state
-  const [vocalProcessing, setVocalProcessing] = useState(false);
-  const [vocalProcessed, setVocalProcessed] = useState(false);
 
   // Abort controller for in-flight processing requests
   const abortRef = useRef<AbortController | null>(null);
@@ -618,25 +612,6 @@ export function useMasteringWorkflow(
     return await splitStems(session.session_id);
   }, [session]);
 
-  /* ── Vocal process ──────────────────────────────────── */
-  const handleVocalProcess = useCallback(
-    async (vocalParams: VocalChainParams) => {
-      if (!session) return;
-      setVocalProcessing(true);
-      setError(null);
-      try {
-        await processVocalChain(session.session_id, vocalParams);
-        setVocalProcessed(true);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Vocal processing failed";
-        setError(msg);
-      } finally {
-        setVocalProcessing(false);
-      }
-    },
-    [session],
-  );
-
   /* ── Download ──────────────────────────────────────── */
   const handleDownload = useCallback(
     async (format: "wav" | "mp3") => {
@@ -1009,8 +984,6 @@ export function useMasteringWorkflow(
     forceSave,
     stemState,
     setStemState,
-    vocalProcessing,
-    vocalProcessed,
     isConsolidating,
     isLoadingTrackProject,
     handleFileSelected,
@@ -1019,7 +992,6 @@ export function useMasteringWorkflow(
     handleReset,
     handleBackToUpload,
     handleStemSplit,
-    handleVocalProcess,
     handleDownload,
     handleConsolidateMaster,
     handleLoadTrackProject,
