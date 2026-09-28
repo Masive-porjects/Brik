@@ -32,8 +32,9 @@ from audiomind.models.audio import (
 from audiomind.processing.engine import process_audio
 from audiomind.processing.presets import PRESET_CHAINS
 from audiomind.processing.smart_gate import (
-    CONSERVATIVE_GATE_MODULES,
-    FULL_GATE_MODULES,
+    ADVISORY_MODULES,
+    CORRECTIVE_SCALE,
+    SIGNATURE_SCALE_FLOOR,
 )
 from audiomind.processing.validation import (
     DR_COLLAPSE_RATIO,
@@ -133,7 +134,7 @@ def _quiet_analysis() -> AnalysisResult:
 
 
 def test_smart_gate_applied_on_deliverable_input(tmp_path):
-    """A loud/healthy/peak-deliverable source → full gate, modules listed.
+    """A loud/healthy/peak-deliverable source → advisory tier, scales set.
 
     Uses ``target_lufs_db=-14.0`` (the platform default) to take the FULL
     master chain — pristine defaults return early via the bit-exact
@@ -153,8 +154,12 @@ def test_smart_gate_applied_on_deliverable_input(tmp_path):
     gate = result["smart_gate"]
     assert gate is not None
     assert gate["applied"] is True
-    assert gate["tier"] == "full"
-    assert set(gate["gated_modules"]) == set(FULL_GATE_MODULES)
+    assert gate["tier"] == "advisory"
+    # The advisory gate reports a scale for every advisory module, and never
+    # scales a module to 0.0 — it reduces, it does not block.
+    assert set(gate["intensity_scales"]) == set(ADVISORY_MODULES)
+    assert all(v > 0.0 for v in gate["intensity_scales"].values())
+    assert set(gate["gated_modules"]) == set(ADVISORY_MODULES)
     # Evidence mirrors the analysis and the layer-2 anchors.
     assert gate["evidence"]["lufs_within_tolerance"] is True
     assert gate["evidence"]["crest_healthy"] is True
@@ -184,9 +189,13 @@ def test_smart_gate_not_applied_on_quiet_raw_input(tmp_path):
     assert result["true_peak_db"] <= 0.0
 
 
-def test_smart_gate_conservative_keeps_engaged_signature(tmp_path):
-    """Brightness moved (signature engaged) → conservative tier; the
-    clarity shelf is NEVER gated; the corrective match EQ still is."""
+def test_smart_gate_protects_engaged_signature(tmp_path):
+    """Brightness moved (signature engaged) → the clarity shelf is protected.
+
+    The advisory scale for an engaged signature never drops below
+    ``SIGNATURE_SCALE_FLOOR``; the purely corrective match EQ still takes the
+    full reduction to ``CORRECTIVE_SCALE``.
+    """
     in_path = tmp_path / "in.wav"
     out_path = tmp_path / "out.wav"
     _write_wav(in_path, _dense_program())
@@ -199,10 +208,14 @@ def test_smart_gate_conservative_keeps_engaged_signature(tmp_path):
     gate = result["smart_gate"]
     assert gate is not None
     assert gate["applied"] is True
-    assert gate["tier"] == "conservative"
-    assert gate["gated_modules"] == CONSERVATIVE_GATE_MODULES + ["compressor"]
-    assert "clarity_shelf" not in gate["gated_modules"]
-    assert "warmth_tilt" not in gate["gated_modules"]
+    assert gate["tier"] == "advisory"
+    scales = gate["intensity_scales"]
+    assert scales["clarity_shelf"] == SIGNATURE_SCALE_FLOOR
+    assert scales["match_eq"] == CORRECTIVE_SCALE
+    # Warming is a saturation signature, which the brightness move does not
+    # engage — it keeps the corrective scale like the match EQ does.
+    assert scales["warmth_tilt"] == CORRECTIVE_SCALE
+    assert all(v > 0.0 for v in scales.values())
 
 
 # ── 2. Bit-exact neutral contract ──────────────────────────────────────
