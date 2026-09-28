@@ -77,12 +77,6 @@ export const DEFAULT_FEATURES: Record<FeatureKey, FeatureDefinition> = {
     labelKey: "nav.stereo",
     defaultLabel: "Estéreo",
   },
-  live: {
-    id: "live",
-    enabled: true,
-    labelKey: "nav.live",
-    defaultLabel: "Live Engine",
-  },
   album: {
     id: "album",
     enabled: true,

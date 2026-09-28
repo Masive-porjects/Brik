@@ -44,7 +44,6 @@ const TABS: { key: MasteringTab; label: string }[] = [
   { key: "pipeline", label: "Cadena de Master" },
   { key: "analysis", label: "Análisis" },
   { key: "stereo", label: "Estéreo" },
-  { key: "live", label: "Live Engine" },
   { key: "album", label: "Álbum" },
 ];
 

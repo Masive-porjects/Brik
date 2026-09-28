@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { safeCloseAudioContext } from "@/lib/live/audioContextUtils";
+import { safeCloseAudioContext } from "@/lib/audioContext";
 
 /* ── Stereo Field Analysis Hook ─────────────────────────────
    Decodes an audio URL into a stereo buffer, then analyses the

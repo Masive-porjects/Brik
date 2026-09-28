@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { safeCloseAudioContext } from './audioContextUtils';
+import { safeCloseAudioContext } from './audioContext';
 
 /** Mock mínimo: solo `state` y `close` — suficiente para el contrato. */
 function fakeCtx(state: string, closeImpl?: () => void) {

@@ -17,4 +17,11 @@ describe("DOCK_MODULES", () => {
   it("mantiene Splitter como tercer módulo izquierdo", () => {
     expect(DOCK_MODULES[2].key).toBe("splitter");
   });
+
+  it("no expone el módulo Live Engine (eliminado con su UI)", () => {
+    // El Live Engine se retiró: el tab solo renderizaba un "próximamente"
+    // y su motor no tenía ningún importador. Este guard evita que vuelva
+    // un tab apuntando a código inexistente.
+    expect(DOCK_MODULES.map((m) => m.key)).not.toContain("live");
+  });
 });

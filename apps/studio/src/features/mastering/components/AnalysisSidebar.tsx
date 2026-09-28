@@ -5,7 +5,6 @@ import SignalChain from "@/presentation/components/SignalChain";
 import AnalysisPanel from "@/presentation/components/AnalysisPanel";
 import StereoField from "@/presentation/components/StereoField";
 import ShareCard from "@/presentation/components/ShareCard";
-import { ComingSoonNotice } from "@/presentation/components/ComingSoonNotice";
 import DropZone from "@/presentation/components/DropZone";
 import type { MasteringParameters, SessionData } from "@/lib/api";
 import { getAudioUrl } from "@/lib/api";
@@ -144,14 +143,6 @@ export default function AnalysisSidebar({
                 </div>
               )}
             </>
-          ) : currentTab === "live" ? (
-            <ComingSoonNotice
-              title="Live Engine"
-              message={t(
-                "live.comingSoonNotice",
-                "El motor de efectos en vivo llega pronto. Por ahora, masterizá y escuchá el resultado en Análisis.",
-              )}
-            />
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--border-subtle)] p-4 text-center">
               <p className="text-xs leading-relaxed text-[var(--text-muted)]">

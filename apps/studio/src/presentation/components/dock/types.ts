@@ -9,7 +9,6 @@ import {
   Music2,
   Radio,
   Scissors,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,7 +23,6 @@ export type MasteringTab =
   | "pipeline"
   | "analysis"
   | "stereo"
-  | "live"
   | "album";
 
 export interface DockModuleDef {
@@ -48,6 +46,5 @@ export const DOCK_MODULES: readonly DockModuleDef[] = [
   { key: "pipeline", label: "Cadena de Master", icon: AudioLines },
   { key: "analysis", label: "Análisis", icon: Activity },
   { key: "stereo", label: "Estéreo", icon: Radio },
-  { key: "live", label: "Live Engine", icon: Zap },
   { key: "album", label: "Álbum", icon: Music },
 ];
