@@ -43,10 +43,7 @@
     "mezcla": "Audio Mix",
     "modules": "Master Audio",
     "splitter": "Stem Splitter",
-    "vocal": "Vocal Chain",
     "songstarter": "Beats",
-    "genres": "Genre Guide",
-    "pipeline": "Mastering Chain",
     "analysis": "Analysis",
     "stereo": "Stereo Field",
     "album": "Album",
@@ -390,7 +387,6 @@
     "cloudStored": "Track saved to your library",
     "or": "or"
   },
-
   "splitter": {
     "title": "Stem",
     "titleAccent": "Splitter",
@@ -445,28 +441,6 @@
     "gateProcessingCta": "Go to mix",
     "gateFailedCta": "Retry mix"
   },
-  "vocal": {
-    "title": "VoiceChain",
-    "subtitle": "Professional vocal effect chain",
-    "processVoice": "Process Voice",
-    "loadAudioPrompt": "Upload an audio file to use Vocal Chain Pro.",
-    "channelStrip": "VOICECHAIN PRO — CHANNEL STRIP",
-    "deesser": "De-Esser",
-    "deesserDesc": "Reduces harsh sibilance in high frequencies (5-8 kHz)",
-    "pitch": "Auto-Tune Pitch",
-    "pitchDesc": "Pitch correction with formant preservation.",
-    "pitchHigh": "↑ High",
-    "pitchLow": "↓ Low",
-    "pitchNeutral": "Neutral",
-    "cohesion": "Cohesion",
-    "cohesionDesc": "Analog optical compressor. Controls dynamic peaks and brings vocal presence forward.",
-    "compressor": "Compressor",
-    "processedVoice": "Processed Vocal",
-    "playingPrompt": "Playing...",
-    "playPrompt": "Press Play to listen to the result",
-    "adjustPrompt": "Adjust the 3 controls and press \"Process Voice\" to apply the vocal chain.",
-    "applyingChain": "Applying vocal chain..."
-  },
   "songstarter": {
     "title": "Beats",
     "subtitle": "AI-powered musical idea generator",
@@ -502,132 +476,6 @@
     "load": "Load",
     "generatingBeat": "Generating beat...",
     "startPrompt": "Adjust the parameters and press \"Generate Beat\" to get started."
-  },
-  "genreGuide": {
-    "title": "Musical",
-    "titleAccent": "Genres",
-    "subtitle": "How each genre sounds in commercial mastering — educational guide",
-    "genres": {
-      "urban": {
-        "name": "Urban / Hip-Hop / Reggaetón",
-        "description": "Modern urban sound is characterized by sub-bass DOMINANCE between 50–80 Hz. In commercial streaming mastering, density is controlled with fine-tuned transients to sustain energy without breaching safe loudness ceilings (-12 LUFS integrated and -1 dBTP true peak). Masters sound hot and punchy without distortion or penalty on Spotify/Apple/YouTube. Stereo imaging stays narrow in the subs and wide in the highs.",
-        "details": [
-          "Deep, controlled sub-bass (60 Hz with high spectral density)",
-          "Clipped transients maximizing LUFS without audible distortion",
-          "Rhythmic sidechain on bass to carve room for the kick",
-          "Upfront vocals cutting through at 2–4 kHz"
-        ]
-      },
-      "rock": {
-        "name": "Rock / Indie",
-        "description": "Rock mastering focuses on preserving natural AGGRESSIVENESS in drums and guitars, emphasizing low-mids (200–500 Hz) for weight and analog warmth. Compression is moderate compared to urban genres — favoring organic punch over wall-like density. The stereo field is wide, leveraging hard-panned guitars and overhead mics for an immersive wall of sound.",
-        "details": [
-          "Drums with natural acoustic attack and preserved resonance tails",
-          "Guitars with forward mid-high presence (2–4 kHz) free of harshness",
-          "Gentle compression (2:1 to 3:1) preserving performer dynamics",
-          "Wide dynamic range (8–12 dB) compared to electronic genres"
-        ]
-      },
-      "pop": {
-        "name": "Pop / Electronic",
-        "description": "Commercial pop demands crystal-clear BRIGHTNESS in high frequencies (8–12 kHz) combined with balanced multi-band compression maintaining steady energy without sacrificing clarity. The stereo image is wide and extended, featuring lush synths and pads on the sides while kick and sub remain rock-solid in mono center. Target sits around -13 to -14 LUFS integrated.",
-        "details": [
-          "Extensive air sheen in the 8–12 kHz band",
-          "Gentle multi-band compression controlling peaks without pumping",
-          "Wide stereo imaging with side-fill textures",
-          "Controlled yet punchy transients preserving groove energy"
-        ]
-      },
-      "jazz": {
-        "name": "Jazz / Classical",
-        "description": "Acoustic and orchestral music requires absolute PURITY along the mastering chain. The primary goal is NOT loudness, but the pristine preservation of the original performance dynamic range. Compression is used with extreme restraint (1.1:1 to 1.5:1) solely to smooth accidental peaks, leaving the natural acoustic venue intact.",
-        "details": [
-          "Minimal compression — natural dynamic range preserved (15–25 dB)",
-          "Flat spectral curve without artificial low-end or high-end hype",
-          "No aggressive limiting — ceiling parked at -2 dBFS or lower",
-          "Natural reverberation of the recording venue untouched"
-        ]
-      },
-      "latin": {
-        "name": "Latin / Fusions",
-        "description": "Latin music and its fusions require dynamic BALANCE allowing live percussions to keep their organic transient attack while the lead vocal sits clear and front-and-center. Rhythmic cohesion is key — every element operates like a tightly clock-synced engine across congas, timbales, and electric bass.",
-        "details": [
-          "Preserved percussion transient punch — never squashed for loudness",
-          "Upfront vocal presence with 3–5 kHz cut-through and 200–400 Hz body",
-          "Rhythmic master bus glue holding syncopated patterns together",
-          "Controlled stereo width ensuring high mono dancefloor compatibility"
-        ]
-      }
-    },
-    "footnote": "Based on commercial mastering industry standards and spectral analysis of certified releases."
-  },
-  "pipeline": {
-    "title": "Mastering",
-    "titleAccent": "Chain",
-    "subtitle": "How WaveIA works step-by-step — professional DSP chain",
-    "steps": {
-      "01": {
-        "title": "Gain Staging",
-        "description": "We normalize input audio to a consistent -6 dBFS headroom. This guarantees that all DSP modules operate within identical dynamic ranges, regardless of how hot or quiet your original mix was."
-      },
-      "02": {
-        "title": "Match EQ (Genre Spectral Calibration)",
-        "description": "We analyze your track's spectral content and match it against target profiles from commercial hit releases. Match EQ gently pushes your balance toward genre targets without flattening the organic character."
-      },
-      "03": {
-        "title": "Proportional Compression",
-        "description": "Compression thresholds are dynamically computed from your track's live RMS energy. Ratio is controlled via the 'Punch / Glue' macro: higher ratio clamps peaks, lower ratio breathes dynamically."
-      },
-      "04": {
-        "title": "M/S (Mid/Side) Processing",
-        "description": "We decouple the center (Mid - mono components) from the stereo sides (Side - width, reverb, Haas delay). This allows independent spatio-temporal expansion without muddying the phantom center."
-      },
-      "05": {
-        "title": "Harmonic Saturation (THD)",
-        "description": "Controlled harmonic distortion simulating analog magnetic tape. The 'Tape / Warmth' engine introduces musical even-order harmonics that human ears perceive as creamy, warm, and vintage."
-      },
-      "06": {
-        "title": "True Peak Limiting (4x Oversampling)",
-        "description": "The final brickwall limiter runs with 4x oversampling to catch inter-sample peaks that standard peak limiters miss. Paired with Codec Pre-Matching, ceiling dynamically prevents streaming transcode distortion."
-      },
-      "07": {
-        "title": "Noise-Shaped Dithering (Lipshitz 2nd Order)",
-        "description": "When exporting in 16-bit, we apply 2nd-order noise-shaped dither (Lipshitz), pushing quantization noise floor above 15 kHz where ears are least sensitive. The result: 16-bit files sounding with 24-bit depth."
-      }
-    },
-    "tipsTitle": "Tips for a Flawless Master",
-    "tipsSubtitle": "Before uploading your audio, review these points",
-    "tips": [
-      {
-        "title": "Leave headroom in your mix",
-        "body": "Export your mix with peak levels between -6 dBFS and -3 dBFS. Do NOT push the master fader on your DAW. Headroom gives the DSP engine space to operate without clipping transients."
-      },
-      {
-        "title": "Do not apply limiting on your master bus",
-        "body": "If you already slammed a limiter onto the mix, the DSP engine cannot distinguish your artistic intent from hard distortion. Keep the master bus clean — WaveIA handles professional final limiting."
-      },
-      {
-        "title": "Export in 24-bit WAV",
-        "body": "24-bit WAV at 44.1 kHz or 48 kHz is the global studio standard. Avoid lossy MP3 or AAC uploads — the neural and DSP algorithms require full uncompressed spectral information."
-      },
-      {
-        "title": "Verify low-end in mono",
-        "body": "Frequencies below 120 Hz are automatically focused to mono to prevent phase cancellation on club subwoofers and vinyl lathes. Check your mix in mono BEFORE uploading."
-      }
-    ],
-    "authorship": "Brikman Paul, creator of WaveIA, has meticulously tuned every DSP algorithm and mathematical model to ensure that every song processed on the platform sounds stellar, competitive, and ready for global distribution."
-  },
-  "signalChain": {
-    "title": "Signal Chain",
-    "flow": "Input → Processing → Output",
-    "on": "ON",
-    "bypass": "BYPASS",
-    "blocks": {
-      "eq": "Clarity",
-      "comp": "Compressor",
-      "sat": "Saturation",
-      "lim": "Limiter"
-    }
   },
   "analysis": {
     "openAnalysis": "Open Analysis →",

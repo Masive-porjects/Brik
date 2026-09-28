@@ -43,10 +43,7 @@
     "mezcla": "Mezcla de Audio",
     "modules": "Masterizar Audio",
     "splitter": "Splitter",
-    "vocal": "Vocal",
     "songstarter": "Beats",
-    "genres": "Guía de Géneros",
-    "pipeline": "Cadena de Master",
     "analysis": "Análisis",
     "stereo": "Estéreo",
     "album": "Álbum",
@@ -390,7 +387,6 @@
     "cloudStored": "Track guardado en tu biblioteca",
     "or": "o"
   },
-
   "splitter": {
     "title": "Stem",
     "titleAccent": "Splitter",
@@ -445,28 +441,6 @@
     "gateProcessingCta": "Ir a la mezcla",
     "gateFailedCta": "Reintentar la mezcla"
   },
-  "vocal": {
-    "title": "VoiceChain",
-    "subtitle": "Cadena de efectos vocales profesional",
-    "processVoice": "Procesar Voz",
-    "loadAudioPrompt": "Carga un audio para usar VoiceChain Pro.",
-    "channelStrip": "VOICECHAIN PRO — CHANNEL STRIP",
-    "deesser": "De-Esser",
-    "deesserDesc": "Reduce sibilancias en frecuencias agudas (5-8 kHz)",
-    "pitch": "Auto-Tune Pitch",
-    "pitchDesc": "Corrección tonal con preservación de formantes.",
-    "pitchHigh": "↑ Agudo",
-    "pitchLow": "↓ Grave",
-    "pitchNeutral": "Neutral",
-    "cohesion": "Cohesión",
-    "cohesionDesc": "Compresor óptico analógico. Controla picos dinámicos y adelanta la presencia vocal.",
-    "compressor": "Compresor",
-    "processedVoice": "Voz Procesada",
-    "playingPrompt": "Reproduciendo...",
-    "playPrompt": "Presioná Play para escuchar el resultado",
-    "adjustPrompt": "Ajusta los 3 controles y presiona \"Procesar Voz\" para aplicar la cadena vocal.",
-    "applyingChain": "Aplicando cadena vocal..."
-  },
   "songstarter": {
     "title": "Beats",
     "subtitle": "Generador de ideas musicales con Inteligencia Artificial",
@@ -502,132 +476,6 @@
     "load": "Cargar",
     "generatingBeat": "Generando beat...",
     "startPrompt": "Ajusta los parámetros y presiona \"Generar Beat\" para empezar."
-  },
-  "genreGuide": {
-    "title": "Géneros",
-    "titleAccent": "Musicales",
-    "subtitle": "Cómo suena cada género en el mastering comercial — guía educativa",
-    "genres": {
-      "urban": {
-        "name": "Urban / Hip-Hop / Reggaetón",
-        "description": "El sonido urbano moderno se caracteriza por la DOMINANCIA del sub-bass entre 50–80 Hz. En el mastering comercial para streaming, la densidad se controla con transitorios afinados para mantener la energía sin pasar del techo seguro de loudness (target -12 LUFS integrados y true-peak en -1 dBTP). Así el master suena caliente y consistente sin que Spotify/Apple/YouTube lo atenúen ni le sumen distorsión. La imagen estéreo tiende a ser angosta en las bajas frecuencias y abierta en los agudos, con una compresión del bus maestro que mantiene el ritmo constante y la energía sin picos disruptivos.",
-        "details": [
-          "Sub-bass profundo y controlado (60 Hz con alta densidad espectral)",
-          "Transitorios recortados para maximizar LUFS sin distorsión audible",
-          "Side chain rítmico en el bajo para dar espacio al kick",
-          "Vocales al frente con presencia en 2–4 kHz"
-        ]
-      },
-      "rock": {
-        "name": "Rock / Indie",
-        "description": "El mastering de rock busca preservar la AGRESIVIDAD natural de la batería y las guitarras, con un énfasis en los medios-graves (200–500 Hz) que dan peso y calidez. La compresión es moderada comparada con el urbano — se busca el 'punch' orgánico antes que la densidad absoluta. La imagen estéreo es ancha, aprovechando guitarras paneadas y overheads de batería para crear un muro de sonido envolvente.",
-        "details": [
-          "Batería con ataque natural y cola de resonancia preservada",
-          "Guitarras con presencia en medios-agudos (2–4 kHz) sin aspereza",
-          "Compresión suave (2:1 a 3:1) que mantiene la dinámica de la interpretación",
-          "Rango dinámico amplio (8–12 dB) comparado con otros géneros"
-        ]
-      },
-      "pop": {
-        "name": "Pop / Electrónica",
-        "description": "El pop comercial exige un BRILLO cristalino en las frecuencias altas (8–12 kHz) combinado con una compresión balanceada que mantenga la energía sin sacrificar claridad. La imagen estéreo es moderna y extendida, con pads y sintetizadores que llenan el espacio lateral mientras el kick y el bajo se mantienen sólidos en el centro. El target de loudness ronda los -13 a -14 LUFS integrados con true-peak en -1 dBTP, optimizado y seguro para streaming.",
-        "details": [
-          "Brightness extensivo en el rango de 8–12 kHz para brillo 'air'",
-          "Compresión multibanda suave para controlar picos sin bombear",
-          "Imagen estéreo amplia con elementos de relleno en los extremos",
-          "Transientes controlados pero presentes para mantener la energía rítmica"
-        ]
-      },
-      "jazz": {
-        "name": "Jazz / Clásica",
-        "description": "La música acústica y orquestal exige una PUREZA absoluta en la cadena de masterización. Aquí el objetivo NO es la loudness sino la preservación del rango dinámico original de la interpretación. La compresión se usa con extrema sutileza (1.1:1 a 1.5:1), solo para suavizar picos accidentales. El balance espectral busca ser plano y transparente, dejando que la acústica natural del espacio de grabación y la dinámica de los músicos sean protagonistas.",
-        "details": [
-          "Mínima compresión — se preserva la dinámica natural (rango de 15–25 dB)",
-          "Curva espectral plana sin realces artificiales en agudos ni graves",
-          "Sin limitación agresiva — el ceiling se coloca en -2 dBFS o más abajo",
-          "Reverberación natural del espacio de grabación se mantiene intacta"
-        ]
-      },
-      "latin": {
-        "name": "Latino / Fusiones",
-        "description": "El género latino y sus fusiones requieren un BALANCE dinámico que permita a las percusiones vivas mantener su ataque natural mientras la voz se posiciona al frente con claridad. La cohesión rítmica es la prioridad — todos los elementos deben funcionar como un motor sincronizado. El rango de frecuencia es amplio, desde tumbadoras y congas en los medios hasta el bajo eléctrico o synth en las frecuencias graves, con una presencia vocal prominente en 3–5 kHz.",
-        "details": [
-          "Percusiones con ataque preservado — no se sacrifican por loudness",
-          "Vocal al frente con claridad en 3–5 kHz y calidez en 200–400 Hz",
-          "Cohesión rítmica — compresión suave en el bus maestro que une la mezcla",
-          "Ancho estéreo moderado que mantiene la energía bailable en mono"
-        ]
-      }
-    },
-    "footnote": "Basado en estándares de la industria de mastering comercial y análisis espectral de lanzamientos certificados."
-  },
-  "pipeline": {
-    "title": "Cadena de",
-    "titleAccent": "Master",
-    "subtitle": "Cómo funciona WaveIA paso a paso — cadena DSP profesional",
-    "steps": {
-      "01": {
-        "title": "Gain Staging",
-        "description": "Normalizamos la señal de entrada a un headroom consistente de -6 dBFS. Esto asegura que todos los módulos DSP trabajen con el mismo margen dinámico, independientemente de qué tan fuerte o suave sea tu mezcla original."
-      },
-      "02": {
-        "title": "Match EQ (Corrección Espectral por Género)",
-        "description": "Analizamos el contenido espectral de tu audio y lo comparamos con perfiles objetivo de la industria comercial. Cada género tiene una 'firma espectral ideal' — el Match EQ empuja tu mezcla hacia ese target sin aplanar el carácter único de tu música."
-      },
-      "03": {
-        "title": "Compresión Proporcional",
-        "description": "El umbral de compresión se calcula dinámicamente a partir del RMS real de tu audio. La relación la controlas tú con el módulo 'Fuego / Empuje'. Más ratio = más control de picos; menos ratio = más dinámica natural."
-      },
-      "04": {
-        "title": "Procesamiento M/S (Mid/Side)",
-        "description": "Separamos la señal en canal Central (Mid, todo lo que suena en mono) y Lateral (Side, todo lo que suena en estéreo). Esto permite procesar la reverberación, el ancho estéreo y el delay Haas de forma independiente sin ensuciar el centro."
-      },
-      "05": {
-        "title": "Saturación Armónica (THD)",
-        "description": "Aplicamos distorsión armónica controlada simulando cinta analógica. El módulo 'Cinta / Saturación' te permite inyectar calidez y armónicos pares (al estilo cinta magnética) que el oído humano percibe como 'musicales' y 'cálidos'."
-      },
-      "06": {
-        "title": "True Peak Limiting (4x Oversampling)",
-        "description": "El limitador final trabaja con sobremuestreo 4x para atrapar picos entre muestras (inter-sample peaks) que los limitadores estándar no ven. Combinado con el Codec Pre-Matching, ajustamos el techo dinámicamente para evitar distorsión en streaming."
-      },
-      "07": {
-        "title": "Noise-Shaped Dithering (Lipshitz 2nd Order)",
-        "description": "Al exportar en 16 bits, aplicamos dither con modelado de ruido de 2do orden (Lipshitz) que empuja el piso de ruido de cuantización por encima de 15 kHz, donde el oído humano es menos sensible. El resultado: audio de 16 bits que suena como si fuera de 24."
-      }
-    },
-    "tipsTitle": "Tips para un Master Exitoso",
-    "tipsSubtitle": "Antes de subir tu audio, revisá estos puntos",
-    "tips": [
-      {
-        "title": "Deja headroom en tu mezcla",
-        "body": "Exporta tu mezcla con picos entre -6 dBFS y -3 dBFS. NO subas el master fader de tu DAW. El headroom le da espacio al motor DSP de WaveIA para trabajar sin recortar transitorios."
-      },
-      {
-        "title": "No apliques limitación en el bus maestro",
-        "body": "Si ya limitaste la mezcla en tu DAW, el motor no puede diferenciar entre tu intención creativa y la distorsión. Deja el bus maestro limpio — WaveIA se encarga de la limitación final profesional."
-      },
-      {
-        "title": "Exporta en WAV de 24 bits",
-        "body": "El formato WAV de 24-bit a 44.1 kHz o 48 kHz es el estándar de la industria. Evitá MP3, AAC u otros formatos con pérdida — el algoritmo necesita la información completa para procesar correctamente."
-      },
-      {
-        "title": "Verificá que el bajo no esté saturado en mono",
-        "body": "Las frecuencias bajo 120 Hz se convierten a mono automáticamente para evitar problemas de fase en vinilo y sistemas club. Si tu bajo ya tiene problemas de fase, escuchalo en mono ANTES de subir el archivo."
-      }
-    ],
-    "authorship": "Brikman Paul, el creador de WaveIA, se ha tomado el trabajo de pulir meticulosamente cada algoritmo y modelo matemático DSP para garantizar que cada canción que pase por la plataforma suene superbién, competitiva y lista para la industria musical internacional."
-  },
-  "signalChain": {
-    "title": "Cadena de Señal",
-    "flow": "Input → Procesamiento → Output",
-    "on": "ON",
-    "bypass": "BYPASS",
-    "blocks": {
-      "eq": "Claridad",
-      "comp": "Compresor",
-      "sat": "Saturación",
-      "lim": "Limiter"
-    }
   },
   "analysis": {
     "openAnalysis": "Abrir Análisis →",

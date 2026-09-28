@@ -41,29 +41,11 @@ export const DEFAULT_FEATURES: Record<FeatureKey, FeatureDefinition> = {
     labelKey: "nav.splitter",
     defaultLabel: "Splitter",
   },
-  vocal: {
-    id: "vocal",
-    enabled: true,
-    labelKey: "nav.vocal",
-    defaultLabel: "Vocal",
-  },
   songstarter: {
     id: "songstarter",
     enabled: true,
     labelKey: "nav.songstarter",
     defaultLabel: "Beats",
-  },
-  genres: {
-    id: "genres",
-    enabled: true,
-    labelKey: "nav.genres",
-    defaultLabel: "Guía de Géneros",
-  },
-  pipeline: {
-    id: "pipeline",
-    enabled: true,
-    labelKey: "nav.pipeline",
-    defaultLabel: "Cadena de Master",
   },
   analysis: {
     id: "analysis",
