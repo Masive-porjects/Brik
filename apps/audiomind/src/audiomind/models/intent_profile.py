@@ -2,9 +2,18 @@
 
 The 9 axes describe WHAT the user wants the master to sound like, not the
 DSP knobs that achieve it. The mapper in ``audiomind.processing.mapper``
-translates an intent into exact ``MasteringParameters`` values.
+translates an intent into exact ``MasteringParameters`` values, and
+``audiomind.processing.mix_mapper`` into Mix Engine knobs.
+
+Contract source of truth: ``packages/contracts/intent_profile.schema.json``
+(the agent's Zod schema mirrors it too). Fields, enum and defaults here
+must match it — ``tests/test_intent_profile_contract.py`` enforces it.
 """
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+TargetPlatform = Literal["spotify", "apple", "youtube", "club", "none"]
 
 # Canonical order of the 9 intent axes, shared by ``neutral()`` and tests.
 INTENT_AXES = (
@@ -29,7 +38,10 @@ class IntentProfile(BaseModel):
     Validation is STRICT: out-of-range axis values are REJECTED with a
     validation error, never silently clamped. A request asking for
     ``warmth=1.2`` is a bug in the caller, not a value to correct.
+    Unknown fields are rejected too (``additionalProperties: false``).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     warmth: float = Field(
         0.5, ge=0.0, le=1.0,
@@ -71,16 +83,19 @@ class IntentProfile(BaseModel):
     )
 
     # ── Non-axis context ────────────────────────────────────────────
-    target_platform: str = Field(
-        "spotify",
-        description="Delivery platform, used to pick platform loudness references.",
+    target_platform: TargetPlatform = Field(
+        "none",
+        description="Delivery platform, used to pick platform loudness references. "
+        '"none" when the user did not name one.',
     )
     reference_genre: str = Field(
         "",
+        max_length=60,
         description="Optional genre reference for the master (informational).",
     )
     notes: str = Field(
         "",
+        max_length=500,
         description="Free-form user notes about the intended sound (informational).",
     )
 

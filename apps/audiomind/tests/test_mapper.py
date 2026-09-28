@@ -29,7 +29,7 @@ class TestNeutrality:
         neutral = IntentProfile.neutral()
         for axis in INTENT_AXES:
             assert getattr(neutral, axis) == 0.5
-        assert neutral.target_platform == "spotify"
+        assert neutral.target_platform == "none"
 
     def test_neutral_maps_to_exact_defaults(self):
         """The hard rule: neutral intent → bit-exact MasteringParameters()."""
