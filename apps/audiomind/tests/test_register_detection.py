@@ -21,6 +21,7 @@ import wave
 
 import numpy as np
 
+import audiomind.analysis.analyzer as analyzer_mod
 from audiomind.analysis.analyzer import analyze_audio
 from audiomind.analysis.register_detection import (
     classify_register,
@@ -161,7 +162,7 @@ def test_t4_analyze_audio_populates_register(tmp_path):
     y = _vocal(110.0, duration=3.0)
     path = tmp_path / "vocal.wav"
     _write_wav(path, y, SR)
-    res = analyze_audio(path)
+    res = analyze_audio(path, detect_vocal=True)
     assert res.vocal_register == "grave"
     assert res.vocal_median_f0_hz is not None
     assert 95 <= res.vocal_median_f0_hz <= 125
@@ -172,6 +173,34 @@ def test_t4_analyze_audio_never_invents_register_on_noise(tmp_path):
     rng = np.random.default_rng(3)
     path = tmp_path / "noise.wav"
     _write_wav(path, rng.standard_normal(int(SR * 3)), SR)
-    res = analyze_audio(path)
+    # ``detect_vocal=True`` is required here: with the opt-in default this
+    # assertion would pass vacuously (no measurement, so nothing invented)
+    # and would no longer prove the detector rejects noise.
+    res = analyze_audio(path, detect_vocal=True)
     assert res.vocal_median_f0_hz is None
     assert res.vocal_register is None
+
+
+def test_default_skips_vocal_register_detection(tmp_path, monkeypatch):
+    """The default must not pay for pyin — the expensive field is opt-in.
+
+    ``build_mix`` calls ``analyze_audio`` five times per mix request and
+    reads none of the register fields, so paying ~396 ms of CPU per second
+    of audio there was pure waste.
+    """
+    def _boom(*_args, **_kwargs):
+        raise AssertionError("detect_vocal_register must not run by default")
+
+    monkeypatch.setattr(analyzer_mod, "detect_vocal_register", _boom)
+    path = tmp_path / "vocal.wav"
+    _write_wav(path, _vocal(110.0, duration=1.0), SR)
+
+    res = analyze_audio(path)
+
+    assert res.vocal_median_f0_hz is None
+    assert res.vocal_register is None
+    assert res.vocal_f0_voiced_ratio == 0.0
+    assert res.vocal_phrase_count == 0
+    # the cheap analysis still ran
+    assert res.integrated_lufs is not None
+    assert res.duration_seconds > 0

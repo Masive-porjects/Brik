@@ -845,7 +845,7 @@ def build_mix(
         from audiomind.analysis.analyzer import analyze_audio as _analyze_vocal
 
         try:
-            vocal_result = _analyze_vocal(stems["vocals"])
+            vocal_result = _analyze_vocal(stems["vocals"], detect_vocal=True)
             vocal_plan = resolve_vocal_treatment(
                 vocal_result.vocal_register,
                 vocal_result.vocal_median_f0_hz,
