@@ -90,7 +90,7 @@ Colocación: campos detrás de toda la app (z 1–2), el hero detrás de la card
 
 ## Componentes core
 
-La lista detallada vive en `docs/reference/specs/04_waveai_sistema_diseno.md`. Los principales son `DropZone`, `ModulePanel`, `PlatformSelector`, `ProcessingOverlay`, `LicenseGuard`, `AnalysisPanel`, `SignalChain`, `StereoField` y los live `Knob3D`, `LiveView`.
+La lista detallada vive en `docs/reference/specs/04_waveai_sistema_diseno.md`. Los principales son `DropZone`, `ModulePanel`, `PlatformSelector`, `ProcessingOverlay`, `LicenseGuard`, `AnalysisPanel`, `SignalChain` y `StereoField`.
 
 ## Responsive
 

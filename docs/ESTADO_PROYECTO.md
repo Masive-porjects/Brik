@@ -1,8 +1,8 @@
 # Estado del proyecto WaveAI / BrikMaster2027
 
-> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-09-23 (verificación en vivo: tests, ruff, git).
-> **Alcance**: repositorio completo — los tres motores (Mastering, Mix, Live Engine), frontend, agent de voz/IA, contratos, entorno, ramas y pendientes.
-> **Fuentes**: código (`apps/`, `packages/`, `simulator/`, `e2e/`), documentos ODD (`odd/tasks/`), documentación (`docs/`), estado git real y suites de verificación.
+> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-09-27 (Live Engine eliminado; verificación en vivo: tests, build, lint, git).
+> **Alcance**: repositorio completo — los dos motores vivos (Mastering, Mix), frontend, agent de voz/IA, contratos, entorno, ramas y pendientes. El Live Engine se retiró; ver §3.3.
+> **Fuentes**: código (`apps/`, `packages/`, `e2e/`), documentos ODD (`odd/tasks/`), documentación (`docs/`), estado git real y suites de verificación.
 
 ---
 
@@ -12,13 +12,13 @@
 |---|---|
 | **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional completa · 628 tests verdes (backend completo) |
 | **Motor de Mezcla (Mix Engine)** | ✅ Implementado (Pasos 01–08, TDD estricto) · paso 08 con cierre formal pendiente · **+ Stem Balance T1–T4** (faders ±6 dB + auto-balance por género, 23-Sep) · frontend "Mezcla de Audio" cerrado |
-| **Motor en vivo (Live Engine)** | ✅ Operativo · **standalone** (knobs del navegador, sin WebSocket ni MIDI) |
+| **Motor en vivo (Live Engine)** | ❌ **Removido del producto** (`ba3b4a6`, 27-Sep) — el tab solo mostraba un "próximamente" y ningún archivo fuera del cluster lo importaba. Queda el schema como contrato dormido |
 | **Agent de interpretación (IA)** | 🟡 Compila · llamada real sin probar (faltan credenciales) |
 | **Voz (chat/TTS)** | 🟡 Rutas implementadas · TTS pagado off por defecto (fallback navegador) |
 | **Convex** | 🟡 Scaffold completo pero **durmiente** (la app no lo consulta) |
 | **Bridge MIDI / Simulator Python** | ❌ **Removidos** del repositorio — README y docs quedaron desactualizados |
 | **Deploy demo (Vercel+Railway)** | 📋 Plan LOCKED + runbook preparado · **no ejecutado** |
-| **Suites de verificación** | Backend **628 passed** · Studio vitest **57 passed** · eslint **0 errores / 28 warnings** · e2e no ejecutado |
+| **Suites de verificación** | Backend **707 passed** · Studio vitest **61 passed** · eslint **31 errores / 29 warnings** (preexistentes, verificado sin regresiones) · build Next OK · e2e no ejecutado |
 
 ---
 
@@ -62,7 +62,7 @@ d94d80a refactor(studio): replace floating chips with sequential status stream
 
 ---
 
-## 3. Los tres motores
+## 3. Los motores
 
 ### 3.1 Motor 1 — Mastering (AudioMind, backend FastAPI)
 
@@ -149,35 +149,19 @@ d94d80a refactor(studio): replace floating chips with sequential status stream
 
 ---
 
-### 3.3 Motor 3 — Live Engine (Web Audio, standalone)
+### 3.3 Motor 3 — Live Engine — REMOVIDO (27-Sep, `ba3b4a6`)
 
-**Ubicación**: `apps/studio/src/adapters/live/` + `apps/studio/src/lib/live/` + componentes `presentation/components/live/`.
+El tercer motor **ya no existe como producto**. Motivo: su tab en el sidebar de mastering solo renderizaba un `ComingSoonNotice` ("el motor de efectos en vivo llega pronto"), `LiveView` no tenía ningún importador y nunca existió una ruta `/live`. Los 17 archivos de `lib/live/`, `adapters/live/` y `presentation/components/live/` solo se importaban entre sí.
 
-**Arquitectura actual**: **INDEPENDIENTE — sin WebSocket**. Los parámetros vienen exclusivamente de los **knobs de la UI**:
+**Qué sobrevive**:
 
-```
-Knobs UI → LiveParams → AudioGraph (Web Audio) → Recorder → descarga
-```
+- `packages/contracts/live_params.schema.json` — 9 campos (`ts` requerido): `filter_cutoff` 200–12000 (12000), `filter_res` 0.5–12 (0.7), `drive` 0–1 (0), `delay_time` 50–800 (250), `echo_feedback` 0–0.8 (0), `reverb_mix` 0–1 (0), `output_level` 0–1 (0.9), `fx_preset` (clean | dub | big_room | radio | null). Sigue siendo la fuente de verdad, ahora como **contrato dormido**: no se regenera ni se consume salvo reactivación explícita del engine.
+- `packages/contracts/liveParams.gen.ts` — tipos TS generados. `gen_types.sh` escribe ahí (antes apuntaba al path de Studio que se eliminó).
+- `safeCloseAudioContext` — helper genérico de Web Audio, no era código muerto: se movió a `apps/studio/src/lib/audioContext.ts` con sus 5 tests porque `useStereoField.ts` (análisis estéreo) lo usa.
 
-**Grafo de audio** (`audioGraph.ts`):
+**Eliminado**: `LiveView`, `FxSlotPanel`, `Knob3D`, `LiveMeterDeck`, `LiveRecorderBar`, `PresetHeader`, `useLiveEngine`, `audioGraph`, `fxPresets`, `impulseResponse`, `recorder`, `meterMath`, `liveMeterBus`, `liveDefaults`, el `simulator/Dockerfile` huérfano, y las entradas `live` de `MasteringTab`, `DOCK_MODULES`, `DEFAULT_FEATURES`, `/mezclas` y `nav.live`.
 
-```
-Source → Filter (lowpass Biquad) → Drive (WaveShaper tanh 4× oversample)
-       → Delay + Feedback → Reverb (Convolver) → Master Gain
-       → Analysers (mono + L/R por canal) → Destination
-```
-
-- **Todos los cambios de parámetro con `setTargetAtTime`** (anti-zipper, obligatorio).
-- **Neutral = defaults del schema** → master idéntico al original.
-- Mediciones en tiempo real (`lib/live/meterMath.ts`): RMS, peak dB, correlación, stereo width, loudness momentary/short-term (24+5 tests ✔).
-- **Recorder**: graba la salida del engine y la descarga como blob.
-- Hint `useLiveEngine` (docstring): *"No WebSocket: params come exclusively from the knob UI"*.
-
-**Protocolo** (`packages/contracts/live_params.schema.json` — fuente de verdad): 9 campos (`ts` requerido): `filter_cutoff` 200–12000 (default 12000), `filter_res` 0.5–12 (0.7), `drive` 0–1 (0), `delay_time` 50–800 (250), `echo_feedback` 0–0.8 (0), `reverb_mix` 0–1 (0), `output_level` 0–1 (0.9), `fx_preset` (clean | dub | big_room | radio | null). Tipos TS generados en `src/lib/live/liveParams.gen.ts`.
-
-**UI**: `LiveView` + `FxSlotPanel` (slots FX), `Knob3D`, `LiveMeterDeck`, `LiveRecorderBar`, `PresetHeader`.
-
-**Nota importante**: los README/AGENTS aún describen "socket :8765, heartbeat, bridge MIDI, fallback a neutral si el socket cae". **Ese flujo ya no existe**: el bridge y el simulator fueron removidos (§5). El documento `docs/reference/specs/05_live_engine_gestos_a_master.md` sigue siendo referencia de audio válida, pero la parte de gestos/MIDI quedó histórica.
+Con esta remoción, WaveAI queda con **dos motores: Mastering y Mix**.
 
 ---
 
@@ -185,8 +169,8 @@ Source → Filter (lowpass Biquad) → Drive (WaveShaper tanh 4× oversample)
 
 ### 4.1 Studio (Next.js 16 + React 19 + TS + Tailwind 4)
 
-- **Tabs actuales** (`page.tsx`): Mezcla de Audio · Masterizar Audio (módulos) · Splitter · Vocal · Beats (SongStarter) · Guía de Géneros · Cadena de Master · Análisis · Estéreo · **Live Engine** · Álbum.
-- Componentes: 60+ en `src/presentation/components/` (dock/ModuleDock con tiles de motor, MixPanel, MixWaveformAB, MixStatusStream, Player con A/B, FloatingDeliveryPanel, chat/ChatPanel, live/*, audio/* secuenciadores, auth/*, etc.).
+- **Tabs actuales** (`page.tsx`): Mezcla de Audio · Masterizar Audio (módulos) · Splitter · Vocal · Beats (SongStarter) · Guía de Géneros · Cadena de Master · Análisis · Estéreo · Álbum.
+- Componentes: 60+ en `src/presentation/components/` (dock/ModuleDock con tiles de motor, MixPanel, MixWaveformAB, MixStatusStream, Player con A/B, FloatingDeliveryPanel, chat/ChatPanel, audio/* secuenciadores, auth/*, etc.).
 - **Mix UI**: MixPanel + MixWaveformAB + MixStatusStream (stream secuencial de estado), action "masterize" post-mezcla.
 - **Chat/agente**: ChatPanel → `/voz/chat` → `interpretIntent` (agent Gemini) → perfil; preset cards.
 - **Voz**: `/voz/speak` (TTS ElevenLabs opcional con cache `.tts-cache`, tope 400 chars, `204` = fallback a `speechSynthesis` del navegador) · `/voz/escuchar` + `useVoiceInput` (entrada por voz) · `lib/voice/decodeAgentText` (parseo de texto del agente).
@@ -213,7 +197,7 @@ Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `
 | **`simulator` (Python)** `python -m simulator.main` | ❌ **Solo queda `simulator/Dockerfile`** — el módulo ya no existe | `git ls-files simulator` → solo `simulator/Dockerfile` |
 | **HumanMidi / gestos** | ❌ Removido | `docs/archive/HUMANMIDI_REMOVAL_REPORT.md` (histórico) |
 
-> **Consecuencia**: `README.md`, `AGENTS.md` y `docs/README.md` del repo aún listan `apps/bridge/` y `simulator/` como componentes vivos y describen el flujo MIDI→WS→Live Engine. Es documentación **stale** — el Live Engine es standalone y no hay MIDI.
+> **Consecuencia (resuelta 27-Sep)**: `README.md`, `AGENTS.md`, `docs/README.md` y los runbooks ya no listan `apps/bridge/` ni `simulator/` como componentes vivos. Con la eliminación del Live Engine (`ba3b4a6`) no queda ningún flujo MIDI→WS en el producto.
 
 ---
 
@@ -237,7 +221,7 @@ Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `
 ### 6.4 e2e (Playwright)
 
 - `e2e/playwright.config.ts`: chromium, `baseURL localhost:3000`, webServer `npm run dev --workspace=apps/studio`, fixtures `demo-audio.wav`.
-- Specs: `demo_flow.spec.ts` y `master_to_live.spec.ts`. **No ejecutado en este relevamiento** (requiere stack levantado).
+- Specs: solo `demo_flow.spec.ts`. Se eliminó `master_to_live.spec.ts` (27-Sep) — cubría `dock-tab-live`, `live-view`, `.fx-slot-panel` y `knob-filter_cutoff`, todos borrados con el Live Engine; además ya fallaba en colección por un import inexistente (ver `evidence/DEMO_LOCAL_VALIDATION.md` §) y su parte de master ya la cubría `demo_flow.spec.ts`. **e2e no ejecutado** (requiere stack levantado).
 
 ### 6.5 Verificación ejecutada (23-Sep, relevamiento actualizado)
 
@@ -263,7 +247,7 @@ Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `
 | 6 | **Deploy demo Vercel + Railway** (runbook listo, plan LOCKED) — requiere credenciales y vars | Deploy | Acción pendiente |
 | 7 | Decidir si se **activa Convex** (auth/queries reales) o se limpia el scaffold | Studio | Decisión |
 | 8 | Probar `interpretIntent` real (credenciales Gemini/Anthropic) + tipos Python del mapper + integración Convex action | apps/agent | Decisión usuario / credenciales |
-| 9 | **Actualizar documentación stale**: README/AGENTS/docs mencionan bridge y simulator que ya no existen — **HECHO 23-Sep** (ESTADO_PROYECTO, README, AGENTS, docs/README, SETUP, DOCKER, USER_MANUAL, UX_MAP, ARQUITECTURA_WAVEIA_DETALLE actualizados; specs 05/07 y archive quedan históricos por convención). El servicio `simulator` roto del compose fue **quitado** (23-Sep, commit `093946c`, `docker-compose.yml` ahora solo `audiomind` + `studio`; queda el `simulator/Dockerfile` huérfano). Falta (scripts, no docs): corregir `scripts/setup/setup.ps1` (líneas 38–40 instalan `apps\bridge\requirements.txt` y `simulator\requirements.txt` que **ya no existen** — falla el setup de Windows) | Docs + compose + setup | Limpieza sugerida |
+| 9 | **Actualizar documentación stale**: README/AGENTS/docs mencionan bridge y simulator que ya no existen — **HECHO 23-Sep** (ESTADO_PROYECTO, README, AGENTS, docs/README, SETUP, DOCKER, USER_MANUAL, UX_MAP, ARQUITECTURA_WAVEIA_DETALLE actualizados; specs 05/07 y archive quedan históricos por convención). El servicio `simulator` roto del compose fue **quitado** (23-Sep, commit `093946c`). **Cerrado 27-Sep** (`ba3b4a6`): el `simulator/Dockerfile` huérfano (que `COPY`aba un `requirements.txt` inexistente, o sea no podía construir) fue eliminado con su directorio. La nota sobre `scripts/setup/setup.ps1` installando requirements inexistentes quedó **stale**: ese script ya estaba corregido el 23-Sep y hoy solo instala `-e apps/audiomind` | Docs + compose + setup | **Hecho** |
 | 10 | Historial/retención de sesiones: `outputs/` fuera del volume de Railway → masters se pierden en redeploy | Backend/Deploy | Decisión de producto |
 | 11 | Segundo libro del Mix Engine (anexo al plan) + autotune creativo **fuera de alcance v1** | Mix Engine | Documentado como fuera de alcance |
 | 12 | **Mix Stem Balance**: T5 API (trims + toggle en POST /mix), T6 Studio (faders + toggle), T7 E2E neutralidad bit-exacta **HECHOS 23-Sep**; queda el A/B auditivo con la sesión hip_hop del productor (requiere su WAV, no está en el repo) | Mix Engine | Trabajo en curso (T1–T7 automatizable hechos, 23-Sep) |

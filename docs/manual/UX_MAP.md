@@ -53,7 +53,7 @@ flowchart TB
     subgraph Dock["ModuleDock (fisheye, glass)"]
         G1["Macro-Carácter · Splitter · Vocal · Beats"]
         T["Progress · LUFS · Motor"]
-        G2["Guía de Géneros · Cadena de Master · Análisis · Estéreo · Live Engine · Álbum"]
+        G2["Guía de Géneros · Cadena de Master · Análisis · Estéreo · Álbum"]
     end
     Dock -->|click item| Paint["PaintedModule<br/>paint-sweep en lienzo"]
     Dock -->|open sheet| Sheet["ModuleSheet<br/>vidrio centrado"]
@@ -83,7 +83,7 @@ flowchart LR
     subgraph Desktop["Desktop (3 columnas)"]
         Nav[Navbar<br/>brand · toggle modo · tema · user · home]
         Cen[Lienzo central<br/>Player + PaintedModule + scroll]
-        RP[Right Panel colapsable<br/>Análisis · descargas · estéreo · live]
+          RP[Right Panel colapsable<br/>Análisis · descargas · estéreo]
         Dock2[Dock flotante]
     end
     subgraph Mobile["Mobile (1 columna)"]
@@ -111,23 +111,7 @@ stateDiagram-v2
 - A/B por capas de wave: transform-only, React controla opacity.
 - Note burst por cada master que aterriza.
 
-## 5. Live Engine (tab `live`)
-
-```mermaid
-flowchart LR
-    Master[Master audio<br/>getAudioUrl(mastered)] --> Decode[decodeAudioData<br/>AudioContext efímero]
-    Decode --> LV[LiveView<br/>3 columnas]
-    LV --> LVInput[Input<br/>fuente de audio]
-    LV --> FX[FxSlotPanel<br/>filtro · drive · delay · reverb]
-    LV --> Meters[LiveMeters]
-    LV --> Rec[LiveRecorderBar]
-```
-
-- Requiere **master previo** (empty state si no hay).
-- **`bridgeConnected` / `bridgeLatency` son vestigios del bridge WS removido** — el Live Engine es standalone (knobs → `LiveParams` directos, sin websocket ni MIDI).
-- Patrón React oficial de descarte de buffer: ajuste durante render (`decodedUrl !== masterAudioUrl`).
-
-## 6. Chat del Asistente IA
+## 5. Chat del Asistente IA
 
 ```mermaid
 sequenceDiagram
@@ -146,17 +130,17 @@ sequenceDiagram
 - Saludo hablado una sola vez (guard `welcomeSpokenRef`).
 - Mic corta la voz del agente (para no grabarse a sí mismo).
 
-## 7. Rutas auxiliares
+## 6. Rutas auxiliares
 
 - **`/voz`**: flujo de intención en 2 pasos (subir track → conversar). `speak()` en el drop, el navegador suele permitirlo por gesto del usuario; si bloquea, falla en silencio.
 - **`/lab`**: `InteractiveSequencer` aislado del flujo de mastering.
 - **Login**: removido del frontend (era un flag de localStorage sin verificación de servidor). La app entra directo.
 
-## 8. Puertas (guards)
+## 7. Puertas (guards)
 
 1. **`WelcomeGate`**: `loading → locked | unlocked`. `checkLicense()` en mount contra `/license/status`. Dev sin key → unlocked gratis. Key en `sessionStorage` + header `X-License-Key`. States gestionados con GSAP fade (locked → unlocked).
 
-## 9. Descubrimientos transversales
+## 8. Descubrimientos transversales
 
 - `@/components/*` **resuelve** a `src/presentation/components/*` (tsconfig) → no hay capa legacy de component-dup real.
 - Duplicación pendiente: `lib/` vs `shared/` vs `adapters/` vs `core/` vs `hooks/` vs `application/` (ver deuda técnica en reporte de estado).

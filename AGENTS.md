@@ -4,9 +4,9 @@ Este repo es **IA-first**: está diseñado para que agentes (Claude Code, Codex,
 
 ## Qué es esto
 
-**WaveAI** = mastering IA (Next.js + FastAPI) + un **Live Engine** Web Audio controlado en tiempo real.
+**WaveAI** = mastering IA (Next.js + FastAPI): análisis, mezcla y master. El Live Engine Web Audio se retiró (`ba3b4a6`).
 
-Pipeline: `Audio → AudioMind (FastAPI) → Master → Studio Live Engine (Web Audio) → Knobs/Meters/Audio`
+Pipeline: `Audio → AudioMind (FastAPI) → Master / Mix → Studio (UI + Web Audio) → Audio`
 
 ## LEER PRIMERO (obligatorio antes de escribir código)
 
@@ -14,28 +14,25 @@ Pipeline: `Audio → AudioMind (FastAPI) → Master → Studio Live Engine (Web 
 1. `docs/runbooks/SETUP.md` — runbook de entorno verificado (venv, bun, Convex, stack local, pitfalls reales). Síguelo literal si el entorno no está levantado.
 2. `docs/reference/specs/08_implementacion_llm.md` — prompt de implementación con TODOS los valores exactos (presets, rangos, tokens, endpoints, fases, criterios de éxito, pitfalls). **No inventes valores DSP ni de diseño: extráelos de los fuentes.**
 3. `docs/archive/INTEGRATION_REPORT.md` — estado del bloque de integración.
-4. Según el área: `docs/reference/specs/03_*.md` (backend mastering), `04_*.md` (sistema de diseño), `05_*.md` (live engine).
+4. Según el área: `docs/reference/specs/03_*.md` (backend mastering), `04_*.md` (sistema de diseño). `05_live_engine_gestos_a_master.md` es **histórico**: describe el engine retirado.
 
 ## Mapa del repo
 
 | Ruta | Stack | Rol |
 |---|---|---|
-| `apps/studio/` | Next.js 16 + React 19 + TS + Tailwind 4 | Mastering UI + pestaña Live (Web Audio) |
+| `apps/studio/` | Next.js 16 + React 19 + TS + Tailwind 4 | Mastering UI + Mezcla (Web Audio) |
 | `apps/audiomind/` | Python/FastAPI, librosa, pedalboard | MSP de mastering (análisis + cadena de 13 etapas) + Mix Engine (mezcla IA+DSP) |
-| `packages/contracts/` | JSON Schema + generador | `live_params.schema.json` = fuente de verdad |
-| `e2e/` | Playwright | master → live |
+| `packages/contracts/` | JSON Schema + generador | `live_params.schema.json` = contrato **dormido** (ver nota) |
+| `e2e/` | Playwright | flujo master → mezcla |
 
-> ⚠️ `apps/bridge/` y `simulator/` fueron **removidos** — el Live Engine es standalone (knobs del navegador, sin WebSocket ni MIDI). Ver `docs/ESTADO_PROYECTO.md` §5.
+> ⚠️ El **Live Engine fue eliminado** (`ba3b4a6`): su tab solo mostraba un "próximamente" y ningún archivo fuera del cluster lo importaba. `apps/bridge/` y `simulator/` también están removidos. Quedan únicamente el schema y sus tipos generados, como contrato dormido: **no los regeneres ni los consumas** salvo que se reactive el engine explícitamente. Ver `docs/ESTADO_PROYECTO.md` §5.
 
 ## Reglas NO negociables (de la spec 08 §11–12)
 
-- **`packages/contracts/live_params.schema.json` es la fuente de verdad** del protocolo. Si cambia, regenera tipos con `packages/contracts/scripts/gen_types.sh` (TS → `studio/src/lib/live/liveParams.gen.ts`, Python → bridge). Nunca edites los tipos generados a mano.
-- **Neutral = bypass**: en el backend, parámetro neutral = audio idéntico (bypass bit-exacto); en el Live Engine, defaults del schema = master idéntico al original. Presérvalo en TODAS las rutas.
-- **El audio NUNCA viaja por WebSocket** — el Live Engine es **standalone**: los knobs de la UI generan `LiveParams` directamente (sin socket ni MIDI; bridge y simulator removidos). Mensajes completos, no deltas; el último estado gana.
-- **Todo cambio de parámetro Web Audio con `setTargetAtTime(value, ctx.currentTime, 0.02)` — NUNCA asignación directa** (anti-zipper).
-- **Escalado logarítmico del filtro**: `filter_cutoff = 200 * (12000/200)^(v/127)` (200 Hz–12 kHz ≈ 6 octavas; lineal produce saltos).
+- **`packages/contracts/live_params.schema.json` es la fuente de verdad** del protocolo. Si cambia, regenera tipos con `packages/contracts/scripts/gen_types.sh` (TS → `packages/contracts/liveParams.gen.ts`). Nunca edites los tipos generados a mano. Como el Live Engine está eliminado, este contrato está **dormido**: no lo consumas ni lo regeneres sin una reactivación explícita.
+- **Neutral = bypass**: en el backend, parámetro neutral = audio idéntico (bypass bit-exacto). Presérvalo en TODAS las rutas.
+- **Todo cambio de parámetro Web Audio con `setTargetAtTime(value, ctx.currentTime, 0.02)` — NUNCA asignación directa** (anti-zipper). Aplica a cualquier nodo Web Audio con parámetros; hoy el único Web Audio en vivo es el análisis estéreo de `useStereoField.ts`, que solo lee.
 - **Sesiones del backend en memoria** (dict + `SessionCache`) — se pierden al reiniciar el backend. `ProcessingStatus`: `uploaded → analyzing → processing → completed | error`.
-- **Los knobs del Live Engine NO son `MasteringParameters`** — no reprocesar el track; son nodos Web Audio.
 - **El limiter es 8× oversampling** (si tocas MasteringGuide escribe 8×, no 4×).
 - **Microcopy y Multiidioma Obligatorio (i18n)**:
   - **Toda nueva integración, componente o pantalla DEBE integrarse con el sistema multiidioma** usando el hook `useTranslation()`.

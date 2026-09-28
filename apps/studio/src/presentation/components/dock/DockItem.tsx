@@ -12,7 +12,7 @@ interface DockItemProps {
   buttonRef?: (el: HTMLButtonElement | null) => void;
   /** Onboarding: briefly show EVERY label regardless of hover/active. */
   revealLabels?: boolean;
-  /** E2E test id (e.g. dock-tab-live) */
+  /** E2E test id (e.g. dock-tab-mastering) */
   testId?: string;
 }
 

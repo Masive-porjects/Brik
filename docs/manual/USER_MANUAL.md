@@ -138,9 +138,3 @@ Cadena real: análisis → gain staging a −6 dBFS → HPF 30 Hz → match EQ p
 | Detalle de error 422 (QC estricto) | Material dañado (clipping / TP ≥ −0.3 dB) | El backend da el detalle exacto |
 | "Tu sesión anterior expiró" | Servidor reiniciado, storage sin persistir | Sube el audio de nuevo |
 | "Algo salió mal en el estudio" | Error 5xx / saturación | Espera y reintenta |
-
----
-
-## Live Engine (pestaña del dock)
-
-Requisito: haber masterizado un track (si no: *"Primero necesitas masterizar un track para activar el motor en vivo."*). El Live Engine es **standalone** (Web Audio en el navegador): los knobs de la pestaña "Live" generan `LiveParams` directamente → FX en vivo (filtro, drive, delay, echo, reverb). Sin WebSocket ni MIDI — los knobs devueltos a sus defaults = master idéntico al original (neutral = bypass).

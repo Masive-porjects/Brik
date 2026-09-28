@@ -5,10 +5,9 @@
 #   studio     → http://localhost:3000
 #   audiomind  → http://localhost:8000/health
 #
-# El Live Engine es standalone (knobs del navegador, Web Audio — sin
-# WebSocket ni MIDI). El bridge (apps/bridge) y el simulator fueron
-# removidos del producto; el servicio `simulator` que quedaba en este
-# compose apuntaba a un módulo Python inexistente y se eliminó.
+# El Live Engine fue eliminado del producto (`ba3b4a6`), junto con el
+# bridge (apps/bridge) y el simulator. Este compose solo levanta el
+# backend; el frontend corre con `npm run dev` en apps/studio.
 
 services:
   audiomind:
