@@ -88,6 +88,18 @@ from audiomind.processing.truepeak import (
 #: (bit-stable), so the default stays neutral for non-peak material.
 CLIPPER_HEADROOM_DB = 1.5
 
+#: Base module intensity for corrective modules while the smart gate is in
+#: advisory mode. The gate multiplies its per-module advisory scale by this
+#: base, so a fully reduced corrective stage still runs at 40% strength.
+#: It is applied ONLY while the gate is active: an inactive gate leaves the
+#: chain at full strength (neutral = bypass).
+BASE_MODULE_INTENSITY = 0.4
+
+#: Advisory-scale floor below which a stage is skipped instead of scaled.
+#: Kept well under BASE_MODULE_INTENSITY so no advisory reduction can ever
+#: silently turn a stage into a bypass.
+_ADVISORY_MIN_INTENSITY = 0.05
+
 
 class InputQcError(Exception):
     """Input failed the pre-processing QC gate (``strict_mode`` rejection).
@@ -864,13 +876,12 @@ def process_audio(
     audio, _ = gain_stage(audio, target_peak_db=-6.0)
     report(5)
 
-    # 1a. Smart gate (Phase A — "menos es más") ────────────────────────
-    # Decides, from the INPUT analysis alone, which corrective tone-shaping
-    # stages can be bypassed because the source already meets the delivery
-    # targets. The gate NEVER touches delivery-critical stages (HPF,
-    # spatial, mono-compat, saturation, loudness, soft-clip, limiter,
-    # dither); signature modules engaged by the user are preserved via the
-    # module's tiers. When no analysis exists the gate stays inactive.
+    # 1a. Smart gate — Advisory Mode ─────────────────────────────────────
+    # Returns advisory intensity_scales (0.3–1.0) per module instead of
+    # blocking modules. The engine scales corrective processing
+    # proportionally while preserving character; the gate NEVER blocks a
+    # module to 0.0 and never touches delivery-critical stages (HPF,
+    # spatial, mono-compat, loudness, soft-clip, limiter, dither).
     smart_gate = decide_smart_gate(
         params,
         analysis_result,
@@ -878,8 +889,27 @@ def process_audio(
             params.limiter_ceiling_db, already_mastered
         ),
     )
-    gated_modules = set(smart_gate["gated_modules"])
     smart_gate_active = bool(smart_gate["applied"])
+    intensity_scales = smart_gate["intensity_scales"]
+
+    def module_intensity(module: str, apply_am_factor: bool = True) -> float:
+        """Effective strength for an advisory-scalable stage.
+
+        Combines the base corrective intensity, the smart gate's advisory
+        scale and the already-mastered factor. ``am_factor`` applies ONLY to
+        EQ/saturation — never to the limiter or the soft-clipper, which stay
+        delivery-critical.
+
+        When the gate is INACTIVE the advisory reduction does not apply at
+        all: the stage keeps its full strength (``am_factor`` only). Applying
+        ``BASE_MODULE_INTENSITY`` unconditionally would quietly weaken every
+        non-gated master, which is exactly the silent regression the neutral
+        contract forbids.
+        """
+        am = am_factor if apply_am_factor else 1.0
+        if not smart_gate_active:
+            return am
+        return BASE_MODULE_INTENSITY * intensity_scales.get(module, 1.0) * am
 
     # 1b. Dynamic de-esser (Phase B — B2) — sibilance 3-8 kHz tamed BEFORE
     #     the tonal/dynamics chain. Ordering rationale: (1) the detector
@@ -901,14 +931,16 @@ def process_audio(
     board.append(HighpassFilter(cutoff_frequency_hz=30))
 
     # 3. Match EQ — genre-aware spectral targeting via analysis result.
-    #    Gated when the source already matches the delivery targets (the
-    #    analysis-derived corrective is precisely the stage to skip).
-    #    Uses empty eq_bands since module params provide per-band control.
+    #    The advisory scale reduces the analysis-derived corrective instead of
+    #    blocking it (an already-deliverable source needs less correction,
+    #    not none). Uses empty eq_bands since module params provide per-band
+    #    control.
     eq_plugins = []
-    if not (smart_gate_active and "match_eq" in gated_modules):
+    match_eq_intensity = module_intensity("match_eq", apply_am_factor=True)
+    if match_eq_intensity > _ADVISORY_MIN_INTENSITY:
         eq_plugins = build_match_eq(
             audio, sr, [], analysis_result,
-            intensity_multiplier=intensity_multiplier * am_factor,
+            intensity_multiplier=intensity_multiplier * match_eq_intensity,
         )
     for p in eq_plugins:
         board.append(p)
@@ -927,24 +959,26 @@ def process_audio(
             board.append(cp)
 
     # 4. Module EQ: Claridad — Brilliance (8 kHz shelf)
+    clarity_intensity = module_intensity("clarity_shelf", apply_am_factor=True)
     if (
         params.clarity_brightness_db != 0
-        and not (smart_gate_active and "clarity_shelf" in gated_modules)
+        and clarity_intensity > _ADVISORY_MIN_INTENSITY
     ):
         board.append(PeakFilter(
             cutoff_frequency_hz=8000,
-            gain_db=params.clarity_brightness_db * am_factor,
+            gain_db=params.clarity_brightness_db * clarity_intensity,
             q=0.6,
         ))
 
     # 5. Module EQ: Cinta — Warmth (high roll-off or air boost at 10 kHz)
+    warmth_intensity = module_intensity("warmth_tilt", apply_am_factor=True)
     if (
         params.saturation_warmth_db != 0
-        and not (smart_gate_active and "warmth_tilt" in gated_modules)
+        and warmth_intensity > _ADVISORY_MIN_INTENSITY
     ):
         board.append(PeakFilter(
             cutoff_frequency_hz=10000,
-            gain_db=params.saturation_warmth_db,
+            gain_db=params.saturation_warmth_db * warmth_intensity,
             q=0.5,
         ))
 
@@ -965,12 +999,14 @@ def process_audio(
         # else: the module runs on `effected` AFTER the board() call below
         # (like the 7b multiband stage): it needs the post-EQ signal.
     else:
-        fixed_comp_gated = smart_gate_active and "compressor" in gated_modules
         # Fixed proportional compression — threshold from input RMS.
         # Module: Fuego / Empuje — compression ratio + transient boost.
-        if not fixed_comp_gated:
+        # The advisory scale reduces the squeeze proportionally; the
+        # adaptive module above is a signature and is NEVER scaled.
+        comp_intensity = module_intensity("compressor", apply_am_factor=True)
+        if comp_intensity > _ADVISORY_MIN_INTENSITY:
             comp_threshold_db = -16 - (params.transient_boost_db * 1.5)
-            comp_ratio = params.compression_ratio * am_factor
+            comp_ratio = params.compression_ratio * comp_intensity
             comp_attack = max(3, 20 - params.transient_boost_db * 3)  # faster attack = more punch
             board.append(
                 Compressor(
@@ -1019,14 +1055,6 @@ def process_audio(
     report(30)
 
     report(30)
-
-    # ── Mix→Master Adaptive Context ────────────────────────────────────
-    # If mix_metadata is present (source="mix"), adapt spatial params to
-    # avoid double-processing what the mix already did.
-    if mix_metadata:
-        from audiomind.models.mix_metadata import MixMetadata
-        mix_meta = MixMetadata(**mix_metadata)
-        params = _adapt_spatial_for_mix_context(params, mix_meta)
 
     def _adapt_spatial_for_mix_context(
         params: MasteringParameters,
@@ -1197,13 +1225,14 @@ def process_audio(
 
     report(45)
 
-    # 8. Saturation (Cinta / Tape module) — boosted by intensity_multiplier.
-    #    Sprint 7: when tape_enabled, the REAL tape model (hysteresis +
-    #    level-dependent HF roll-off) replaces the legacy tanh shaper; the
-    #    legacy path stays for tape_enabled=False so existing masters are
-    #    unchanged. NEUTRAL (drive 0, no hysteresis/bias/roll-off) is a
-    #    bit-exact bypass.
-    sat_drive = params.saturation_drive_db * intensity_multiplier * am_factor
+    # 8. Saturation (Cinta / Tape module) — boosted by intensity_multiplier
+    #    with the advisory intensity scale. Sprint 7: when tape_enabled, the
+    #    REAL tape model (hysteresis + level-dependent HF roll-off) replaces
+    #    the legacy tanh shaper; the legacy path stays for tape_enabled=False
+    #    so existing masters are unchanged. NEUTRAL (drive 0, no
+    #    hysteresis/bias/roll-off) is a bit-exact bypass.
+    sat_intensity = module_intensity("saturation", apply_am_factor=True)
+    sat_drive = params.saturation_drive_db * intensity_multiplier * sat_intensity
     if params.tape_enabled:
         tape_params = _tape_params_from_mastering(params)
         if tape_params.is_neutral():
