@@ -31,11 +31,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
         working-directory: .
-      # Lint no bloqueante: 31 errores pre-existentes en develop (16 no-explicit-any,
-      # 13 set-state-in-effect, 2 react-hooks/refs). Falla visible pero no gatea.
-      # Quitar `continue-on-error` para endurecer el gate cuando se pague la deuda.
+      # Gate bloqueante: la deuda de lint (17 no-explicit-any, 12 set-state-in-effect,
+      # 2 react-hooks/refs) esta pagada, asi que `continue-on-error` ya no aplica.
       - run: bun run lint
-        continue-on-error: true
       - run: bun run build
         env:
           # Placeholder — el build de Next.js no ejecuta convex, pero
