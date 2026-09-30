@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthContextType, UserProfile } from "../types";
@@ -207,9 +207,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user?.email?.split("@")[0] ||
     "Producer";
 
-  const lastDisplayNameRef = useRef(activeDisplayName);
+  // Keep the last meaningful display name so the sign-out modal can still greet the
+  // user by name after the session is cleared (which would fall back to "Producer").
+  // Adjusting state during render is React's sanctioned pattern for "derive from props":
+  // React re-renders immediately without committing, so the DOM output is unchanged.
+  const [lastDisplayName, setLastDisplayName] = useState(activeDisplayName);
   if (activeDisplayName && activeDisplayName !== "Producer") {
-    lastDisplayNameRef.current = activeDisplayName;
+    setLastDisplayName(activeDisplayName);
   }
 
   return (
@@ -228,7 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
       <SignOutModal
         isOpen={isSigningOut}
-        displayName={lastDisplayNameRef.current}
+        displayName={lastDisplayName}
       />
     </AuthContext.Provider>
   );

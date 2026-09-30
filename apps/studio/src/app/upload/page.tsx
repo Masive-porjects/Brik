@@ -31,14 +31,17 @@ export default function UploadPage() {
   const [pendingTrackTitle, setPendingTrackTitle] = useState<string>("");
   const hasCheckedLatestRef = useRef(false);
 
+  // Signed out: drop the returning-user state in the same commit instead of
+  // resetting it from an effect one render later.
+  if (!user) {
+    if (latestTrack !== null) setLatestTrack(null);
+    if (hasSavedTracks) setHasSavedTracks(false);
+    if (resumeModalOpen) setResumeModalOpen(false);
+  }
+
   // Check for returning user's latest project without forcing blindly into mastering
   useEffect(() => {
-    if (!user) {
-      setLatestTrack(null);
-      setHasSavedTracks(false);
-      setResumeModalOpen(false);
-      return;
-    }
+    if (!user) return;
     if (hasCheckedLatestRef.current) return;
     hasCheckedLatestRef.current = true;
 

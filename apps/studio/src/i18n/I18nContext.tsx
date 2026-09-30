@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import esDict from "./locales/es.json";
 import enDict from "./locales/en.json";
 
@@ -14,6 +21,28 @@ const dictionaries: Record<Locale, Dictionary> = {
 };
 
 export const STORAGE_KEY_LANG = "waveai-lang";
+
+/* The preferred locale lives in localStorage, which has no store to subscribe to:
+   there is no cross-tab sync, so the subscription is inert and the value is only read
+   on render. `getServerSnapshot` keeps SSR deterministic ('es') and React re-renders
+   with the stored value right after hydration — same timing the old mount effect had,
+   without the effect writing state. */
+const subscribeToLocale = () => () => {};
+
+function readStoredLocale(): Locale {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_LANG);
+    if (saved === "es" || saved === "en") return saved;
+  } catch {
+    // Ignorar bloqueos de privacidad
+  }
+  if (typeof navigator !== "undefined") {
+    return navigator.language.startsWith("es") ? "es" : "en";
+  }
+  return "es";
+}
+
+const getServerLocale = (): Locale => "es";
 
 interface I18nContextValue {
   locale: Locale;
@@ -43,22 +72,13 @@ function resolvePath(obj: unknown, path: string): string | null {
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  // Always initialize with 'es' to guarantee matching SSR and initial client hydration
-  const [locale, setLocaleState] = useState<Locale>("es");
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_LANG) as Locale | null;
-      if (saved && (saved === "es" || saved === "en")) {
-        setLocaleState(saved);
-      } else if (typeof navigator !== "undefined") {
-        const browserLang = navigator.language.startsWith("es") ? "es" : "en";
-        setLocaleState(browserLang);
-      }
-    } catch {
-      // Ignorar bloqueos de privacidad
-    }
-  }, []);
+  // SSR and the initial client hydration render always use 'es'; the stored locale is
+  // picked up by useSyncExternalStore on the render right after hydration.
+  const storedLocale = useSyncExternalStore(subscribeToLocale, readStoredLocale, getServerLocale);
+  // An explicit choice wins over what is persisted (and keeps working when storage
+  // is blocked, exactly like the old state-only fallback did).
+  const [localeOverride, setLocaleOverride] = useState<Locale | null>(null);
+  const locale = localeOverride ?? storedLocale;
 
   useEffect(() => {
     try {
@@ -69,7 +89,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [locale]);
 
   const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next);
+    setLocaleOverride(next);
     try {
       localStorage.setItem(STORAGE_KEY_LANG, next);
       document.documentElement.lang = next;

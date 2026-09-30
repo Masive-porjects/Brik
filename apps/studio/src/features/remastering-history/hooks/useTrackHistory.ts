@@ -80,7 +80,10 @@ export function useTrackHistory({
   }, [user, page, pageSize, debouncedSearch, filter]);
 
   useEffect(() => {
-    loadTracks();
+    // Kick the load off from a promise callback: `loadTracks` raises its loading flag
+    // before awaiting the request, and starting it synchronously here would make the
+    // effect write state during its own body.
+    void Promise.resolve().then(loadTracks);
   }, [loadTracks]);
 
   const handleFilterChange = useCallback((newFilter: TrackFilterStatus) => {
