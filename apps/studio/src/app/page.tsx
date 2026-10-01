@@ -1,40 +1,13 @@
-"use client";
+import type { Metadata } from "next";
+import { LandingScreen } from "@/presentation/components/landing";
 
-import {
-  LandingHeader,
-  LandingHero,
-  LandingPhilosophy,
-  LandingABPlayer,
-  LandingDSPChain,
-  LandingPresets,
-  LandingFounders,
-  LandingCTA,
-  LandingFooter,
-} from "@/presentation/components/landing";
-import FloatingGhosts from "@/presentation/components/FloatingGhosts";
+export const metadata: Metadata = {
+  title: "WaveIA — AI Mastering Studio | Precisión Espectral 8x",
+  description:
+    "Estudio de masterización espectral con Inteligencia Artificial y cadena DSP de 13 etapas en tiempo real con 8x oversampling.",
+};
 
 export default function HomePage() {
-  return (
-    <div className="min-h-screen flex flex-col bg-[#121317] text-[#e3e2e8] font-sans relative selection:bg-primary-container selection:text-[#003734]">
-      {/* Ambient decorative brand ghosts floating across the viewport */}
-      <FloatingGhosts zIndex={1} />
-
-      {/* Top Navigation */}
-      <LandingHeader />
-
-      {/* Main Landing Sections */}
-      <main className="flex-1 flex flex-col w-full relative z-10">
-        <LandingHero />
-        <LandingPhilosophy />
-        <LandingABPlayer />
-        <LandingDSPChain />
-        <LandingPresets />
-        <LandingFounders />
-        <LandingCTA />
-      </main>
-
-      {/* Global Landing Footer */}
-      <LandingFooter />
-    </div>
-  );
+  return <LandingScreen />;
 }
+
