@@ -1,0 +1,669 @@
+import { DSPStage, PresetItem, FounderItem } from "./types";
+
+export const DSP_STAGES: DSPStage[] = [
+  {
+    id: 1,
+    number: "01",
+    name: "Gain Staging & Normalización",
+    subtitle: "Techo óptimo -18 dBFS • Cero clip",
+    icon: "Sliders",
+    accent: "primary",
+    description:
+      "Calibración estricta de headroom a -18 dBFS RMS. Asegura que los convertidores analógicos virtuales y las redes neuronales operen en su rango lineal sin distorsión por intermodulación.",
+    latency: "0.02 ms",
+    thd: "0.001%",
+    phaseCorrelation: "+1.00 ESTABLE",
+    oversampling: "1x LINEAL",
+    substages: [
+      {
+        tag: "1a / RMS Calibrator",
+        title: "Calibrador de Headroom",
+        meta: "-18 dBFS Target",
+        description: "Ajuste milimétrico de ganancia de entrada evitando saturación antes de los filtros.",
+      },
+      {
+        tag: "1b / Dynamic Margin Detector",
+        title: "Detector de Margen Dinámico",
+        meta: "True-Peak Lock",
+        description: "Monitoreo continuo de crest factor para adaptar la curva de headroom.",
+      },
+    ],
+    spatialDetails: {
+      title: "Matriz de Entrada Balanceada",
+      description: "Distribución de señal idéntica en fase L/R para preservar el balance original.",
+      parameters: [
+        { label: "Canal L", value: "0.00 dB" },
+        { label: "Canal R", value: "0.00 dB" },
+        { label: "Offset DC", value: "< -96 dBFS" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "FastGain Kernel",
+      instructionSet: "AVX2 / SSE4.1",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 2,
+    number: "02",
+    name: "High-Pass Quirúrgico 30 Hz",
+    subtitle: "Filtro Butterworth 24 dB/oct • Fase lineal",
+    icon: "Filter",
+    accent: "primary",
+    description:
+      "Eliminación de frecuencias sub-audibles (<30Hz) que roban energía a los transductores y provocan modulación espuria en limitadores. Filtro de fase lineal con cero dispersión temporal.",
+    latency: "0.04 ms",
+    thd: "0.002%",
+    phaseCorrelation: "+0.99 COHERENTE",
+    oversampling: "2x LINEAL",
+    substages: [
+      {
+        tag: "2a / Sub-Rumble Cut",
+        title: "Corte Quirúrgico 30 Hz",
+        meta: "24 dB/oct Slope",
+        description: "Atenúa estruendos mecánicos de micrófono y subgraves inaudibles con cero ripple.",
+      },
+      {
+        tag: "2b / Linear Phase FIR",
+        title: "Compensador de Fase FIR",
+        meta: "Zero Phase Shift",
+        description: "Mantiene los transitorios de bombo y bajo alineados sin retardo de grupo.",
+      },
+    ],
+    spatialDetails: {
+      title: "Desacople Sub-grave Haas",
+      description: "Evita que las frecuencias subsónicas contaminen la correlación estereofónica.",
+      parameters: [
+        { label: "Corte", value: "30.0 Hz" },
+        { label: "Pendiente", value: "24 dB/Oct" },
+        { label: "Q Factor", value: "0.707 (Butterworth)" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "FIR Filter SIMD",
+      instructionSet: "AVX-512 FMA",
+      precision: "64-bit Floating Point",
+      bufferSize: "256 Samples",
+    },
+  },
+  {
+    id: 3,
+    number: "03",
+    name: "Match EQ Neuronal (AudioMind)",
+    subtitle: "Curva isométrica 2048 FFT • Referencia analógica",
+    icon: "Wand2",
+    accent: "primary",
+    description:
+      "Análisis espectral comparativo mediante red neuronal convolucional. Modela la respuesta en frecuencia de salas de mastering de clase mundial y corrige desbalances tonales con resolución de 2048 bandas FFT.",
+    latency: "0.08 ms",
+    thd: "0.005%",
+    phaseCorrelation: "+0.97 COHERENTE",
+    oversampling: "4x POLINOMIAL",
+    substages: [
+      {
+        tag: "3a / Spectral Analysis",
+        title: "Transformada 2048 FFT",
+        meta: "Resolución 10.7 Hz",
+        description: "Muestrea la curva de energía tímbrica en tiempo real en todo el espectro sonoro.",
+      },
+      {
+        tag: "3b / Target Matching",
+        title: "Alineación Curva Maestra",
+        meta: "AudioMind Inference",
+        description: "Aplica micro-compensaciones quirúrgicas de ganancia en resonancias indeseadas.",
+      },
+    ],
+    spatialDetails: {
+      title: "Ecualización Isométrica L/R",
+      description: "Balance tímbrico simétrico que ensancha el campo auditivo sin alterar el centro phantom.",
+      parameters: [
+        { label: "Bandas FFT", value: "2048" },
+        { label: "Atenuación Máx", value: "-2.5 dB" },
+        { label: "Realce Máx", value: "+2.0 dB" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "AudioMind Tensor Core",
+      instructionSet: "ONNX / Rust Native",
+      precision: "32/64-bit Hybrid",
+      bufferSize: "512 Samples",
+    },
+  },
+  {
+    id: 4,
+    number: "04",
+    name: "Clarity Shelf 8 kHz",
+    subtitle: "Inyección de presencia • Air Band +1.8 dB",
+    icon: "Sparkles",
+    accent: "primary",
+    description:
+      "Realce suave tipo shelving a partir de 8 kHz utilizando curvas analógicas Pultec. Otorga brillo y aire a la mezcla sin generar sibilancias metálicas ni fatiga auditiva.",
+    latency: "0.03 ms",
+    thd: "0.004%",
+    phaseCorrelation: "+0.98 COHERENTE",
+    oversampling: "4x POLINOMIAL",
+    substages: [
+      {
+        tag: "4a / High-Shelf EQ",
+        title: "Pultec Air Curve 8 kHz",
+        meta: "+1.8 dB Boost",
+        description: "Inyecta brillo etéreo en vocales, platillos y sintetizadores sin estridencia.",
+      },
+      {
+        tag: "4b / De-Harsh De-esser",
+        title: "Control Dinámico de Sibilancia",
+        meta: "Threshold -16 dB",
+        description: "Atenúa cualquier micro-pico sibilante entre 6 kHz y 9 kHz de manera ultra-rápida.",
+      },
+    ],
+    spatialDetails: {
+      title: "Apertura de Altas Frecuencias",
+      description: "El aire de la mezcla se proyecta en el espacio virtual con dimensionalidad tridimensional.",
+      parameters: [
+        { label: "Frecuencia", value: "8,000 Hz" },
+        { label: "Ganancia", value: "+1.80 dB" },
+        { label: "Curva", value: "Baxandall Soft" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "Pultec Analog Emulation",
+      instructionSet: "SSE3 / AVX",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 5,
+    number: "05",
+    name: "Warmth Tilt 10 kHz",
+    subtitle: "Balance espectral orgánico Baxandall",
+    icon: "SlidersHorizontal",
+    accent: "primary",
+    description:
+      "Filtro tilt simétrico centrado en 1 kHz con pivote hacia 10 kHz. Permite equilibrar la relación global entre graves y agudos mediante una sola pendiente continua con fase acústica inalterada.",
+    latency: "0.03 ms",
+    thd: "0.003%",
+    phaseCorrelation: "+0.99 COHERENTE",
+    oversampling: "4x POLINOMIAL",
+    substages: [
+      {
+        tag: "5a / Tilt Baxandall",
+        title: "Pivote Espectral 1 kHz",
+        meta: "Pendiente ±0.75 dB",
+        description: "Aumenta la densidad y calidez orgánica del cuerpo de la pista de forma uniforme.",
+      },
+      {
+        tag: "5b / Acoustic Phase Lock",
+        title: "Alineación Acústica",
+        meta: "Zero Dispersion",
+        description: "Previene cualquier deslizamiento de fase en las frecuencias fundamentales del tema.",
+      },
+    ],
+    spatialDetails: {
+      title: "Contorno Espacial de Medios",
+      description: "Crea una sensación de proximidad física que sitúa los instrumentos al frente del oyente.",
+      parameters: [
+        { label: "Pivote", value: "1,000 Hz" },
+        { label: "Inclinación", value: "+0.6 dB Warmth" },
+        { label: "Q Factor", value: "0.50 (Ultra-Wide)" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "TiltEQ Vector",
+      instructionSet: "AVX2",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 6,
+    number: "06",
+    name: "Compresor Multibanda Glue",
+    subtitle: "4 bandas • Opto/VCA blend adaptativo",
+    icon: "Layers",
+    accent: "secondary",
+    description:
+      "Separación del espectro en 4 bandas crossover de fase mínima. Aplica compresión suave con rodilla variable (soft-knee) para compactar el pegamento sonoro manteniendo los transitorios intactos.",
+    latency: "0.09 ms",
+    thd: "0.012%",
+    phaseCorrelation: "+0.95 COHERENTE",
+    oversampling: "8x POLINOMIAL",
+    substages: [
+      {
+        tag: "6a / Low Band (20-150Hz)",
+        title: "Control Dinámico Sub",
+        meta: "Ratio 2:1 • Attack 30ms",
+        description: "Contiene la dinámica del bombo y bajo sin asfixiar la pegada natural.",
+      },
+      {
+        tag: "6b / Mid Band (150-2.5kHz)",
+        title: "Cuerpo y Vocales Glue",
+        meta: "Ratio 1.5:1 • Opto Mode",
+        description: "Pegamento acústico estilo VCA británico que unifica la instrumentación.",
+      },
+    ],
+    spatialDetails: {
+      title: "Control Estéreo Multibanda",
+      description: "Compresión desacoplada para evitar que la energía mono del bombo bombee los laterales.",
+      parameters: [
+        { label: "Bandas", value: "4 Crossover Bands" },
+        { label: "Reducción Máx", value: "-1.8 dB" },
+        { label: "Modo Glue", value: "Adaptativo VCA" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "Multiband Dynamic Core",
+      instructionSet: "AVX-512",
+      precision: "64-bit Floating Point",
+      bufferSize: "256 Samples",
+    },
+  },
+  {
+    id: 7,
+    number: "07",
+    name: "Board Render Pedalboard",
+    subtitle: "Matriz analógica + Bloque Haas 3D",
+    icon: "Box",
+    substagesCount: 5,
+    accent: "secondary",
+    description:
+      "El módulo Board Render recrea una cadena analógica por etapas que modela saturación magnética, transformadores discretos de neodimio y apertura psicoacústica tridimensional con protección monoaural absoluta.",
+    latency: "0.12 ms",
+    thd: "0.018% (PAR)",
+    phaseCorrelation: "+0.96 COHERENTE",
+    oversampling: "8x POLINOMIAL",
+    substages: [
+      {
+        tag: "7a / Tape Bias Simulator",
+        title: "Simulador de Bias de Cinta",
+        meta: "30 IPS • Warmth",
+        description: "Micro-fluctuaciones no-lineales que eliminan la aspereza digital de transitorios rápidos.",
+      },
+      {
+        tag: "7b / Tube Triode Drive",
+        title: "Excitador a Válvulas Triodo",
+        meta: "2nd Harmonic +3.2 dB",
+        description: "Inyección armónica par que ensancha el cuerpo del bajo y la presencia vocal.",
+      },
+      {
+        tag: "7c / Neve-style Transformer",
+        title: "Transformador Neve de Neodimio",
+        meta: "Iron Core Hysteresis",
+        description: "Coloración en la octava subgrave (<80Hz) que compacta el pegamento de la batería.",
+      },
+      {
+        tag: "7d / Mid-Side Exciter",
+        title: "Excitador Dinámico Mid-Side",
+        meta: "Lateral +2.1 dB • Center Locked",
+        description: "Apertura dinámica en frecuencias altas que respeta la energía mono central.",
+      },
+      {
+        tag: "7e / Spatial Block Haas Psychoacoustic",
+        title: "Bloque Espacial Haas Psicoacústico",
+        meta: "CROSS-FEED COHERENT",
+        description:
+          "Retraso interaural micro-temporal (11 μs a 28 μs) calibrado para recrear sala física de masterizado sin crear desfase destructivo.",
+        isWide: true,
+        badge: "CROSS-FEED COHERENT",
+      },
+    ],
+    spatialDetails: {
+      title: "Algoritmo Haas Psychoacoustic 3D",
+      description:
+        "Retardo interaural calibrado que expande el ancho del escenario sonoro respetando la matriz M/S y garantizando 100% de coherencia mono en clubes.",
+      parameters: [
+        { label: "Ancho Haas", value: "132% Expandido" },
+        { label: "Delay Interaural", value: "18.4 μs" },
+        { label: "Protección Mono", value: "Filtro Elíptico 100%" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "BoardRender SIMD Host",
+      instructionSet: "AVX-512 FMA / Rust",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 8,
+    number: "08",
+    name: "Saturación Armónica de Cinta",
+    subtitle: "Cinta 1/2 pulgada 30 IPS • THD par/impar",
+    icon: "Disc",
+    accent: "secondary",
+    description:
+      "Emulación física de máquina de cinta de bobina abierta Studer A820 a 30 pulgadas por segundo. Agrega densidad armónica de 2do y 3er orden para engrosar el rango medio con calidez magnética.",
+    latency: "0.06 ms",
+    thd: "0.024%",
+    phaseCorrelation: "+0.96 COHERENTE",
+    oversampling: "8x POLINOMIAL",
+    substages: [
+      {
+        tag: "8a / Hysteresis Loop",
+        title: "Bucle de Histéresis Magnética",
+        meta: "Tape Saturation +2.4 dB",
+        description: "Compresión natural de picos dinámicos al aproximarse al umbral magnético de saturación.",
+      },
+      {
+        tag: "8b / Head Bump Filter",
+        title: "Realce de Cabeza de Cinta",
+        meta: "Resonancia 55 Hz",
+        description: "Engorda el subgrave orgánico de la pista recreando la física del carrete abierto.",
+      },
+    ],
+    spatialDetails: {
+      title: "Impresión Estéreo Magnética",
+      description: "Modela la ligera asimetría electromagnética de cabezales dobles para realismo estéreo analógico.",
+      parameters: [
+        { label: "Velocidad", value: "30 IPS (Inches/Sec)" },
+        { label: "Flujo Magnético", value: "355 nWb/m" },
+        { label: "Balance Armónico", value: "65% Par / 35% Impar" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "TapeSim Neural DSP",
+      instructionSet: "AVX2",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 9,
+    number: "09",
+    name: "Mono Compat Lows < 120 Hz",
+    subtitle: "Colapso elíptico • Cero cancelación mono",
+    icon: "Speaker",
+    accent: "tertiary",
+    description:
+      "Filtro elíptico estereofónico que convierte a mono todas las frecuencias por debajo de 120 Hz. Garantiza máxima contundencia y cero cancelación de fase en sistemas de club, PA y vinilo.",
+    latency: "0.04 ms",
+    thd: "0.002%",
+    phaseCorrelation: "+1.00 ESTABLE",
+    oversampling: "4x POLINOMIAL",
+    substages: [
+      {
+        tag: "9a / Elliptical Filter",
+        title: "Filtro Elíptico Cruzado",
+        meta: "120 Hz Cross-Sum",
+        description: "Convierte a señal suma pura (M) todo componente lateral (S) en graves profundos.",
+      },
+      {
+        tag: "9b / Sub-Phase Alignment",
+        title: "Alineador de Fase Subgrave",
+        meta: "Phase Coherence 100%",
+        description: "Asegura que el bombo y el 808 sumen con el 100% de su energía en reproducción monoaural.",
+      },
+    ],
+    spatialDetails: {
+      title: "Monolito Central de Graves",
+      description: "Garantiza que la energía cinética del subgrave permanezca completamente centrada y sólida.",
+      parameters: [
+        { label: "Frecuencia Límite", value: "120 Hz" },
+        { label: "Ancho Lateral <120Hz", value: "0% (Mono Absoluto)" },
+        { label: "Fase Subgrave", value: "0.00° Shift" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "MonoCollapse SIMD",
+      instructionSet: "SSE4.2 / AVX",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 10,
+    number: "10",
+    name: "Loudness Target Processor",
+    subtitle: "Calibración dinámica ITU BS.1770-4",
+    icon: "Gauge",
+    accent: "tertiary",
+    description:
+      "Alineación de sonoridad perceptiva integrada según el estándar internacional EBU R128 / ITU BS.1770-4. Monitorea LUFS momentáneo, a corto plazo e integrado para calibrar el rango dinámico óptimo.",
+    latency: "0.05 ms",
+    thd: "0.001%",
+    phaseCorrelation: "+0.99 COHERENTE",
+    oversampling: "4x POLINOMIAL",
+    substages: [
+      {
+        tag: "10a / K-Weighting Filter",
+        title: "Ponderación K Psicoacústica",
+        meta: "Curva ITU BS.1770",
+        description: "Pondera la respuesta en frecuencia según la percepción de volumen del oído humano.",
+      },
+      {
+        tag: "10b / Auto-Gain Leveler",
+        title: "Nivelador Inteligente LUFS",
+        meta: "Target -14.0 LUFS",
+        description: "Compensa la ganancia automáticamente para alcanzar la sonoridad exacta requerida.",
+      },
+    ],
+    spatialDetails: {
+      title: "Medición Estéreo Multicanal",
+      description: "Cálculo integrado de la correlación energética entre ambos canales con ventana temporal ITU.",
+      parameters: [
+        { label: "Integrado", value: "-14.0 LUFS" },
+        { label: "Short-Term Máx", value: "-11.2 LUFS" },
+        { label: "Loudness Range", value: "7.8 LU" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "EBU-R128 Core",
+      instructionSet: "AVX2",
+      precision: "64-bit Floating Point",
+      bufferSize: "512 Samples",
+    },
+  },
+  {
+    id: 11,
+    number: "11",
+    name: "Limitación Multinivel",
+    subtitle: "Clipper + Brickwall + ISP Strict -1.0 dBTP",
+    icon: "Activity",
+    modulesCount: 3,
+    accent: "tertiary",
+    description:
+      "Cadena de limitación en cascada: soft-clipper analógico para controlar picos microscópicos, seguido de limitador brickwall con oversampling 8x para erradicar cualquier inter-sample peak por encima de -1.0 dBTP.",
+    latency: "0.15 ms",
+    thd: "0.028%",
+    phaseCorrelation: "+0.97 COHERENTE",
+    oversampling: "8x POLINOMIAL",
+    substages: [
+      {
+        tag: "11a / Soft-Clipper Analógico",
+        title: "Clipper Polinomial Suave",
+        meta: "Knee 2.5 dB",
+        description: "Recorta micro-transitorios inaudibles sin distorsión áspera antes del limitador.",
+      },
+      {
+        tag: "11b / 8x True-Peak Oversampling",
+        title: "Detector Intersample 8x",
+        meta: "Ceiling -1.0 dBTP",
+        description: "Reconstruye la forma analógica continua para impedir cualquier clip intermuestral.",
+      },
+    ],
+    spatialDetails: {
+      title: "Limitación Estéreo Desvinculada",
+      description: "Previene que los picos en un lateral arrastren la amplitud del canal opuesto.",
+      parameters: [
+        { label: "Ceiling", value: "-1.00 dBTP" },
+        { label: "Lookahead", value: "2.5 ms" },
+        { label: "Release", value: "Adaptativo Auto" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "Brickwall8x Limiter",
+      instructionSet: "AVX-512 FMA",
+      precision: "64-bit Floating Point",
+      bufferSize: "128 Samples",
+    },
+  },
+  {
+    id: 12,
+    number: "12",
+    name: "Safety Normalize & Dither TPDF",
+    subtitle: "Noise shaping triangular • 16/24-bit export",
+    icon: "Grid",
+    accent: "primary",
+    description:
+      "Cuantización y dithering con distribución de probabilidad triangular (TPDF) y modelado psicoacústico de ruido. Preserva la resolución de bajo nivel al exportar a 16 o 24 bits sin distorsión de truncamiento.",
+    latency: "0.02 ms",
+    thd: "0.0005%",
+    phaseCorrelation: "+1.00 ESTABLE",
+    oversampling: "1x LINEAL",
+    substages: [
+      {
+        tag: "12a / TPDF Noise Generator",
+        title: "Generador de Ruido Triangular",
+        meta: "2 LSB Amplitude",
+        description: "Elimina correlación armónica entre el error de cuantización y la señal musical.",
+      },
+      {
+        tag: "12b / Psychoacoustic Shaping",
+        title: "Modelador Espectral de Ruido",
+        meta: "F-Weighting Shift",
+        description: "Desplaza el ruido de cuantización a zonas del espectro donde el oído humano es sordo.",
+      },
+    ],
+    spatialDetails: {
+      title: "Dithering Estéreo Descorrelacionado",
+      description: "Generación de semillas estocásticas independientes en canal izquierdo y derecho.",
+      parameters: [
+        { label: "Profundidad", value: "24-bit PCM" },
+        { label: "Dither Type", value: "TPDF Psychoacoustic" },
+        { label: "Piso de Ruido", value: "-144 dBFS" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "TPDF Dither Engine",
+      instructionSet: "SSE2 / AVX",
+      precision: "64-bit Floating Point",
+      bufferSize: "64 Samples",
+    },
+  },
+  {
+    id: 13,
+    number: "13",
+    name: "DR Validation & Certificación EBU",
+    subtitle: "QC Multi-plataforma • Cero intersample clip",
+    icon: "ShieldCheck",
+    accent: "primary",
+    description:
+      "Control de calidad automatizado que verifica conformidad estricta con Spotify, Apple Music, Tidal y YouTube Music. Emite reporte criptográfico de rango dinámico (PLR), balance espectral y True Peak.",
+    latency: "0.01 ms",
+    thd: "0.000%",
+    phaseCorrelation: "+0.96 COHERENTE",
+    oversampling: "8x VERIFICACIÓN",
+    substages: [
+      {
+        tag: "13a / Multi-Platform QC",
+        title: "Verificación de Streaming",
+        meta: "Spotify • Apple • Tidal",
+        description: "Simula compresión AAC, Ogg Vorbis y MP3 para garantizar inmunidad acústica total.",
+      },
+      {
+        tag: "13b / Cryptographic Report",
+        title: "Reporte Criptográfico EBU",
+        meta: "Zero Inter-Sample Clip",
+        description: "Firma digital del archivo master certificando el cumplimiento normativo internacional.",
+      },
+    ],
+    spatialDetails: {
+      title: "Auditoría Espectral 3D",
+      description: "Análisis final de correlación M/S a través de 14 perfiles de altavoces de referencia.",
+      parameters: [
+        { label: "Cumplimiento", value: "100% EBU R128" },
+        { label: "Peak Margin", value: "Strict -1.0 dBTP" },
+        { label: "PLR Score", value: "11.8 Dynamic Range" },
+      ],
+    },
+    telemetryDetails: {
+      engine: "EBU Compliance Validator",
+      instructionSet: "Rust Native SIMD",
+      precision: "64-bit Floating Point",
+      bufferSize: "1024 Samples",
+    },
+  },
+];
+
+export const PRESETS_LIST: PresetItem[] = [
+  {
+    id: "preset-1",
+    genre: "GÉNERO: TECHNO / CLUB",
+    title: "Pulido Espectral",
+    description:
+      "Realza la presencia aérea de las frecuencias altas y limpia el barro en la zona de 250Hz. Ideal para producciones electrónicas de alta velocidad.",
+    metric: "CLARIDAD +4.5 dB",
+    icon: "Sparkles",
+    color: "primary",
+  },
+  {
+    id: "preset-2",
+    genre: "GÉNERO: URBAN / TRAP",
+    title: "Brutal Transmutación",
+    description:
+      "Empuja la pared de sonoridad hasta el límite extremo (-9 LUFS de club) preservando el punch seco del subgrave 808 sin ahogo dinámico.",
+    metric: "DENSIDAD MÁXIMA",
+    icon: "Zap",
+    color: "secondary",
+  },
+  {
+    id: "preset-3",
+    genre: "GÉNERO: AMBIENT / SCORE",
+    title: "Cristalino de Ultratumba",
+    description:
+      "Expansión dimensional extrema de la imagen estéreo. Convierte sintetizadores etéreos y cuerdas orquestales en una experiencia envolvente de 360 grados.",
+    metric: "ANCHO HAAS 160%",
+    icon: "Maximize",
+    color: "tertiary",
+  },
+  {
+    id: "preset-4",
+    genre: "GÉNERO: LO-FI / INDIE",
+    title: "Vintage Ectoplasma",
+    description:
+      "Inyección de distorsión armónica par a través de transformadores de consola británica y suave compresión óptica con sensación orgánica y cálida.",
+    metric: "CALIDEZ VÁLVULA",
+    icon: "Radio",
+    color: "primary",
+  },
+];
+
+export const FOUNDERS_LIST: FounderItem[] = [
+  {
+    id: "valerya",
+    name: "Dra. Valerya Vance",
+    role: "Lead Audio DSP & Machine Learning Architect",
+    badge: "DSP & ML CORE",
+    badgeColor: "primary",
+    bio: "Especialista en redes neuronales espectrales y tensores en C++/Rust. Lideró la concepción del motor AudioMind y la simulación matemática de la resonancia de salas no-lineales.",
+    quote: "“El sonido tiene memoria; la IA solo la despierta.”",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuBcKsxAXXWaY0r6RByS5M-uTGXwk5xi9PsGVBLYewYuJVZsQtEkF9tVAqE2LsJoMEOJbDva_t0FjGJZ-aN0OUMW200yw7Ivno0lIEPj11HjhJfnrOjxWCNZGkbefYfzRUWDpjsdnafKmkXbPGS-hDvgl4YlsEl6xtfT0FI1XpzZTCaUTB8Pfo73-cGJ4f4iTbPSmXwZkyvBb-mvQYtPZfOI6cDrdZ24eWpkMdjEj7DZzdoIVpR5FvI-",
+    alt: "Retrato en estudio cinemático de la Dra. Valerya Vance, arquitecta de DSP y Machine Learning",
+  },
+  {
+    id: "kaelen",
+    name: "Kaelen Thorne",
+    role: "Full-Stack & Systems Infrastructure Lead",
+    badge: "INFRASTRUCTURE LEAD",
+    badgeColor: "secondary",
+    bio: "Arquitecto del monorepo Next.js 16 + React 19 y FastAPI con WebSockets a 48 kHz. Ha diseñado el pipeline de streaming distribuido que procesa audio a escala masiva sin pérdida de paquetes.",
+    quote: "“Rendimiento implacable: cada microsegundo cuenta.”",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuBZ6Lo5rAVYFFfylcBEHWpBakdbhktD2cnkt97BeMIXu3Pb6BGwYT-pjWr6b5Xi1empOtXLLe4nzoLS5HdoaB1MVLT45X5o6doFtB6sbyKyRJ8iDXCF7aF9f_ouLa4So46LbyoLV4iVpe802COJhA6rM8D7IxRtlVvaE84juI_5s_019MMrnBZoe2keFtJuIZGHSEjPYvrhFwbwXRKpTth8SH2ZC-rgp51mIcyHvk_U5G8nQU18_Gqj",
+    alt: "Retrato cinematográfico de Kaelen Thorne, líder de infraestructura de software y streaming distribuido",
+  },
+  {
+    id: "dante",
+    name: "Dante O'Connor",
+    role: "Head of Sound Design & Product Experience",
+    badge: "SOUND DESIGN & UX",
+    badgeColor: "tertiary",
+    bio: "Con más de 20 años en mastering analógico, calibración de curvas psicoacústicas Haas y supervisión de UX/UI. Garantiza que la calidez de los transformadores valvulares trascienda al plano virtual.",
+    quote: "“La calidez analógica no se simula: se invoca.”",
+    image:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuAgkNPB2Xpg7IfOOKQ63ku0Uj4iTAkUg06S4rvepZR8ph5qKN_e-g6qpqlN-DezI9kf3n-4JwxaN3zHM1cC60sJQbkj7-wR77N9e7Fp934Yrfv79eQFSpJ6qMkHRefO5cdWbpUCXfhWqmFG6PHPaIFIYSGF1fjG4KojKhofFpU-YCKGSRfdIWL9cF-hSmtg8r2ac4gfuVnNmYeR94pteo1pMW0mTN0J72PtYRLjA9fub3WuSsC81kWg",
+    alt: "Retrato de Dante O'Connor, veterano ingeniero de sonido analógico en sala de masterizado",
+  },
+];

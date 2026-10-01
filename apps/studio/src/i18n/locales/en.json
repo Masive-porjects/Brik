@@ -575,5 +575,189 @@
     "continueProject": "Resume this project",
     "newAudio": "Upload a new audio",
     "openLibrary": "Or explore all my saved tracks"
+  },
+  "landing": {
+    "nav": {
+      "brand": "BRIK",
+      "dspCore": "DSP Core",
+      "stage13": "13-Stage Architecture",
+      "presets": "Phantasmal Presets",
+      "abCompare": "A/B Comparison",
+      "founders": "Founding Team",
+      "docs": "Documentation",
+      "enterStudio": "Enter Brik Studio",
+      "studioBadge": "(/studio)"
+    },
+    "hero": {
+      "badgeDsp": "DSP Core v2.4 Active",
+      "badgeNeural": "AudioMind Neural Engine",
+      "badgeFormat": "96kHz / 64-bit FP Ready",
+      "title": "Mastering is no longer an obstacle.",
+      "titleGradient": "Let sound awaken from the great beyond.",
+      "description": "13-stage real-time spectral processing architecture. We eliminate dimensional flatness from your mixes through timbral intelligence, Haas psychoacoustic balance, and quantum fidelity.",
+      "hud": {
+        "loudness": "Target Loudness",
+        "loudnessVal": "-14.0 LUFS",
+        "loudnessSub": "EBU R128 Compliant",
+        "truePeak": "True-Peak Ceiling",
+        "truePeakVal": "-1.0 dBTP",
+        "truePeakSub": "Zero Intersample Peaks",
+        "throughput": "DSP Throughput",
+        "throughputVal": "<420 ms",
+        "throughputSub": "Rust SIMD Pipeline",
+        "quantum": "Quantum Depth",
+        "quantumVal": "48 kHz",
+        "quantumSub": "24-bit PCM Flawless"
+      },
+      "ctaEnter": "Enter Brik Studio",
+      "ctaListenDemo": "Listen to A/B Demo",
+      "ocularMonitor": "SPECTRAL OCULAR MONITOR",
+      "dualPrecision": "64-BIT DUAL PRECISION",
+      "telemetryCorrelation": "CORRELATION",
+      "telemetryCorrelationVal": "+0.94 STEREO",
+      "telemetryDynamicCrest": "DYNAMIC CREST",
+      "telemetryDynamicCrestVal": "11.8 dB PLR",
+      "telemetryHaasPhase": "HAAS PHASE",
+      "telemetryHaasPhaseVal": "IN-PHASE LOCK"
+    },
+    "philosophy": {
+      "badge": "Ontological Triad",
+      "title": "Sound Phenomenology of Brik",
+      "subtitle": "Understanding audio not merely as voltage oscillations, but as a living spectrum inhabiting multiple dimensions simultaneously.",
+      "paradigmChip": "NON-DESTRUCTIVE DSP PARADIGM",
+      "card1": {
+        "tag": "Phenomenon 01",
+        "title": "The Ghost of the Flat Mix",
+        "desc": "Conventional mixes perish in two-dimensional boxes, suffocated by choked transients and misaligned sub-bass. Brik resurrects dynamic micro-contrast, restoring the organic breathing room that generic limiters flatten.",
+        "metricLabel": "HARMONIC RESURRECTION",
+        "metricVal": "2.4x DYNAMICS"
+      },
+      "card2": {
+        "tag": "Phenomenon 02",
+        "title": "Decorrelated Mid/Side",
+        "desc": "The center channel preserves the punch of the kick drum and lead vocal, while lateral sides expand spectrally without inducing phase cancellation in mono club sound systems.",
+        "metricLabel": "MONO COHERENCE",
+        "metricVal": "100% PROTECTED"
+      },
+      "card3": {
+        "tag": "Phenomenon 03",
+        "title": "Beyond-the-Grave Validation",
+        "desc": "Every rendering undergoes spectro-temporal analysis simulating 14 real-world playback environments: from studio monitors to smartphone speakers and massive festival compression transducers.",
+        "metricLabel": "MULTI-DEVICE QC",
+        "metricVal": "14 PROFILES"
+      }
+    },
+    "abPlayer": {
+      "badge": "Spectral Listening",
+      "title": "A/B Comparator: Original vs Brik Master",
+      "subtitle": "Experience real-time psychoacoustic enhancement. Toggle between the unmastered mix and the finished result processed by our 13-stage engine.",
+      "trackTitle": "Spectral Resonance (Stems Master)",
+      "trackMeta": "ELECTRONIC BASS MUSIC — 128 BPM — 24-BIT 48KHZ",
+      "intensityLabel": "DSP INTENSITY:",
+      "btnOrig": "ORIGINAL [A]",
+      "btnBrik": "MASTER BRIK [B]",
+      "statusBrik": "BRIK HARMONIC SATURATION ENGAGED (+2.8 dB AIR)",
+      "statusOrig": "RAW UNPROCESSED MIX (FLAT DYNAMIC PEAKS)",
+      "meterLufs": "INTEGRATED LUFS",
+      "meterTp": "MAX TRUE PEAK",
+      "meterWidth": "ESTÉREO HAAS WIDTH",
+      "meterHarm": "HARMONIC DENSITY"
+    },
+    "chain": {
+      "badge": "Linear Algorithmic Matrix — 13 DSP Stages",
+      "title": "13-Stage DSP Architecture",
+      "subtitle": "Every audio sample traverses a modular chain with zero destructive phase alteration. Click any module to inspect internal parameters, sub-stages, and tensors in real time.",
+      "pipelineBadge": "RUST SIMD PIPELINE: ZERO INTERSAMPLE LEAK",
+      "chainHeader": "SEQUENTIAL CHAIN (13 MODULES)",
+      "feedForward": "FEED-FORWARD 64-BIT",
+      "activeState": "ACTIVE STATE",
+      "bypassedState": "BYPASS STATE",
+      "latency": "LATENCY:",
+      "tabSubstages": "Sub-stages",
+      "tabSpatial": "Haas Spatial Block",
+      "tabTelemetry": "Tensors & SIMD",
+      "loadInStudio": "Load in Brik Studio",
+      "thd": "THD DISTORTION",
+      "phaseCorrelation": "PHASE CORRELATION",
+      "overSampling": "OVER-SAMPLING",
+      "tensorsComputed": "Tensors computed in native SSE/AVX-512"
+    },
+    "presets": {
+      "badge": "Sonic Invocations",
+      "title": "Phantasmal Presets of Brik",
+      "subtitle": "Timbral profiles calibrated to channel precise sonic aesthetics with a single click in the console.",
+      "preset1": {
+        "genre": "GENRE: TECHNO / CLUB",
+        "title": "Spectral Polish",
+        "desc": "Enhances top-end air presence and clears mud around 250Hz. Ideal for high-tempo electronic productions.",
+        "metric": "CLARITY +4.5 dB"
+      },
+      "preset2": {
+        "genre": "GENRE: URBAN / TRAP",
+        "title": "Brutal Transmutation",
+        "desc": "Pushes loudness to the competitive club threshold (-9 LUFS) while preserving the dry impact of 808 sub-bass without dynamic choking.",
+        "metric": "MAXIMUM DENSITY"
+      },
+      "preset3": {
+        "genre": "GENRE: AMBIENT / SCORE",
+        "title": "Otherworldly Crystalline",
+        "desc": "Extreme dimensional stereo imaging expansion. Transforms ethereal synths and orchestral strings into an immersive 360-degree sonic experience.",
+        "metric": "HAAS WIDTH 160%"
+      },
+      "preset4": {
+        "genre": "GENRE: LO-FI / INDIE",
+        "title": "Vintage Ectoplasm",
+        "desc": "Injected even-harmonic saturation through British console transformers and gentle optical compression with an organic, warm character.",
+        "metric": "TUBE WARMTH"
+      }
+    },
+    "founders": {
+      "badge": "Sound Architects",
+      "title": "The Technical Coven — Brik Founding Team",
+      "subtitle": "The 3 minds uniting acoustic science, neural algorithms, and software engineering to master with spectral fidelity.",
+      "valerya": {
+        "name": "Dr. Valerya Vance",
+        "role": "Lead Audio DSP & Machine Learning Architect",
+        "badge": "DSP & ML CORE",
+        "bio": "Specialist in spectral neural networks and C++/Rust audio tensors. Led the creation of the AudioMind engine and mathematical simulation of non-linear room resonances.",
+        "quote": "“Sound has memory; AI simply awakens it.”"
+      },
+      "kaelen": {
+        "name": "Kaelen Thorne",
+        "role": "Full-Stack & Systems Infrastructure Lead",
+        "badge": "INFRASTRUCTURE LEAD",
+        "bio": "Architect of the Next.js 16 + React 19 monorepo and FastAPI with 48 kHz WebSockets. Designed the distributed streaming pipeline processing audio at scale with zero packet loss.",
+        "quote": "“Relentless performance: every microsecond counts.”"
+      },
+      "dante": {
+        "name": "Dante O'Connor",
+        "role": "Head of Sound Design & Product Experience",
+        "badge": "SOUND DESIGN & UX",
+        "bio": "Over 20 years in analog mastering, Haas psychoacoustic curve calibration, and UX/UI direction. Ensures vintage tube transformer warmth transcends into the digital domain.",
+        "quote": "“Analog warmth cannot be simulated: it must be summoned.”"
+      }
+    },
+    "cta": {
+      "badge": "OPEN DIRECT ACCESS SYSTEM",
+      "title": "Elevate your sound to the quantum standard of Brik",
+      "subtitle": "Enter the definitive production workspace where mathematical precision and spectral soul fuse to deliver definitive masters.",
+      "btnStudio": "Enter Brik Studio",
+      "btnStudioTag": "(/studio)",
+      "btnSpecs": "View DSP Specification (13 Stages)",
+      "guarantees": {
+        "artifacts": "Zero Artifacts",
+        "simd": "Rust SIMD 64-bit",
+        "haas": "True Haas Stereo",
+        "instantWs": "Instant WebSocket"
+      }
+    },
+    "footer": {
+      "brand": "BRIK AUDIO",
+      "engineOnline": "DSP ENGINE v3.4 ONLINE",
+      "copy": "© 2024 Brik Audio DSP Systems. Mastered under spectral consciousness.",
+      "ebu": "EBU R128 (-14.0 LUFS)",
+      "truePeak": "TRUE PEAK: -1.0 dBTP",
+      "clock": "CLOCK: 96kHz / 64-bit FP"
+    }
   }
 }
