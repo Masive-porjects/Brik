@@ -18,7 +18,7 @@ import { isPresetCompleted } from "@/lib/audioUtils";
 import type { MixGateState } from "@/presentation/components/MixGateNotice";
 import { getAudioUrl } from "@/lib/api";
 import { useTranslation } from "@/i18n";
-import { ChevronLeft, AlertCircle, X } from "lucide-react";
+import { ChevronLeft, AlertCircle, Loader2, X } from "lucide-react";
 import {
   useMastering,
   MasteringHeader,
@@ -91,24 +91,55 @@ function MezclasContent() {
     }
   }, [user?.id, workflow.currentTrack]);
 
-  // If a track parameter is in the URL and not loaded, load it from Supabase
-  const loadedTrackRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!user || !trackIdParam || loadedTrackRef.current === trackIdParam) return;
-    if (workflow.currentTrack?.id === trackIdParam && workflow.session) return;
+  /* Si un `?track=` viene en la URL y no está cargado, se busca en TODAS las páginas
+     del usuario: antes sólo miraba las primeras 50 y un track más viejo quedaba
+     en silencio (pantalla en blanco, sin error ni salida). Ahora además el estado
+     es explícito para que la UI pueda explicar qué pasó.
 
+     `idle` y `ready` se DERIVAN en vez de almacenarse: un setState síncrono dentro
+     del efecto dispara renders en cascada (react-hooks/set-state-in-effect). El
+     único estado guardado es el resultado asíncrono del fallback de búsqueda. */
+  const [trackLookupOutcome, setTrackLookupOutcome] = useState<"missing" | "error" | null>(null);
+  const loadedTrackRef = useRef<string | null>(null);
+
+  const trackIsLoaded = Boolean(
+    trackIdParam && workflow.currentTrack?.id === trackIdParam && workflow.session,
+  );
+  const trackLookup = !user || !trackIdParam
+    ? "idle"
+    : trackIsLoaded
+      ? "ready"
+      : (trackLookupOutcome ?? "loading");
+
+  useEffect(() => {
+    if (!user || !trackIdParam || trackIsLoaded) return;
+    if (loadedTrackRef.current === trackIdParam) return;
     loadedTrackRef.current = trackIdParam;
-    fetchUserTracks(user.id, { page: 1, pageSize: 50 })
-      .then((res) => {
-        const found = res.items.find((tr) => tr.id === trackIdParam);
-        if (found) {
-          workflow.handleLoadTrackProject(found);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const pageSize = 50;
+        for (let page = 1; page <= 200; page++) {
+          const res = await fetchUserTracks(user.id, { page, pageSize });
+          if (cancelled) return;
+          const found = res.items.find((tr) => tr.id === trackIdParam);
+          if (found) {
+            workflow.handleLoadTrackProject(found);
+            return;
+          }
+          if (page >= res.totalPages) break;
         }
-      })
-      .catch((err) => {
+        if (!cancelled) setTrackLookupOutcome("missing");
+      } catch (err) {
         console.error("Error loading track from URL param:", err);
-      });
-  }, [user, trackIdParam, workflow]);
+        if (!cancelled) setTrackLookupOutcome("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, trackIdParam, trackIsLoaded, workflow]);
 
   // If user visits /mezclas without an active session or track, send to /upload
   useEffect(() => {
@@ -186,6 +217,45 @@ function MezclasContent() {
   return (
     <LicenseGuard>
       <main className="h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
+        {/* Estado explícito de resolución del `?track=`. Antes, si el track no
+            aparecía en la primera página, no se renderizaba nada: pantalla en
+            blanco que el usuario leía como un 404. */}
+        {trackLookup !== "idle" && trackLookup !== "ready" && !workflow.session && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-[var(--bg-app)]">
+            <div className="w-full max-w-sm rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-elevated)] p-7 text-center">
+              {trackLookup === "loading" ? (
+                <>
+                  <Loader2 size={22} className="mx-auto animate-spin text-[var(--accent-primary)]" aria-hidden="true" />
+                  <p className="mt-4 text-sm text-[var(--text-secondary)]">
+                    {t("mezclas.trackLoading")}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <AlertCircle size={22} className="mx-auto text-[var(--accent-error)]" aria-hidden="true" />
+                  <h2 className="mt-4 text-base font-semibold text-[var(--text-primary)]">
+                    {trackLookup === "missing"
+                      ? t("mezclas.trackMissingTitle")
+                      : t("mezclas.trackError")}
+                  </h2>
+                  {trackLookup === "missing" && (
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                      {t("mezclas.trackMissingBody")}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => router.replace("/upload")}
+                    className="mt-6 w-full rounded-xl border border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-4 py-2.5 text-sm font-semibold text-[var(--accent-primary)] transition-colors hover:bg-[var(--accent-primary)]/20"
+                  >
+                    {t("mezclas.trackMissingCta")}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Global Overlays & Modals */}
         <MasteringOverlays
           currentView="mastering"
@@ -417,7 +487,11 @@ function MezclasContent() {
                           </motion.div>
                         )}
 
-                        <AnimatePresence mode="wait">
+                        {/* Sin `mode="wait"`: ese modo de framer-motion borra el nodo
+                            DOM saliente y reinserta el entrante. Con React 19 la
+                            referencia queda stale y el commit falla con
+                            "NotFoundError: insertBefore" al abrir el tab de mezcla. */}
+                        <AnimatePresence>
                           {currentTab !== null && (
                             <PaintedModule key={currentTab}>
                               <MasteringCanvas

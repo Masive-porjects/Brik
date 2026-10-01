@@ -444,6 +444,13 @@
     "jobTimeout": "The mix took too long and stopped. Try again.",
     "jobDone": "Final mix generated successfully"
   },
+  "mezclas": {
+    "trackLoading": "Loading your audio project…",
+    "trackMissingTitle": "We couldn't find that track",
+    "trackMissingBody": "It may belong to another account or no longer exist.",
+    "trackMissingCta": "Choose another audio",
+    "trackError": "We couldn't load the track. Check your connection and try again."
+  },
   "songstarter": {
     "title": "Beats",
     "subtitle": "AI-powered musical idea generator",
