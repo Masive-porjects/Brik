@@ -96,7 +96,7 @@ export default function LandingPhilosophy() {
         </div>
 
         {/* 3 Phenomenon Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
           {cards.map((card, idx) => {
             const Icon = card.icon;
             const isExpanded = expandedCard === card.fenomeno;
@@ -108,7 +108,7 @@ export default function LandingPhilosophy() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className={`group flex flex-col justify-between p-6 sm:p-8 rounded-2xl bg-[#1a1b20] hover:bg-[#1f1f24] border transition-all duration-300 shadow-xl relative overflow-hidden ${
+                className={`group flex flex-col justify-between h-full p-6 sm:p-8 rounded-2xl bg-[#1a1b20] hover:bg-[#1f1f24] border transition-all duration-300 shadow-xl relative overflow-hidden ${
                   isExpanded ? "border-primary/40 bg-[#1f1f24] shadow-[0_0_30px_rgba(110,233,224,0.1)]" : "border-white/[0.05] hover:border-white/10"
                 }`}
               >
@@ -117,7 +117,7 @@ export default function LandingPhilosophy() {
                   className={`absolute top-0 right-0 w-32 h-32 ${card.bgGlow} rounded-bl-full pointer-events-none group-hover:scale-125 transition-transform duration-500`}
                 />
 
-                <div className="flex flex-col gap-5 relative z-10">
+                <div className="flex flex-col gap-5 relative z-10 flex-1">
                   <div className="w-12 h-12 rounded-xl bg-[#292a2e] border border-white/5 flex items-center justify-center text-primary shadow-sm group-hover:border-primary/30 transition-colors">
                     <Icon className="w-6 h-6" />
                   </div>
@@ -126,17 +126,17 @@ export default function LandingPhilosophy() {
                     <span className="font-label-technical text-[10px] text-primary uppercase tracking-wider">
                       {card.fenomeno}
                     </span>
-                    <h3 className="font-headline-sm text-lg sm:text-xl font-bold text-[#e3e2e8]">
+                    <h3 className="font-headline-sm text-lg sm:text-xl font-bold text-[#e3e2e8] min-h-[3rem] flex items-center">
                       {card.title}
                     </h3>
                   </div>
 
-                  <p className="font-body-md text-[#bcc9c7] text-xs sm:text-sm leading-relaxed">
+                  <p className="font-body-md text-[#bcc9c7] text-xs sm:text-sm leading-relaxed flex-1">
                     {card.desc}
                   </p>
                 </div>
 
-                <div className="pt-6 mt-6 border-t border-white/5 flex flex-col gap-3 relative z-10">
+                <div className="pt-6 mt-auto border-t border-white/5 flex flex-col gap-3 relative z-10">
                   <div className="flex items-center justify-between font-label-technical text-[10px] sm:text-xs text-[#869391]">
                     <span>{card.metricLabel}</span>
                     <span className="text-primary font-bold">{card.metricVal}</span>

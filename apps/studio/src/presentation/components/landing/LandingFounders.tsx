@@ -78,7 +78,7 @@ export default function LandingFounders() {
         </div>
 
         {/* 3 Founders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
           {founders.map((founder, idx) => (
             <motion.div
               key={founder.id}
@@ -86,7 +86,7 @@ export default function LandingFounders() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: idx * 0.1 }}
-              className="flex flex-col bg-[#1a1b20] rounded-2xl overflow-hidden shadow-2xl border border-white/5 hover:border-white/15 transition-all duration-300 hover:-translate-y-1.5"
+              className="flex flex-col bg-[#1a1b20] rounded-2xl overflow-hidden shadow-2xl border border-white/5 hover:border-white/15 transition-all duration-300 hover:-translate-y-1.5 h-full"
             >
               {/* Photo Viewport */}
               <div className="w-full h-80 relative overflow-hidden bg-[#292a2e]">
@@ -108,21 +108,21 @@ export default function LandingFounders() {
               </div>
 
               {/* Bio & Quote Details */}
-              <div className="p-6 sm:p-8 flex flex-col justify-between flex-grow gap-5 -mt-6 z-10">
-                <div className="flex flex-col gap-1.5">
+              <div className="p-6 sm:p-8 flex flex-col justify-between flex-1 gap-5 -mt-6 z-10">
+                <div className="flex flex-col gap-1.5 flex-1">
                   <h3 className="font-headline-md text-xl sm:text-2xl font-bold text-[#e3e2e8]">
                     {founder.name}
                   </h3>
                   <span className="font-label-technical text-xs text-primary font-semibold">
                     {founder.role}
                   </span>
-                  <p className="font-body-sm text-xs text-[#bcc9c7] mt-2.5 leading-relaxed">
+                  <p className="font-body-sm text-xs text-[#bcc9c7] mt-2.5 leading-relaxed flex-1">
                     {founder.bio}
                   </p>
                 </div>
 
                 <div
-                  className={`p-4 rounded-xl bg-[#292a2e]/80 border-l-2 ${founder.quoteBorder} shadow-inner`}
+                  className={`mt-auto p-4 rounded-xl bg-[#292a2e]/80 border-l-2 ${founder.quoteBorder} shadow-inner`}
                 >
                   <p className="font-body-md text-xs italic text-[#e3e2e8]">
                     {founder.quote}

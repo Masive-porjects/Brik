@@ -113,7 +113,7 @@ export default function LandingPresets() {
         </div>
 
         {/* Presets Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
           {presets.map((preset, idx) => {
             const Icon = PRESET_ICONS[preset.icon] || Sparkles;
             const isExpanded = expandedPresetId === preset.id;
@@ -125,11 +125,11 @@ export default function LandingPresets() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.45, delay: idx * 0.08 }}
-                className={`p-6 rounded-2xl bg-[#1a1b20] hover:bg-[#1f1f24] border transition-all duration-300 flex flex-col justify-between shadow-xl ${
+                className={`p-6 rounded-2xl bg-[#1a1b20] hover:bg-[#1f1f24] border transition-all duration-300 h-full flex flex-col justify-between shadow-xl ${
                   isExpanded ? "border-primary/40 bg-[#1f1f24] shadow-[0_0_25px_rgba(110,233,224,0.12)]" : "border-white/5 hover:border-white/15"
                 }`}
               >
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 flex-1">
                   <div className="flex items-center justify-between">
                     <span className={`w-3 h-3 rounded-full ${preset.dotColor}`} />
                     <span className="font-label-technical text-[9px] text-[#869391] uppercase">
@@ -137,19 +137,19 @@ export default function LandingPresets() {
                     </span>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1.5 flex-1">
                     <h3
                       className={`font-headline-sm text-lg font-bold text-[#e3e2e8] transition-colors`}
                     >
                       {preset.title}
                     </h3>
-                    <p className="font-body-sm text-xs text-[#bcc9c7] leading-relaxed">
+                    <p className="font-body-sm text-xs text-[#bcc9c7] leading-relaxed flex-1">
                       {preset.desc}
                     </p>
                   </div>
                 </div>
 
-                <div className="pt-5 mt-5 border-t border-white/5 flex flex-col gap-3">
+                <div className="pt-5 mt-auto border-t border-white/5 flex flex-col gap-3">
                   <div className={`font-label-technical text-xs ${preset.textColor} font-bold flex items-center justify-between`}>
                     <span>{preset.metric}</span>
                     <Icon className="w-4 h-4" />
