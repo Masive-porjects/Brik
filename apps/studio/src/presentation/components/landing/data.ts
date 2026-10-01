@@ -638,9 +638,8 @@ export const FOUNDERS_LIST: FounderItem[] = [
     badgeColor: "primary",
     bio: "Especialista en redes neuronales espectrales y tensores en C++/Rust. Lideró la concepción del motor AudioMind y la simulación matemática de la resonancia de salas no-lineales.",
     quote: "“El sonido tiene memoria; la IA solo la despierta.”",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBcKsxAXXWaY0r6RByS5M-uTGXwk5xi9PsGVBLYewYuJVZsQtEkF9tVAqE2LsJoMEOJbDva_t0FjGJZ-aN0OUMW200yw7Ivno0lIEPj11HjhJfnrOjxWCNZGkbefYfzRUWDpjsdnafKmkXbPGS-hDvgl4YlsEl6xtfT0FI1XpzZTCaUTB8Pfo73-cGJ4f4iTbPSmXwZkyvBb-mvQYtPZfOI6cDrdZ24eWpkMdjEj7DZzdoIVpR5FvI-",
-    alt: "Retrato en estudio cinemático de la Dra. Valerya Vance, arquitecta de DSP y Machine Learning",
+    image: "/images/team/founder_1.jpg",
+    alt: "Retrato en estudio cinemático de ingeniería de sonido y DSP",
   },
   {
     id: "kaelen",
@@ -662,8 +661,7 @@ export const FOUNDERS_LIST: FounderItem[] = [
     badgeColor: "tertiary",
     bio: "Con más de 20 años en mastering analógico, calibración de curvas psicoacústicas Haas y supervisión de UX/UI. Garantiza que la calidez de los transformadores valvulares trascienda al plano virtual.",
     quote: "“La calidez analógica no se simula: se invoca.”",
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAgkNPB2Xpg7IfOOKQ63ku0Uj4iTAkUg06S4rvepZR8ph5qKN_e-g6qpqlN-DezI9kf3n-4JwxaN3zHM1cC60sJQbkj7-wR77N9e7Fp934Yrfv79eQFSpJ6qMkHRefO5cdWbpUCXfhWqmFG6PHPaIFIYSGF1fjG4KojKhofFpU-YCKGSRfdIWL9cF-hSmtg8r2ac4gfuVnNmYeR94pteo1pMW0mTN0J72PtYRLjA9fub3WuSsC81kWg",
-    alt: "Retrato de Dante O'Connor, veterano ingeniero de sonido analógico en sala de masterizado",
+    image: "/images/team/founder_3.jpg",
+    alt: "Retrato de desarrollo de software y arquitectura",
   },
 ];
