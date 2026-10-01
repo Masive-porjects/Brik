@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +20,7 @@ import {
   Cpu,
   ArrowRight,
   Power,
+  RotateCcw,
 } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { DSP_STAGES } from "./data";
@@ -46,11 +47,38 @@ export default function LandingDSPChain() {
   const [selectedStageId, setSelectedStageId] = useState<number>(7); // Default to Stage 7 (Board Render)
   const [activeTab, setActiveTab] = useState<"substages" | "spatial" | "telemetry">("substages");
   const [isBypassed, setIsBypassed] = useState<boolean>(false);
+  const [isAutoCycle, setIsAutoCycle] = useState<boolean>(true);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const stageButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   const selectedStage: DSPStage =
     DSP_STAGES.find((s) => s.id === selectedStageId) || DSP_STAGES[6];
 
   const StageIcon = ICONS_MAP[selectedStage.icon] || Box;
+
+  // Auto-scroll active button inside the left list into view
+  const scrollToStage = useCallback((id: number) => {
+    const btn = stageButtonRefs.current[id];
+    if (btn) {
+      btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, []);
+
+  // Automatic cycling through the 13 DSP stages every 4.2 seconds
+  useEffect(() => {
+    if (!isAutoCycle || isHovered) return;
+
+    const interval = setInterval(() => {
+      setSelectedStageId((prev) => {
+        const nextId = prev >= 13 ? 1 : prev + 1;
+        scrollToStage(nextId);
+        return nextId;
+      });
+      setIsBypassed(false);
+    }, 4200);
+
+    return () => clearInterval(interval);
+  }, [isAutoCycle, isHovered, scrollToStage]);
 
   return (
     <section
@@ -87,16 +115,49 @@ export default function LandingDSPChain() {
         </div>
 
         {/* 13 Stages Two-Column Interactive Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        <div
+          className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
           {/* Left Column: Scrollable List of 13 Stages */}
           <div className="lg:col-span-5 flex flex-col gap-2 max-h-[720px] overflow-y-auto pr-1 custom-scroll">
             <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10 sticky top-0 bg-[#0d0e12] z-10">
               <span className="font-label-technical text-[10px] text-[#869391] uppercase tracking-wider">
                 {t("landing.chain.chainHeader", "CADENA SECUENCIAL (13 MÓDULOS)")}
               </span>
-              <span className="font-label-technical text-[9px] text-primary">
-                {t("landing.chain.feedForward", "FEED-FORWARD 64-BIT")}
-              </span>
+              {/* Interactive Auto-Cycle Badge / Button */}
+              <button
+                type="button"
+                onClick={() => setIsAutoCycle((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-label-technical text-[9px] border transition-all cursor-pointer ${
+                  isAutoCycle && !isHovered
+                    ? "bg-primary/15 text-primary border-primary/40 shadow-[0_0_10px_rgba(110,233,224,0.25)]"
+                    : isAutoCycle && isHovered
+                    ? "bg-secondary/15 text-secondary border-secondary/40"
+                    : "bg-[#292a2e] text-[#869391] border-white/10"
+                }`}
+                title={isAutoCycle ? "Haz clic para pausar el ciclo automático" : "Haz clic para reanudar el ciclo automático"}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isAutoCycle && !isHovered
+                      ? "bg-primary animate-pulse"
+                      : isAutoCycle && isHovered
+                      ? "bg-secondary"
+                      : "bg-[#869391]"
+                  }`}
+                />
+                <span>{t("landing.chain.autoCycle", "Ciclo Automático")}:</span>
+                <span className="font-bold">
+                  {isAutoCycle && isHovered
+                    ? t("landing.chain.autoCyclePaused", "PAUSADO")
+                    : isAutoCycle
+                    ? t("landing.chain.autoCycleActive", "ACTIVO")
+                    : t("landing.chain.autoCyclePaused", "PAUSADO")}
+                </span>
+                <RotateCcw className={`w-2.5 h-2.5 ml-0.5 ${isAutoCycle && !isHovered ? "animate-spin" : ""}`} style={{ animationDuration: "4s" }} />
+              </button>
             </div>
 
             <div className="grid grid-cols-1 gap-2 pt-1">
@@ -107,22 +168,37 @@ export default function LandingDSPChain() {
                 return (
                   <button
                     key={stage.id}
+                    ref={(el) => {
+                      stageButtonRefs.current[stage.id] = el;
+                    }}
                     type="button"
                     onClick={() => {
                       setSelectedStageId(stage.id);
                       setIsBypassed(false);
+                      // User manual interaction pauses auto-cycle for a moment
+                      setIsHovered(true);
+                      setTimeout(() => setIsHovered(false), 8000);
                     }}
-                    className={`p-3.5 rounded-xl text-left transition-all duration-200 flex items-center justify-between group cursor-pointer ${
+                    className={`p-3.5 rounded-xl text-left transition-all duration-300 flex items-center justify-between group cursor-pointer relative overflow-hidden ${
                       isSelected
-                        ? "bg-[#1f1f24] border-2 border-primary shadow-[0_0_20px_rgba(110,233,224,0.2)]"
+                        ? "bg-[#1f1f24] border-2 border-primary shadow-[0_0_24px_rgba(110,233,224,0.22)] scale-[1.01]"
                         : "bg-[#1a1b20] hover:bg-[#1f1f24] border border-white/5 hover:border-primary/20"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    {/* Animated cadence glow indicator on active stage */}
+                    {isSelected && (
+                      <motion.div
+                        layoutId="activeStageGlow"
+                        className="absolute inset-0 bg-primary/[0.04] pointer-events-none"
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                      />
+                    )}
+
+                    <div className="flex items-center gap-3 relative z-10">
                       <span
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-label-technical text-xs font-bold ${
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-label-technical text-xs font-bold transition-all ${
                           isSelected
-                            ? "bg-primary text-[#003734]"
+                            ? "bg-primary text-[#003734] shadow-sm"
                             : "bg-[#292a2e] text-primary"
                         }`}
                       >
@@ -156,7 +232,7 @@ export default function LandingDSPChain() {
                       </div>
                     </div>
                     <IconComponent
-                      className={`w-4 h-4 transition-colors ${
+                      className={`w-4 h-4 transition-colors relative z-10 ${
                         isSelected
                           ? "text-primary"
                           : "text-[#869391] group-hover:text-primary"
@@ -168,44 +244,53 @@ export default function LandingDSPChain() {
             </div>
           </div>
 
-          {/* Right Column: Stage Detail Inspector */}
-          <div className="lg:col-span-7 bg-[#1a1b20] rounded-2xl p-6 lg:p-8 border border-white/10 shadow-2xl flex flex-col gap-6 sticky top-24">
-            {/* Inspector Top Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <span className="px-2.5 py-1 rounded font-label-technical text-xs font-bold bg-primary/20 text-primary border border-primary/30">
-                  ETAPA {selectedStage.number} / 13
-                </span>
-                <div className="flex items-center gap-2">
-                  <StageIcon className="w-5 h-5 text-primary" />
-                  <h3 className="font-headline-md text-lg sm:text-xl font-bold text-[#e3e2e8]">
-                    {selectedStage.name}
-                  </h3>
-                </div>
-              </div>
+          {/* Right Column: Stage Detail Inspector with AnimatePresence */}
+          <div className="lg:col-span-7 bg-[#1a1b20] rounded-2xl p-6 lg:p-8 border border-white/10 shadow-2xl flex flex-col gap-6 sticky top-24 min-h-[580px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedStage.id}
+                initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col gap-6 flex-1"
+              >
+                {/* Inspector Top Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2.5 py-1 rounded font-label-technical text-xs font-bold bg-primary/20 text-primary border border-primary/30">
+                      ETAPA {selectedStage.number} / 13
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <StageIcon className="w-5 h-5 text-primary" />
+                      <h3 className="font-headline-md text-lg sm:text-xl font-bold text-[#e3e2e8]">
+                        {selectedStage.name}
+                      </h3>
+                    </div>
+                  </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsBypassed(!isBypassed)}
-                  className={`px-3 py-1.5 rounded-lg font-label-technical text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    isBypassed
-                      ? "bg-[#292a2e] text-[#869391] border-white/10"
-                      : "bg-primary/20 text-primary border-primary/40 shadow-[0_0_10px_rgba(110,233,224,0.2)]"
-                  }`}
-                >
-                  <Power className="w-3.5 h-3.5" />
-                  <span>
-                    {isBypassed
-                      ? t("landing.chain.bypassedState", "EN BYPASS")
-                      : t("landing.chain.activeState", "ESTADO ACTIVO")}
-                  </span>
-                </button>
-                <span className="font-label-technical text-[10px] text-[#869391] bg-[#292a2e] px-2.5 py-1 rounded border border-white/5">
-                  {t("landing.chain.latency", "LATENCIA:")} {selectedStage.latency}
-                </span>
-              </div>
-            </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsBypassed(!isBypassed)}
+                      className={`px-3 py-1.5 rounded-lg font-label-technical text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                        isBypassed
+                          ? "bg-[#292a2e] text-[#869391] border-white/10"
+                          : "bg-primary/20 text-primary border-primary/40 shadow-[0_0_10px_rgba(110,233,224,0.2)]"
+                      }`}
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      <span>
+                        {isBypassed
+                          ? t("landing.chain.bypassedState", "EN BYPASS")
+                          : t("landing.chain.activeState", "ESTADO ACTIVO")}
+                      </span>
+                    </button>
+                    <span className="font-label-technical text-[10px] text-[#869391] bg-[#292a2e] px-2.5 py-1 rounded border border-white/5">
+                      {t("landing.chain.latency", "LATENCIA:")} {selectedStage.latency}
+                    </span>
+                  </div>
+                </div>
 
             {/* Inspector Body */}
             <div className="flex flex-col gap-5">
@@ -409,9 +494,11 @@ export default function LandingDSPChain() {
                 </Link>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
   );
 }

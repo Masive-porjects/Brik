@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, User } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import LanguageSwitcher from "@/presentation/components/LanguageSwitcher";
 import ThemeToggle from "@/presentation/components/ThemeToggle";
 import { UserMenu, useAuth } from "@/features/auth";
@@ -105,17 +105,7 @@ export default function LandingHeader() {
           <div className="flex items-center gap-2 border-l border-white/10 pl-3">
             <LanguageSwitcher />
             <ThemeToggle />
-            {user ? (
-              <UserMenu />
-            ) : (
-              <Link
-                href="/login"
-                className="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-primary hover:bg-primary/30 transition-colors"
-                title="Iniciar sesión"
-              >
-                <User className="w-4 h-4" />
-              </Link>
-            )}
+            {user && <UserMenu />}
           </div>
         </div>
       </div>

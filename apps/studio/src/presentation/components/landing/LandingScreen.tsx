@@ -1,6 +1,7 @@
 "use client";
 
 import FloatingGhosts from "@/presentation/components/FloatingGhosts";
+import LandingScrollToTop from "./LandingScrollToTop";
 import LandingHeader from "./LandingHeader";
 import LandingHero from "./LandingHero";
 import LandingPhilosophy from "./LandingPhilosophy";
@@ -33,6 +34,9 @@ export default function LandingScreen() {
 
       {/* Global Landing Footer */}
       <LandingFooter />
+
+      {/* Floating Back to Top Ghost Button */}
+      <LandingScrollToTop />
     </div>
   );
 }

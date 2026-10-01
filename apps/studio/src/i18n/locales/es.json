@@ -577,6 +577,7 @@
     "openLibrary": "O ver todas mis canciones guardadas"
   },
   "landing": {
+    "scrollToTop": "Volver al inicio",
     "nav": {
       "brand": "BRIK",
       "dspCore": "DSP Core",
@@ -625,6 +626,8 @@
       "title": "Fenomenología Sonora de Brik",
       "subtitle": "Comprender el audio no como simple oscilación de voltaje, sino como un espectro vivo que habita múltiples dimensiones simultáneamente.",
       "paradigmChip": "PARADIGMA DSP NO DESTRUCTIVO",
+      "viewSpecs": "Examinar fenómeno",
+      "hideSpecs": "Ocultar especificación",
       "card1": {
         "tag": "Fenómeno 01",
         "title": "El Fantasma de la Mezcla Plana",
@@ -668,6 +671,9 @@
       "title": "Arquitectura DSP de 13 Etapas",
       "subtitle": "Cada muestra de audio atraviesa una cadena modular con cero alteración destructiva de fase. Haz clic en cualquier módulo para examinar los parámetros internos, sub-etapas y tensores en tiempo real.",
       "pipelineBadge": "PIPELINE RUST SIMD: CERO FUGAS INTERSAMPLE",
+      "autoCycle": "Ciclo Automático",
+      "autoCycleActive": "ACTIVO",
+      "autoCyclePaused": "PAUSADO",
       "chainHeader": "CADENA SECUENCIAL (13 MÓDULOS)",
       "feedForward": "FEED-FORWARD 64-BIT",
       "activeState": "ESTADO ACTIVO",
@@ -686,6 +692,9 @@
       "badge": "Invocaciones Sónicas",
       "title": "Presets Fantasmagóricos de Brik",
       "subtitle": "Perfiles tímbricos calibrados para canalizar estéticas sonoras precisas con un solo clic en la consola.",
+      "viewDetails": "Ver calibración",
+      "hideDetails": "Ocultar calibración",
+      "loadPreset": "Usar preset en Studio",
       "preset1": {
         "genre": "GÉNERO: TECHNO / CLUB",
         "title": "Pulido Espectral",

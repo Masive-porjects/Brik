@@ -577,6 +577,7 @@
     "openLibrary": "Or explore all my saved tracks"
   },
   "landing": {
+    "scrollToTop": "Back to top",
     "nav": {
       "brand": "BRIK",
       "dspCore": "DSP Core",
@@ -625,6 +626,8 @@
       "title": "Sound Phenomenology of Brik",
       "subtitle": "Understanding audio not merely as voltage oscillations, but as a living spectrum inhabiting multiple dimensions simultaneously.",
       "paradigmChip": "NON-DESTRUCTIVE DSP PARADIGM",
+      "viewSpecs": "Inspect phenomenon",
+      "hideSpecs": "Hide specification",
       "card1": {
         "tag": "Phenomenon 01",
         "title": "The Ghost of the Flat Mix",
@@ -668,6 +671,9 @@
       "title": "13-Stage DSP Architecture",
       "subtitle": "Every audio sample traverses a modular chain with zero destructive phase alteration. Click any module to inspect internal parameters, sub-stages, and tensors in real time.",
       "pipelineBadge": "RUST SIMD PIPELINE: ZERO INTERSAMPLE LEAK",
+      "autoCycle": "Auto Cycle",
+      "autoCycleActive": "ACTIVE",
+      "autoCyclePaused": "PAUSED",
       "chainHeader": "SEQUENTIAL CHAIN (13 MODULES)",
       "feedForward": "FEED-FORWARD 64-BIT",
       "activeState": "ACTIVE STATE",
@@ -686,6 +692,9 @@
       "badge": "Sonic Invocations",
       "title": "Phantasmal Presets of Brik",
       "subtitle": "Timbral profiles calibrated to channel precise sonic aesthetics with a single click in the console.",
+      "viewDetails": "View calibration",
+      "hideDetails": "Hide calibration",
+      "loadPreset": "Use preset in Studio",
       "preset1": {
         "genre": "GENRE: TECHNO / CLUB",
         "title": "Spectral Polish",
