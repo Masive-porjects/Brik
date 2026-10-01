@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -49,36 +49,23 @@ export default function LandingDSPChain() {
   const [isBypassed, setIsBypassed] = useState<boolean>(false);
   const [isAutoCycle, setIsAutoCycle] = useState<boolean>(true);
   const [isHovered, setIsHovered] = useState<boolean>(false);
-  const stageButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   const selectedStage: DSPStage =
     DSP_STAGES.find((s) => s.id === selectedStageId) || DSP_STAGES[6];
 
   const StageIcon = ICONS_MAP[selectedStage.icon] || Box;
 
-  // Auto-scroll active button inside the left list into view
-  const scrollToStage = useCallback((id: number) => {
-    const btn = stageButtonRefs.current[id];
-    if (btn) {
-      btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, []);
-
-  // Automatic cycling through the 13 DSP stages every 4.2 seconds
+  // Automatic cycling through the 13 DSP stages every 4.2 seconds WITHOUT window scrolling
   useEffect(() => {
     if (!isAutoCycle || isHovered) return;
 
     const interval = setInterval(() => {
-      setSelectedStageId((prev) => {
-        const nextId = prev >= 13 ? 1 : prev + 1;
-        scrollToStage(nextId);
-        return nextId;
-      });
+      setSelectedStageId((prev) => (prev >= 13 ? 1 : prev + 1));
       setIsBypassed(false);
     }, 4200);
 
     return () => clearInterval(interval);
-  }, [isAutoCycle, isHovered, scrollToStage]);
+  }, [isAutoCycle, isHovered]);
 
   return (
     <section
@@ -168,9 +155,6 @@ export default function LandingDSPChain() {
                 return (
                   <button
                     key={stage.id}
-                    ref={(el) => {
-                      stageButtonRefs.current[stage.id] = el;
-                    }}
                     type="button"
                     onClick={() => {
                       setSelectedStageId(stage.id);
