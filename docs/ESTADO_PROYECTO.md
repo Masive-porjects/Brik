@@ -97,9 +97,42 @@ d94d80a refactor(studio): replace floating chips with sequential status stream
 
 **Endpoints (38 en `api/`)**: upload (3) · mastering (17: process, prerender, reset, audio refs, raw, raw-mastered, download, session, master) · mix (2) · license (2) · splitter (3) · vocal (2) · songstarter (7) · batch/álbum (2) + `/health` y `/api/demo/stats` del app. Verificación detallada en el código de cada router.
 
-**Tests**: `apps/audiomind/tests/` — suite **628 passed** (114 s) ✔ (incluye 19 tests del Mix Stem Balance T1–T4).
+**Jobs async**: además de los endpoints blocking, `POST /api/jobs/master` (`202` + `job_id`) y `GET /api/jobs/master/{job_id}`, y el par de mezcla `POST|GET /api/jobs/mix/{id}`. Estado en `services/job_store.py` — ver §3.1.1.
+
+**Tests**: `apps/audiomind/tests/` — suite **712 passed** ✔ (incluye `test_master_job_store.py` y `test_dsp_jobs_migration.py`).
 
 > ⚠️ Advertencias operativas: sesiones en memoria (`session_store`) — se pierden al reiniciar salvo espejo best-effort a `uploads/sessions.json`; `outputs/` (masters) **no** están en el volume de Railway → se pierden en redeploy. Pendiente de decisión: historial/retención.
+
+### 3.1.1 Estado de jobs: `JobStore` compartido (30-Sep, sin commit)
+
+Motivo: el estado de los jobs async vivía en un dict propiedad del proceso. En cada redeploy, todo job en vuelo desaparecía y el cliente polleaba un 404 para siempre. Es el mismo bug que se corrigió en mezcla, aplicado ahora a mastering.
+
+| Antes | Ahora |
+|---|---|
+| `dsp_worker._active_jobs` (dict en memoria) | `services/job_store.py` (Supabase si existe `dsp_jobs`, si no memoria) |
+| El worker escribía su propio estado | El endpoint **registra antes de encolar**; el worker sólo actualiza |
+| Sin detección de muerte | Lease con heartbeat → un worker muerto se lee `error`, no `processing` para siempre |
+| `get_job_status` devolvía el dict crudo | Proyecta al shape legacy que ya consume `AsyncJobStatus` |
+
+**No se reemplazó Supabase.** Esto migró **el estado del job**, no los archivos: el master sigue subiendo a Supabase Storage (`audio-masters`) y actualizando `public.masters` vía `create_or_update_master_record()`. `session_id` es referencia blanda porque las sesiones viven en `sessions.json`, no en Postgres.
+
+Contrato intacto: `GET /api/jobs/master/{id}` sigue devolviendo `job_id, track_id, status, started_at, completed_at, result, error`. El frontend no se tocó.
+
+**Comportamiento por entorno** (decisión del usuario: no tocar Supabase por ahora):
+
+| Configuración | Store | ¿Sobrevive redeploy? |
+|---|---|---|
+| Sin credenciales Supabase | memoria | No (igual que antes) |
+| Credenciales, **sin** tabla `dsp_jobs` | memoria + warning | No — pero **no hay 404** |
+| Credenciales + tabla creada | Supabase | Sí (el estado sobrevive; el DSP no se reanuda) |
+
+`SupabaseJobStore.probe()` hace un `SELECT ... LIMIT 1` al elegir store: si la tabla no existe o la key está revocada, cae a memoria con un warning que dice qué configurar. Sin ese probe, deployar el código sin la tabla producía `202` en el submit y `404` dos segundos después en cada poll.
+
+**Limitación honesta**: un job interrumpido se marca `error` ("interrupted"), **no se reanuda**. `BackgroundTasks` sigue siendo en-proceso. Hacer cola real exigiría un worker que polee `dsp_jobs` en busca de `queued`.
+
+**Migración SQL versionada pero NO aplicada** (decisión explícita del usuario): `supabase/migrations/20260930183000_create_dsp_jobs.sql`. Es aditiva — crea `public.dsp_jobs`, no toca `tracks`/`masters`/`track_events`/`profiles`/`role_audit_logs` ni buckets. `apps/audiomind/tests/test_dsp_jobs_migration.py` (11 tests) falla si el SQL y `JobRecord` se desincronizan.
+
+**Tests**: `tests/test_master_job_store.py` (13) cubre registro previo a encolar, shape legacy, no-mutación en lectura, detección de huérfanos, heartbeat y estado terminal ante éxito/fallo/excepción. Suite: **712 passed** (699 → 712).
 
 ---
 
@@ -251,6 +284,20 @@ Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `
 | 10 | Historial/retención de sesiones: `outputs/` fuera del volume de Railway → masters se pierden en redeploy | Backend/Deploy | Decisión de producto |
 | 11 | Segundo libro del Mix Engine (anexo al plan) + autotune creativo **fuera de alcance v1** | Mix Engine | Documentado como fuera de alcance |
 | 12 | **Mix Stem Balance**: T5 API (trims + toggle en POST /mix), T6 Studio (faders + toggle), T7 E2E neutralidad bit-exacta **HECHOS 23-Sep**; queda el A/B auditivo con la sesión hip_hop del productor (requiere su WAV, no está en el repo) | Mix Engine | Trabajo en curso (T1–T7 automatizable hechos, 23-Sep) |
+| 13 | **Rotar credenciales R2**: quedaron expuestas en el chat/historial y hardcodeadas antes de ser borradas. Crear token nuevo (Object Read & Write) en Cloudflare y revocar el viejo | Deploy | **Acción del usuario, bloqueante** |
+| 14 | **Cargar 6 vars R2 en Railway**: `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` + opcionales `R2_PUBLIC_URL` / `R2_ACCOUNT_ID`. Sin esto el job termina `error` en la entrega | Deploy | **Acción del usuario, bloqueante** |
+| 15 | **Validar R2 real** (upload, HEAD, presigned URL, descarga): no hay red en el entorno de desarrollo y `boto3` no está instalado en el venv, así que todo el storage está mockeado | Deploy | Prueba manual |
+| 16 | **Railway 512 MB → ≥1 GB**: hay OOM registrado; el pipeline de 13 etapas más el mix no entran | Deploy | **Acción del usuario** |
+| 17 | **¿Crear la tabla `dsp_jobs`?** La migración está versionada y validada pero NO aplicada, por decisión del usuario. Sin ella el estado de jobs queda en memoria (no durable). Con ella, sobrevive redeploy | Backend | **Decisión del usuario** |
+| 18 | **Flag explícito `AUDIOMIND_DSP_JOBS_USE_SUPABASE`**: hoy, con credenciales puestas, el `probe()` hace 1 `SELECT` a Supabase y cae a memoria. Si "no afectar Supabase" significa cero tráfico, hace falta un opt-out | Backend | **Decisión del usuario** |
+| 19 | **Cola real de jobs**: `BackgroundTasks` corre en el proceso. Un job interrumpido se marca `error`, no se reanuda. Reanudar (o no perder trabajo en OOM) requiere un worker que polee `dsp_jobs` buscando `queued` | Backend | Fuera de alcance v1 |
+| 20 | **Deduplicación de submits**: el comentario de `get_or_create_flight` promete dedupe por sesión, pero la clave real es `job:{job_id}`, así que un job por id no deduplica nada. El master tampoco deduplica por `track_id` | Backend | Deuda técnica |
+| 21 | **Progreso por etapa**: `build_mix()` y `process_audio()` no exponen progreso real, así que la UI va 0→100 con estado indeterminado. Sin eso no hay barra honesta | Backend/Frontend | Deuda técnica |
+| 22 | **Mezcla no persiste el estado final** en la sesión (`mix_status`, `mix_analysis` + `save_sessions()`), así que un refresco de página pierde el resultado | Backend | Deuda técnica |
+| 23 | **Remixes sobrescriben** el mismo `r2_key` de la sesión, así que no hay historial de mezclas | Backend | Decisión de producto |
+| 24 | **`MixStatusStream` tiene un `doneLabel` hardcodeado** en español como default, contra la regla de i18n. El contenedor le pasa la traducción, pero el fallback sigue siendo texto en TSX | Frontend | Deuda técnica |
+| 25 | **Sin Alembic**: las migraciones SQL se aplican a mano. `test_dsp_jobs_migration.py` protege el drift del código, pero no el estado de la DB | Backend | Deuda técnica |
+| 26 | **Workstreams paralelos abiertos**: `vocal_focus` sin mergear (commit `71b7515` en `feat/ia-asistente-mezcla`, con drift agente/Python), chips legacy en `LibraryView.tsx`, `odd/tasks/operational-hardening.md` y Engram `#825` | Varios | Fuera de este cambio |
 
 ---
 

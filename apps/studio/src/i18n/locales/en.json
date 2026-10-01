@@ -439,7 +439,10 @@
     "gateProcessingNotice": "Finish your mix before mastering.",
     "gateFailedNotice": "Your mix failed. Retry the mix to continue to the master.",
     "gateProcessingCta": "Go to mix",
-    "gateFailedCta": "Retry mix"
+    "gateFailedCta": "Retry mix",
+    "jobInterrupted": "Processing was interrupted. Try again.",
+    "jobTimeout": "The mix took too long and stopped. Try again.",
+    "jobDone": "Final mix generated successfully"
   },
   "songstarter": {
     "title": "Beats",
