@@ -36,14 +36,17 @@ export default function LandingFounders() {
     },
     {
       ...FOUNDERS_LIST[2],
-      name: t("landing.founders.dante.name", "Dante O'Connor"),
-      role: t("landing.founders.dante.role", "Head of Sound Design & Product Experience"),
-      badge: t("landing.founders.dante.badge", "SOUND DESIGN & UX"),
+      name: t("landing.founders.andres.name", "Andrés Villanueva Tabares"),
+      role: t("landing.founders.andres.role", "FullStack Engineer"),
+      badge: t("landing.founders.andres.badge", "Frontend & Backend"),
       bio: t(
-        "landing.founders.dante.bio",
-        "Con más de 20 años en mastering analógico, calibración de curvas psicoacústicas Haas y supervisión de UX/UI. Garantiza que la calidez de los transformadores valvulares trascienda al plano virtual."
+        "landing.founders.andres.bio",
+        "Con más de 7 años en la industria, apoyando y diseñando proyectos desafiantes y de alto impacto social y empresarial."
       ),
-      quote: t("landing.founders.dante.quote", "“La calidez analógica no se simula: se invoca.”"),
+      quote: t(
+        "landing.founders.andres.quote",
+        "“Como un espectro entre el frontend y el backend: el código invisible es el que orquesta las frecuencias de verdadero impacto.”"
+      ),
       badgeClass: "bg-tertiary-container/20 text-tertiary-container border-tertiary-container/30",
       quoteBorder: "border-tertiary-container",
     },

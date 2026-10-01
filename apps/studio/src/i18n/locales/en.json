@@ -738,12 +738,12 @@
         "bio": "Architect of the Next.js 16 + React 19 monorepo and FastAPI with 48 kHz WebSockets. Designed the distributed streaming pipeline processing audio at scale with zero packet loss.",
         "quote": "“Relentless performance: every microsecond counts.”"
       },
-      "dante": {
-        "name": "Dante O'Connor",
-        "role": "Head of Sound Design & Product Experience",
-        "badge": "SOUND DESIGN & UX",
-        "bio": "Over 20 years in analog mastering, Haas psychoacoustic curve calibration, and UX/UI direction. Ensures vintage tube transformer warmth transcends into the digital domain.",
-        "quote": "“Analog warmth cannot be simulated: it must be summoned.”"
+      "andres": {
+        "name": "Andrés Villanueva Tabares",
+        "role": "FullStack Engineer",
+        "badge": "Frontend & Backend",
+        "bio": "With over 7 years in the industry, designing and supporting challenging, high-impact enterprise and social projects.",
+        "quote": "“Like a phantom between frontend and backend: invisible code is what orchestrates the frequencies of true impact.”"
       }
     },
     "cta": {
