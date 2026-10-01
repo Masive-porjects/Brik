@@ -41,11 +41,11 @@ export default function LandingFounders() {
       badge: t("landing.founders.andres.badge", "Frontend & Backend"),
       bio: t(
         "landing.founders.andres.bio",
-        "Con más de 7 años en la industria, apoyando y diseñando proyectos desafiantes y de alto impacto social y empresarial."
+        "Ingeniero FullStack con más de 7 años de trayectoria diseñando, liderando y desplegando plataformas web de alta concurrencia y proyectos de alto impacto social y empresarial. Domina la arquitectura de sistemas escalables y el desarrollo de interfaces reactivas de alta fidelidad, uniendo rigor técnico y experiencia de usuario."
       ),
       quote: t(
         "landing.founders.andres.quote",
-        "“Como un espectro entre el frontend y el backend: el código invisible es el que orquesta las frecuencias de verdadero impacto.”"
+        "“Un sistema impecable es como un espectro en el estudio: invisible a los ojos, pero hace vibrar cada nota con impacto real.”"
       ),
       badgeClass: "bg-tertiary-container/20 text-tertiary-container border-tertiary-container/30",
       quoteBorder: "border-tertiary-container",
