@@ -13,6 +13,8 @@ import {
   getMixAudioUrl,
   mixTracks,
   processAudio,
+  submitMixJob,
+  getMixJobState,
   DEFAULT_PARAMS,
 } from '@/adapters/api/client';
 
@@ -298,5 +300,153 @@ describe('mixTracks', () => {
         body: JSON.stringify({ dimension_enabled: true }),
       }),
     );
+  });
+});
+
+describe('submitMixJob', () => {
+  function okFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'mix_abc123',
+        session_id: SID,
+        status: 'processing',
+        poll_url: `/api/jobs/mix/mix_abc123`,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('devuelve el job_id sin esperar al DSP', async () => {
+    okFetch();
+    const accepted = await submitMixJob(SID);
+    expect(accepted.job_id).toBe('mix_abc123');
+    expect(accepted.status).toBe('processing');
+  });
+
+  it('pega al endpoint async, no al blocking /session/{id}/mix', async () => {
+    const fetchMock = okFetch();
+    await submitMixJob(SID);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/mix/${SID}`);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe('POST');
+  });
+
+  it('manda dimension_enabled y filtra los trims neutros', async () => {
+    const fetchMock = okFetch();
+    await submitMixJob(SID, {
+      dimensionEnabled: false,
+      autoBalance: true,
+      stemTrims: { drums_db: 0, bass_db: -1.5, vocal_db: 0 },
+    });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      dimension_enabled: false,
+      auto_balance: true,
+      stem_trims: { bass_db: -1.5 },
+    });
+  });
+
+  it('omite auto_balance y stem_trims cuando no aplican', async () => {
+    const fetchMock = okFetch();
+    await submitMixJob(SID);
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      dimension_enabled: true,
+    });
+  });
+
+  it('propaga el error del backend con su status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ detail: 'session not found' }),
+    }));
+    await expect(submitMixJob('nope')).rejects.toThrow('session not found');
+  });
+
+  it('rechaza una sesión sin audio en vez de encolar un job muerto', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: 'La sesión no tiene audio cargado' }),
+    }));
+    await expect(submitMixJob(SID)).rejects.toThrow(
+      'La sesión no tiene audio cargado',
+    );
+  });
+});
+
+describe('getMixJobState', () => {
+  it('lee el estado real del job', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'mix_abc123',
+        kind: 'mix',
+        status: 'processing',
+        progress: 0,
+        stage: null,
+        session_id: SID,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const state = await getMixJobState('mix_abc123');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/mix/mix_abc123`);
+    expect(state.status).toBe('processing');
+    expect(state.progress).toBe(0);
+  });
+
+  it('expone la URL de R2 al completar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'mix_abc123',
+        kind: 'mix',
+        status: 'completed',
+        progress: 100,
+        stage: null,
+        session_id: SID,
+        result: {
+          r2_key: `mixes/${SID}/final.wav`,
+          download_url: 'https://r2.example/final.wav?sig=1',
+          content_type: 'audio/wav',
+        },
+      }),
+    }));
+
+    const state = await getMixJobState('mix_abc123');
+    expect(state.status).toBe('completed');
+    expect(state.result?.download_url).toBe('https://r2.example/final.wav?sig=1');
+    expect(state.result?.r2_key).toBe(`mixes/${SID}/final.wav`);
+  });
+
+  it('codifica el job_id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ job_id: 'x', status: 'processing', progress: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await getMixJobState('mix_weird/id');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/mix/mix_weird%2Fid`);
+  });
+
+  it('propaga el error de un job caódo', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ detail: 'Job no encontrado' }),
+    }));
+    await expect(getMixJobState('mix_abc123')).rejects.toThrow('Job no encontrado');
+  });
+
+  it('propaga el AbortError cuando el usuario cancela', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(
+      new DOMException('Aborted', 'AbortError'),
+    ));
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      getMixJobState('mix_abc123', controller.signal),
+    ).rejects.toThrow(/abort/i);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Download,
@@ -43,14 +43,25 @@ export default function ConsolidateMasterModal({
   const [successRecord, setSuccessRecord] = useState<MasterRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  /* Re-seed the form whenever the thing being consolidated changes (new track, new
+     preset, or the modal being reopened). The key covers exactly what the old effect
+     read — track identity + title, preset and open state — so a rename or a reopen
+     still resets the name, while typing in the field never does. Adjusting state
+     during render is React's sanctioned "derive from props" pattern: React re-renders
+     immediately without committing, so the DOM output is unchanged. */
+  const consolidationKey = track
+    ? `${track.id}|${track.title}|${activePresetId ?? ""}|${isOpen}`
+    : null;
+  const [seededKey, setSeededKey] = useState<string | null>(null);
+  if (consolidationKey !== seededKey) {
+    setSeededKey(consolidationKey);
     if (track) {
       const presetSuffix = activePresetId ? ` (${activePresetId})` : "";
       setMasterName(`${track.title} - Master Final${presetSuffix}`);
       setSuccessRecord(null);
       setErrorMessage(null);
     }
-  }, [track, activePresetId, isOpen]);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

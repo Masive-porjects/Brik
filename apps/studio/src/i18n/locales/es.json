@@ -439,7 +439,10 @@
     "gateProcessingNotice": "Termina tu mezcla antes de masterizar.",
     "gateFailedNotice": "Tu mezcla falló. Reintenta la mezcla para continuar al master.",
     "gateProcessingCta": "Ir a la mezcla",
-    "gateFailedCta": "Reintentar la mezcla"
+    "gateFailedCta": "Reintentar la mezcla",
+    "jobInterrupted": "El procesamiento se interrumpió. Vuelve a intentarlo.",
+    "jobTimeout": "La mezcla tardó demasiado y se detuvo. Vuelve a intentarlo.",
+    "jobDone": "Mezcla final generada exitosamente"
   },
   "songstarter": {
     "title": "Beats",

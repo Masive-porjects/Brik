@@ -37,7 +37,7 @@ import type { AdminUser, RoleAuditLog } from "../types";
 interface RoleSelectDropdownProps {
   user: AdminUser;
   onSelectRole: (u: AdminUser, newRole: string) => void;
-  t: (key: string, fallback?: any) => string;
+  t: (key: string, fallback?: string) => string;
 }
 
 function RoleSelectDropdown({ user, onSelectRole, t }: RoleSelectDropdownProps) {
@@ -222,9 +222,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     let isMounted = true;
     if (!authLoading && isAdmin) {
-      setLoading(true);
-      Promise.all([loadUsersData(), loadAuditData()]).finally(() => {
-        if (isMounted) setLoading(false);
+      // Start the loads from a promise callback: raising the loading flag
+      // synchronously would make the effect write state during its own body.
+      void Promise.resolve().then(() => {
+        if (!isMounted) return;
+        setLoading(true);
+        return Promise.all([loadUsersData(), loadAuditData()]).finally(() => {
+          if (isMounted) setLoading(false);
+        });
       });
     }
     return () => {

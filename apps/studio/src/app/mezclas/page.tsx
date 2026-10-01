@@ -43,6 +43,12 @@ const TABS: { key: MasteringTab; label: string }[] = [
   { key: "album", label: "Álbum" },
 ];
 
+type MasteringMode = "manual" | "ai";
+
+function parseModeParam(value: string | null): MasteringMode | null {
+  return value === "manual" || value === "ai" ? value : null;
+}
+
 function MezclasContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -54,7 +60,8 @@ function MezclasContent() {
 
   const workflow = useMastering();
 
-  const [masteringMode, setMasteringMode] = useState<"manual" | "ai">("manual");
+  const urlMode = parseModeParam(modeParam);
+  const [masteringMode, setMasteringMode] = useState<MasteringMode>(() => urlMode ?? "manual");
   const [currentTab, setCurrentTab] = useState<MasteringTab | null>(null);
   const [sheetTab, setSheetTab] = useState<MasteringTab | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,11 +70,18 @@ function MezclasContent() {
   const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [hasSavedTracks, setHasSavedTracks] = useState(true);
 
-  useEffect(() => {
-    if (modeParam === "manual" || modeParam === "ai") {
-      setMasteringMode(modeParam);
+  /* `?mode=` only seeds the mode for the visit that /upload redirects into. Remember
+     which param value has already been applied so an explicit user choice (workflow
+     modal or "back to main flow") is never reverted by a later render. Adjusting state
+     during render is React's sanctioned "derive from props" pattern: React re-renders
+     immediately without committing, so the DOM output is unchanged. */
+  const [appliedModeParam, setAppliedModeParam] = useState<string | null>(null);
+  if (modeParam !== appliedModeParam) {
+    setAppliedModeParam(modeParam);
+    if (urlMode !== null) {
+      setMasteringMode(urlMode);
     }
-  }, [modeParam]);
+  }
 
   useEffect(() => {
     if (user?.id) {

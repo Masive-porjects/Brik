@@ -12,8 +12,8 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import threading
 import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -31,6 +31,11 @@ from audiomind.processing.engine import process_audio
 from audiomind.processing.presets import PRESET_CHAINS
 from audiomind.processing.validation import validate_master
 from audiomind.services import demo_guard
+from audiomind.services.job_store import (
+    JobStatus,
+    get_job_store,
+    is_stale,
+)
 from audiomind.services.supabase_client import (
     create_or_update_master_record,
     download_storage_file,
@@ -41,6 +46,13 @@ from audiomind.services.supabase_client import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: Progress reported while the chain runs. Not a guess at a percentage: the
+#: job is genuinely not finished, so it reports nothing accomplished. Matches
+#: the mix job, which has the same constraint (build_mix exposes no per-stage
+#: progress yet).
+_RUNNING_PROGRESS = 0
+_DONE_PROGRESS = 100
 
 # Streaming platform delivery targets (LUFS, True Peak ceiling in dBTP)
 PLATFORM_DELIVERY_TARGETS: dict[str, dict[str, float]] = {
@@ -120,13 +132,58 @@ class MasterJobResult(BaseModel):
     error: str | None = None
 
 
-# In-memory tracking for async background jobs
-_active_jobs: dict[str, dict[str, Any]] = {}
+# ── Async job state ───────────────────────────────────────────────────────
+# Job state lives in the shared ``JobStore`` (Supabase when its table exists,
+# in-memory otherwise), NOT in a dict owned by this module. A dict dies with
+# the process: on a redeploy every in-flight master job vanished and the
+# client polled a 404 forever. See ``services/job_store.py``.
+#
+# Note this is only the *state* store. Audio still flows through Supabase
+# Storage and the ``tracks``/``masters`` tables exactly as before.
 
 
 def get_job_status(job_id: str) -> dict[str, Any] | None:
-    """Retrieve the current state of an asynchronous job."""
-    return _active_jobs.get(job_id)
+    """Retrieve the current state of an asynchronous mastering job.
+
+    Projects the generic job record onto the shape the Studio client has
+    always consumed (``AsyncJobStatus`` in ``adapters/api/client.ts``):
+    ``job_id``, ``track_id``, ``status``, ``started_at``, ``completed_at``,
+    ``result``, ``error``. The store stays generic; this is the only place
+    that knows the mastering-specific field names.
+
+    A job whose worker died reports ``error`` instead of ``processing``: the
+    lease is what makes the orphan detectable, and without it the client
+    polls forever. The row is not rewritten here -- the reader decides, so a
+    later healthy heartbeat is not overwritten by a read.
+    """
+    store = get_job_store()
+    record = store.get(job_id)
+    if record is None:
+        return None
+
+    stale = is_stale(record)
+    meta = record.meta if isinstance(record.meta, dict) else {}
+    created = record.created_at.isoformat() if record.created_at else None
+    updated = record.updated_at.isoformat() if record.updated_at else None
+
+    return {
+        "job_id": record.job_id,
+        "track_id": meta.get("track_id"),
+        "status": "error" if stale else str(record.status.value),
+        "started_at": created,
+        "completed_at": updated if (record.is_terminal or stale) else None,
+        "result": record.result or None,
+        "error": (
+            _STALE_JOB_ERROR if stale else (record.error or None)
+        ),
+    }
+
+
+#: Reported when a job outlived its lease. A worker killed mid-task cannot
+#: write the reason itself, so the reader has to supply it.
+_STALE_JOB_ERROR = (
+    "The job was interrupted (the worker stopped before it finished)"
+)
 
 
 def build_job_parameters(payload: MasterJobPayload) -> MasteringParameters:
@@ -452,27 +509,68 @@ def execute_master_job(
             )
 
 
-def run_async_master_job(
-    payload: MasterJobPayload,
-    job_id: str,
-) -> None:
-    """Entry point for executing a background job."""
-    _active_jobs[job_id] = {
-        "job_id": job_id,
-        "track_id": payload.track_id,
-        "status": "processing",
-        "started_at": datetime.now(UTC).isoformat(),
-        "result": None,
-        "error": None,
-    }
+def _heartbeat_loop(store: Any, job_id: str, stop: threading.Event) -> None:
+    """Refresh the job lease until the mastering job finishes.
+
+    The lease is what lets a reader tell "still running" from "the worker
+    died". Without it, an OOM kill during mastering looks identical to a
+    slow master, and the client polls forever.
+    """
+    interval = max(5, settings.job_lease_seconds // 3)
+    while not stop.wait(interval):
+        store.heartbeat(job_id)
+
+
+def _ensure_master_job(job_id: str, track_id: str) -> Any:
+    """Return the job record for ``job_id``, creating it if it is missing.
+
+    The endpoint normally creates the record *before* queuing the task, so
+    that a job exists the instant the client gets its 200. This is the
+    defensive path for direct callers (tests, scripts) and it also refreshes
+    the lease on the happy path, so a queue delay before the task starts
+    cannot expire it.
+    """
+    store = get_job_store()
+    record = store.get(job_id)
+    if record is None:
+        record = store.create("master", meta={"track_id": track_id}, job_id=job_id)
+        logger.warning(
+            "Mastering job %s was not registered before it ran; created it now",
+            job_id,
+        )
+    else:
+        store.heartbeat(job_id)
+    return record
+
+
+def run_async_master_job(payload: MasterJobPayload, job_id: str) -> None:
+    """Entry point for executing a background job.
+
+    Never raises: a failure is recorded on the job so the poller learns about
+    it. An exception escaping into a BackgroundTask is logged and dropped,
+    which would leave the client waiting on a job that already died.
+    """
+    store = get_job_store()
+    _ensure_master_job(job_id, payload.track_id)
+
+    # Refresh the lease while the 13-stage chain runs. Without it, an OOM kill
+    # during mastering is indistinguishable from a slow master.
+    stop = threading.Event()
+    heartbeat = threading.Thread(
+        target=_heartbeat_loop, args=(store, job_id, stop), daemon=True
+    )
+    heartbeat.start()
     try:
         result = execute_master_job(payload, job_id=job_id)
-        _active_jobs[job_id]["status"] = result.status
-        _active_jobs[job_id]["result"] = result.model_dump()
-        _active_jobs[job_id]["completed_at"] = datetime.now(UTC).isoformat()
-        if not result.success:
-            _active_jobs[job_id]["error"] = result.error
+        store.update(
+            job_id,
+            status=JobStatus(result.status),
+            progress=_DONE_PROGRESS,
+            result=result.model_dump(mode="json"),
+            error=None if result.success else result.error,
+        )
     except Exception as e:
-        _active_jobs[job_id]["status"] = "error"
-        _active_jobs[job_id]["error"] = str(e)
-        _active_jobs[job_id]["completed_at"] = datetime.now(UTC).isoformat()
+        logger.exception("Mastering job %s failed", job_id)
+        store.update(job_id, status=JobStatus.ERROR, error=str(e))
+    finally:
+        stop.set()
