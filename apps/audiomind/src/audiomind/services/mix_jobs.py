@@ -107,6 +107,7 @@ def run_mix_job(job_id: str, session_id: str, options: MixJobOptions) -> None:
         logger.info("Mix job %s completed", job_id)
     except Exception as exc:
         logger.exception("Mix job %s failed", job_id)
+        _mark_mix_failed(session_id)
         store.update(
             job_id,
             status=JobStatus.ERROR,
@@ -157,7 +158,14 @@ def _execute(job_id: str, session_id: str, options: MixJobOptions) -> dict[str, 
     result = outcome.get("result")
     if not result:
         raise RuntimeError("Mix pipeline produced no result")
-    return _deliver(result, session_id)
+    delivered = _deliver(result, session_id)
+    _record_mix_on_session(
+        session_id,
+        local_path=result.get("mix_path"),
+        r2_key=delivered["r2_key"],
+        analysis=delivered["analysis"],
+    )
+    return delivered
 
 
 def _original_path(session_id: str) -> str:
@@ -193,3 +201,85 @@ def _deliver(result: dict[str, Any], session_id: str) -> dict[str, Any]:
         "analysis": payload,
         "mix_status": "completed",
     }
+
+
+def _record_mix_on_session(
+    session_id: str,
+    *,
+    local_path: str | None,
+    r2_key: str,
+    analysis: dict[str, Any],
+) -> None:
+    """Publish the delivered mix onto the session so mastering can consume it.
+
+    This is the async twin of the writes at the end of the sync mix endpoint
+    (``api/mix.py``). Without it the session keeps ``mix_status="processing"``
+    forever: the client gate never opens, ``GET /audio/mix`` 404s, and
+    ``_resolve_master_input`` silently falls back to mastering the ORIGINAL
+    instead of the mix -- a wrong-output bug that reports no error.
+
+    ``r2_key`` is the durable half. ``mix_path`` is a local path and Railway
+    has no persistent disk, so the key is what lets a redeployed container
+    re-fetch the bytes.
+
+    Never raises: the audio is already in R2 by the time this runs, so failing
+    the job over session bookkeeping would throw away a finished mix. The key
+    is in the job payload regardless, so the client can still fetch it.
+    """
+    try:
+        from audiomind.api.upload import sessions
+        from audiomind.session_store import save_sessions
+
+        session = sessions.get(session_id)
+        if session is None:
+            logger.warning(
+                "Mix for session %s was delivered but the session is gone", session_id
+            )
+            return
+        # Only record a local pointer that actually resolves. The container can
+        # be replaced between the upload and this write, and a dead path would
+        # send the resolver into a guaranteed 400 instead of falling back to R2.
+        if local_path and Path(local_path).exists():
+            session.mix_path = str(local_path)
+        session.mix_r2_key = r2_key
+        session.mix_metadata = analysis.get("mix_metadata")
+        session.mix_analysis = {**analysis, "mix_status": "completed"}
+        session.mix_status = "completed"
+        demo_guard.touch(session_id)
+        save_sessions(sessions)
+        logger.info(
+            "Session %s registered the delivered mix (r2_key=%s, local=%s)",
+            session_id,
+            r2_key,
+            "yes" if session.mix_path else "no",
+        )
+    except Exception:
+        logger.exception(
+            "Mix for session %s is in R2 but could not be registered on the "
+            "session; mastering will need source='mix' with a re-hydration",
+            session_id,
+        )
+
+
+def _mark_mix_failed(session_id: str) -> None:
+    """Record a failed mix on the session so the client gate stops waiting.
+
+    ``mix_path`` / ``mix_analysis`` / ``mix_r2_key`` are intentionally left
+    alone: they describe the last DELIVERED mix, which stays downloadable after
+    a failed re-mix. Same contract as the sync endpoint's failure branch.
+
+    Never raises -- it runs inside the job's own ``except``.
+    """
+    try:
+        from audiomind.api.upload import sessions
+        from audiomind.session_store import save_sessions
+
+        session = sessions.get(session_id)
+        if session is None:
+            return
+        session.mix_status = "failed"
+        save_sessions(sessions)
+    except Exception:
+        logger.exception(
+            "Could not mark the mix failed on session %s", session_id
+        )

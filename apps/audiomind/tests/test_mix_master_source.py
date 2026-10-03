@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 import audiomind.api.mastering as mastering_mod
 import audiomind.processing.mix_engine as mix_engine
+import audiomind.session_store as session_store_mod
 from audiomind.api.upload import sessions
 from audiomind.config import settings
 from audiomind.main import app
@@ -41,6 +42,7 @@ from audiomind.models.audio import (
     ProcessingStatus,
     SessionData,
 )
+from audiomind.services import storage
 
 client = TestClient(app)
 
@@ -61,6 +63,21 @@ def _fresh_store(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "license_key", "")
     # Never let a test serve a real pre-built master from the shipped cache.
     monkeypatch.setattr(settings, "prebuilt_dir", tmp_path / "prebuilt")
+    # These dirs are module-level settings read at CALL time, so patching them
+    # here is what keeps re-hydration (``_hydrate_mix_from_r2``) and any other
+    # write path inside tmp_path instead of the developer's real outputs/.
+    # They must exist: production gets them from the app lifespan, and these
+    # tests drive TestClient without one.
+    monkeypatch.setattr(settings, "output_dir", tmp_path / "outputs")
+    monkeypatch.setattr(settings, "upload_dir", tmp_path / "uploads")
+    for _dir in ("outputs", "uploads"):
+        (tmp_path / _dir).mkdir(parents=True, exist_ok=True)
+    # ``SESSION_FILE`` is bound at import time from ``settings.upload_dir``, so
+    # the endpoints' ``save_sessions`` calls would otherwise write the real
+    # uploads/sessions.json -- wiping real sessions with a test's empty dict.
+    monkeypatch.setattr(
+        session_store_mod, "SESSION_FILE", tmp_path / "sessions.json"
+    )
     yield
     sessions.clear()
 
@@ -382,6 +399,170 @@ class TestProcessSourceRouting:
         )
 
         assert resp.status_code == 422
+
+    # ── Redeploy survival: the mix only exists in R2 ──────────────────────
+    #
+    # Railway free tier has no persistent disk, so a redeploy leaves the
+    # session pointing at a ``mix_path`` that no longer exists. Before the
+    # R2 re-hydration the smart resolver read ONLY the local path, so it fell
+    # back to "original" and quietly mastered the wrong audio. These tests pin
+    # the recovered behavior.
+
+    @staticmethod
+    def _stub_r2(monkeypatch, *, present: bool = True) -> list:
+        """Fake ``storage.download_to``; records the keys it was asked for."""
+        fetched: list = []
+
+        def _download(key: str, local_path: str) -> str:
+            if not present:
+                raise storage.StorageError(f"R2 download failed for {key!r}")
+            fetched.append(key)
+            Path(local_path).write_bytes(b"RIREMIX-WAV-BYTES")
+            return local_path
+
+        monkeypatch.setattr(mastering_mod.storage, "download_to", _download)
+        return fetched
+
+    def test_missing_local_mix_is_rehydrated_from_r2(self, tmp_path, monkeypatch):
+        session_id, original_path, mix_path = _seed_mixed_session(tmp_path)
+        r2_key = f"mixes/{session_id}/{session_id}_mix.wav"
+        Path(mix_path).unlink()  # the redeploy
+        sessions[session_id].mix_r2_key = r2_key
+        fetched = self._stub_r2(monkeypatch)
+        seen = _spy_dsp(monkeypatch)
+
+        body = _process(session_id, "?source=mix")
+
+        assert fetched == [r2_key], "the mix must be re-fetched from R2"
+        # The DSP consumed the REHYDRATED file, never the original.
+        rehydrated = str(
+            (settings.output_dir / f"{session_id}_mix_from_r2.wav").resolve()
+        )
+        assert set(seen["process"]) == {rehydrated}
+        assert set(seen["analyze"]) == {rehydrated}
+        assert original_path not in seen["process"]
+        assert body["status"] == "completed"
+
+    def test_default_uses_mix_when_only_r2_has_it(self, tmp_path, monkeypatch):
+        """The guardrail: with no local file but a durable R2 key, the SMART
+        default must still be the MIX, not the original."""
+        session_id, original_path, mix_path = _seed_mixed_session(tmp_path)
+        Path(mix_path).unlink()
+        sessions[session_id].mix_r2_key = f"mixes/{session_id}/mix.wav"
+        self._stub_r2(monkeypatch)
+        seen = _spy_dsp(monkeypatch)
+
+        _process(session_id)
+
+        assert seen["process"], "nothing was mastered at all"
+        assert seen["process"] != [original_path], (
+            "silently mastering the original instead of the mix is the "
+            "wrong-output bug this fix exists to prevent"
+        )
+
+    def test_smart_default_falls_back_to_original_when_no_mix_exists(
+        self, tmp_path, monkeypatch
+    ):
+        """No key, no local file: the mix is not deliverable at all, so the
+        smart default is the original. R2 is never even contacted."""
+        session_id, original_path, mix_path = _seed_mixed_session(tmp_path)
+        Path(mix_path).unlink()  # no mix_r2_key either
+        fetched = self._stub_r2(monkeypatch)
+        seen = _spy_dsp(monkeypatch)
+
+        _process(session_id)
+
+        assert set(seen["process"]) == {original_path}
+        assert fetched == [], "there is nothing to re-fetch"
+
+    def test_unreachable_r2_refuses_instead_of_silently_mastering_the_original(
+        self, tmp_path, monkeypatch
+    ):
+        """DELIBERATE 400, not a fallback.
+
+        The session claims ``mix_status='completed'``, so the client asked for
+        the MIX. If R2 then fails, mastering the ORIGINAL and returning
+        ``status='completed'`` would hand the user a master of different audio
+        with no error at all -- which is precisely the bug this whole fix
+        exists to kill (redeploy -> silent wrong output). Refusing loudly with
+        an actionable message keeps the "never silently substitute a different
+        audio file" contract that the explicit ``?source=mix`` branch already
+        enforces in ``test_source_mix_without_completed_mix_is_400``.
+
+        The asymmetry is intentional: a SMART default falls back to the
+        original only when the mix was never deliverable; once it has committed
+        to a deliverable mix, an outage is a 400, not a wrong master.
+        """
+        session_id, _original, mix_path = _seed_mixed_session(tmp_path)
+        Path(mix_path).unlink()
+        sessions[session_id].mix_r2_key = f"mixes/{session_id}/missing.wav"
+        self._stub_r2(monkeypatch, present=False)
+        seen = _spy_dsp(monkeypatch)
+
+        resp = client.post(f"/api/session/{session_id}/process", json={})
+
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert "not recoverable" in detail
+        assert "R2 key present" in detail, "the message must name the culprit"
+        assert "Re-run the mix" in detail, "the message must be actionable"
+        # Crucially: NO DSP ran, so no wrong audio was produced.
+        assert seen == {"analyze": [], "process": []}
+        assert sessions[session_id].mastered_path is None
+
+    def test_source_mix_stays_400_when_r2_cannot_hydrate(self, tmp_path, monkeypatch):
+        """Explicit ``source=mix`` must NOT degrade to the original, even
+        when R2 fails: the client asked for the mix."""
+        session_id, _original, mix_path = _seed_mixed_session(tmp_path)
+        Path(mix_path).unlink()
+        sessions[session_id].mix_r2_key = f"mixes/{session_id}/missing.wav"
+        self._stub_r2(monkeypatch, present=False)
+        seen = _spy_dsp(monkeypatch)
+
+        resp = client.post(
+            f"/api/session/{session_id}/process?source=mix", json={}
+        )
+
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert "not recoverable" in detail
+        assert "present" in detail, "the message must say an R2 key was tried"
+        assert seen == {"analyze": [], "process": []}
+
+    def test_rehydration_caches_the_pointer_on_the_session(self, tmp_path, monkeypatch):
+        """Second master run is a local read: the recovered path is stored."""
+        session_id, _original, mix_path = _seed_mixed_session(tmp_path)
+        Path(mix_path).unlink()
+        sessions[session_id].mix_r2_key = f"mixes/{session_id}/{session_id}_mix.wav"
+        self._stub_r2(monkeypatch)
+        _spy_dsp(monkeypatch)
+
+        _process(session_id, "?source=mix")
+
+        recovered = sessions[session_id].mix_path
+        assert recovered.endswith("_mix_from_r2.wav")
+        assert Path(recovered).exists()
+
+    def test_an_empty_r2_object_is_refused(self, tmp_path, monkeypatch):
+        """A zero-byte download would sail past the existence check and then
+        fail deep inside the DSP chain with a codec error."""
+        session_id, _original, mix_path = _seed_mixed_session(tmp_path)
+        Path(mix_path).unlink()
+        sessions[session_id].mix_r2_key = f"mixes/{session_id}/{session_id}_mix.wav"
+
+        def _empty(key: str, local_path: str) -> str:
+            Path(local_path).write_bytes(b"")
+            return local_path
+
+        monkeypatch.setattr(mastering_mod.storage, "download_to", _empty)
+        seen = _spy_dsp(monkeypatch)
+
+        resp = client.post(
+            f"/api/session/{session_id}/process?source=mix", json={}
+        )
+
+        assert resp.status_code == 400
+        assert seen == {"analyze": [], "process": []}
 
     def test_preset_path_routes_mix_and_skips_the_original_cache(
         self, tmp_path, monkeypatch

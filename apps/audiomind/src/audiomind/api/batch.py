@@ -32,6 +32,7 @@ so FastAPI startup stays light (OOM mitigation).
 from __future__ import annotations
 
 import asyncio
+import logging
 import statistics
 from collections.abc import Callable
 from pathlib import Path
@@ -63,6 +64,7 @@ from audiomind.processing.album import (
     DEFAULT_ALBUM_TARGET_LUFS_DB,
     negotiate_targets,
 )
+from audiomind.services import storage
 from audiomind.session_store import save_sessions
 
 
@@ -94,6 +96,51 @@ measure_lra: Callable[..., float] = _lazy_dsp_call(
 )
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
+
+
+async def _persist_album_master_to_r2(
+    session: SessionData, path: str | Path
+) -> None:
+    """Record a durable R2 pointer for one album track's master.
+
+    Same policy as the single-track twin in ``api/mastering.py``
+    (``_persist_master_to_r2``), inlined here because this module must not
+    import that async helper just for one call: the album master is already
+    on disk, R2 is only the insurance that survives a Railway redeploy, and
+    turning an R2 outage into a failed album request would throw away a
+    finished batch. Never raises.
+
+    The key is stamped on the session; the single ``save_sessions(sessions)``
+    at the end of the request persists every track at once.
+    """
+    source = Path(path)
+    if not source.exists():
+        return
+    key = storage.build_key(
+        "masters", session.session_id, f"{session.session_id}_mastered.wav"
+    )
+    try:
+        # Off the event loop: a blocking PUT would stall the single worker.
+        await asyncio.to_thread(
+            storage.upload_file, str(source), key, content_type="audio/wav"
+        )
+    except Exception as exc:
+        logger.warning(
+            "Album master %s for session %s was not persisted to R2 key %s: %s",
+            source.name,
+            session.session_id,
+            key,
+            exc,
+        )
+        return
+    session.master_r2_key = key
+    logger.info(
+        "Album master for session %s persisted to R2 key %s",
+        session.session_id,
+        key,
+    )
 
 
 def _resolve_sessions(session_ids: list[str]) -> list[tuple[str, SessionData]]:
@@ -297,6 +344,10 @@ async def process_album(
         session.status = ProcessingStatus.COMPLETED
         session.progress = 1.0
         session.error = None
+        # Durability: ``outputs/`` is ephemeral on Railway, so the album master
+        # needs its R2 pointer exactly like the single-track path. Failure is
+        # never fatal — the local master stays valid on this container.
+        await _persist_album_master_to_r2(session, session.mastered_path)
 
         output_lufs = result.get("integrated_lufs")
         deviation = (

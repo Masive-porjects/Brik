@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 import audiomind.api.jobs as jobs_mod
 import audiomind.api.upload as upload_mod
+import audiomind.session_store as session_store_mod
 from audiomind.config import settings
 from audiomind.main import app
 from audiomind.models.audio import AnalysisResult, SessionData
@@ -59,6 +60,13 @@ def _register_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setattr(settings, "output_dir", tmp_path / "outputs")
     monkeypatch.setattr(settings, "license_key", "")
     monkeypatch.setattr(settings, "demo_max_duration_seconds", 0.0)
+    # ``SESSION_FILE`` is resolved from ``settings.upload_dir`` AT IMPORT TIME,
+    # so patching ``upload_dir`` alone would leave ``save_sessions`` writing to
+    # the developer's real uploads/sessions.json -- wiping real sessions with a
+    # test's empty dict. Redirect the module constant as well.
+    monkeypatch.setattr(
+        session_store_mod, "SESSION_FILE", tmp_path / "sessions.json"
+    )
 
     session_id = str(uuid.uuid4())
     audio = tmp_path / f"{session_id}_orig.wav"
@@ -592,6 +600,182 @@ class TestMixJobExecution:
         stored = _active_store().get(job.job_id)
         assert stored.status is JobStatus.ERROR
         assert "R2 upload failed" in stored.error
+
+
+class TestMixJobRegistersTheSession:
+    """The async path must leave the SESSION consistent, not just the job.
+
+    A completed job used to leave ``mix_status="processing"`` forever: the
+    client gate never opened, ``GET /audio/mix`` 404'd, and
+    ``_resolve_master_input`` silently fell back to mastering the ORIGINAL
+    instead of the delivered mix. These tests pin the fix.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _store(self, monkeypatch):
+        store = InMemoryJobStore()
+        monkeypatch.setattr(job_store_mod, "_store", store)
+        yield store
+        monkeypatch.setattr(job_store_mod, "_store", None)
+
+    @pytest.fixture
+    def delivered(self, monkeypatch):
+        """Stub the R2 side so the run is deterministic and offline."""
+        monkeypatch.setattr(mix_jobs, "build_mix", _fake_build_mix)
+        monkeypatch.setattr(
+            mix_jobs.storage, "upload_file", lambda *a, **k: "mixes/x.wav"
+        )
+        monkeypatch.setattr(
+            mix_jobs.storage, "presigned_url", lambda *a, **k: "https://r2/x.wav"
+        )
+
+    def _run(self, session_id: str) -> JobRecord:
+        job = mix_jobs.submit_mix_job(
+            session_id, mix_jobs.MixJobOptions(), original_path="unused"
+        )
+        mix_jobs.run_mix_job(job.job_id, session_id, mix_jobs.MixJobOptions())
+        return _active_store().get(job.job_id)
+
+    def test_success_publishes_the_mix_onto_the_session(
+        self, tmp_path, monkeypatch, delivered
+    ):
+        session_id = _register_session(tmp_path, monkeypatch)
+
+        stored = self._run(session_id)
+
+        assert stored.status is JobStatus.COMPLETED
+        session = upload_mod.sessions[session_id]
+        assert session.mix_status == "completed"
+        assert session.mix_path and Path(session.mix_path).exists()
+        assert session.mix_r2_key == stored.result["r2_key"]
+        assert session.mix_analysis["mix_status"] == "completed"
+        # The analysis snapshot is the mix payload, so the client's
+        # X-Mix-Result consumer sees the same shape as the sync endpoint.
+        assert session.mix_analysis["tempo_bpm"] == 120.0
+
+    def test_the_mix_is_persisted_to_disk(self, tmp_path, monkeypatch, delivered):
+        """The whole point is surviving a restart, so assert the FILE, not
+        just the in-memory object."""
+        session_id = _register_session(tmp_path, monkeypatch)
+
+        self._run(session_id)
+
+        on_disk = session_store_mod.load_sessions()
+        reloaded = on_disk[session_id]
+        assert reloaded.mix_status == "completed"
+        assert reloaded.mix_r2_key == (
+            f"mixes/{session_id}/{session_id}_mix.wav"
+        )
+        assert reloaded.mix_analysis["mix_status"] == "completed"
+
+    def test_r2_key_outlives_the_local_file(self, tmp_path, monkeypatch, delivered):
+        """A redeploy wipes outputs/ but not R2. The key must still be there,
+        so the mastering resolver can re-fetch the bytes."""
+        session_id = _register_session(tmp_path, monkeypatch)
+
+        self._run(session_id)
+        local = Path(upload_mod.sessions[session_id].mix_path)
+        local.unlink()
+
+        reloaded = session_store_mod.load_sessions()[session_id]
+        assert not local.exists()
+        assert reloaded.mix_r2_key, "the durable pointer must survive the file"
+        assert reloaded.mix_status == "completed"
+
+    def test_mix_path_is_not_recorded_when_the_file_vanished(
+        self, tmp_path, monkeypatch, delivered
+    ):
+        """Never persist a path that does not resolve: a dead ``mix_path``
+        would send the resolver into a guaranteed 400 instead of falling back
+        to R2."""
+        session_id = _register_session(tmp_path, monkeypatch)
+        real_exists = Path.exists
+
+        def _vanished(path, *args, **kwargs):
+            # The mix file disappears the instant the worker registers it.
+            return False if str(path).endswith("_mix.wav") else real_exists(
+                path, *args, **kwargs
+            )
+
+        monkeypatch.setattr(mix_jobs.Path, "exists", _vanished)
+
+        self._run(session_id)
+
+        session = upload_mod.sessions[session_id]
+        assert session.mix_status == "completed"
+        assert session.mix_r2_key, "R2 is the deliverable, so the key is recorded"
+        assert not session.mix_path, "a non-existent local path must not be stored"
+
+    def test_dsp_failure_marks_the_session_failed(self, tmp_path, monkeypatch):
+        session_id = _register_session(tmp_path, monkeypatch)
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("dsp exploded")
+
+        monkeypatch.setattr(mix_jobs, "build_mix", _boom)
+
+        stored = self._run(session_id)
+
+        assert stored.status is JobStatus.ERROR
+        assert upload_mod.sessions[session_id].mix_status == "failed"
+
+    def test_r2_failure_marks_the_session_failed(self, tmp_path, monkeypatch):
+        session_id = _register_session(tmp_path, monkeypatch)
+        monkeypatch.setattr(mix_jobs, "build_mix", _fake_build_mix)
+
+        def _upload_fail(*args, **kwargs):
+            raise storage.StorageError("R2 upload failed")
+
+        monkeypatch.setattr(mix_jobs.storage, "upload_file", _upload_fail)
+
+        stored = self._run(session_id)
+
+        assert stored.status is JobStatus.ERROR
+        assert upload_mod.sessions[session_id].mix_status == "failed"
+
+    def test_a_failed_remix_keeps_the_last_delivered_mix(
+        self, tmp_path, monkeypatch, delivered
+    ):
+        """A failure describes THIS run. The previously delivered mix stays
+        downloadable, same contract as the sync endpoint."""
+        session_id = _register_session(tmp_path, monkeypatch)
+        self._run(session_id)
+        first_key = upload_mod.sessions[session_id].mix_r2_key
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("second mix exploded")
+
+        monkeypatch.setattr(mix_jobs, "build_mix", _boom)
+
+        stored = self._run(session_id)
+
+        session = upload_mod.sessions[session_id]
+        assert stored.status is JobStatus.ERROR
+        assert session.mix_status == "failed"
+        assert session.mix_r2_key == first_key
+        assert session.mix_analysis["mix_status"] == "completed"
+
+    def test_a_session_write_failure_does_not_fail_the_finished_mix(
+        self, tmp_path, monkeypatch, delivered
+    ):
+        """The bytes are already in R2. Losing the session bookkeeping must
+        not throw away a finished mix."""
+        session_id = _register_session(tmp_path, monkeypatch)
+        # Only the MIX file vanishes; the original must stay readable or the
+        # job never reaches the delivery step at all.
+        real_exists = Path.exists
+
+        def _vanished(path, *args, **kwargs):
+            return False if str(path).endswith("_mix.wav") else real_exists(
+                path, *args, **kwargs
+            )
+
+        monkeypatch.setattr(mix_jobs.Path, "exists", _vanished)
+
+        stored = self._run(session_id)
+
+        assert stored.status is JobStatus.COMPLETED
+        assert stored.result["r2_key"]
 
 
 def test_blocking_mix_endpoint_still_exists():
