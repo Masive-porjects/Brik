@@ -60,13 +60,9 @@ def _register_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setattr(settings, "output_dir", tmp_path / "outputs")
     monkeypatch.setattr(settings, "license_key", "")
     monkeypatch.setattr(settings, "demo_max_duration_seconds", 0.0)
-    # ``SESSION_FILE`` is resolved from ``settings.upload_dir`` AT IMPORT TIME,
-    # so patching ``upload_dir`` alone would leave ``save_sessions`` writing to
-    # the developer's real uploads/sessions.json -- wiping real sessions with a
-    # test's empty dict. Redirect the module constant as well.
-    monkeypatch.setattr(
-        session_store_mod, "SESSION_FILE", tmp_path / "sessions.json"
-    )
+    # The session backend is redirected into ``tmp_path`` by the harness
+    # fixture in conftest.py, so ``save_sessions`` cannot reach the developer's
+    # real uploads/sessions.json from here.
 
     session_id = str(uuid.uuid4())
     audio = tmp_path / f"{session_id}_orig.wav"

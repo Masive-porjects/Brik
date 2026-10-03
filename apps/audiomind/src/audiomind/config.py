@@ -101,6 +101,22 @@ class Settings(BaseSettings):
             "SUPABASE_MASTERS_BUCKET",
         ),
     )
+    # Which store owns the session record: "auto" (Supabase when it is
+    # configured AND its table probes clean, the file mirror otherwise),
+    # "supabase" (force, no fallback) or "file" (never touch the network).
+    #
+    # "auto" is what production wants. "file" exists for the test suite: it
+    # pins the backend at import time, BEFORE `api.upload` builds its in-memory
+    # dict, so a developer's real credentials can never make the suite read or
+    # write the production `sessions` table. That is the same class of leak as
+    # the one the conftest storage fixture already prevents for R2.
+    session_store_backend: str = Field(
+        default="auto",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SESSION_STORE_BACKEND",
+            "SESSION_STORE_BACKEND",
+        ),
+    )
 
     # ── Cloudflare R2 (S3-compatible object storage) ─────────────────────
     # Credentials are ENV-ONLY on purpose: there is deliberately NO default

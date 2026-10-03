@@ -12,10 +12,9 @@ and re-hydration before any endpoint gives up.
 Isolation rules that MUST be respected here (a previous session got them
 wrong and wrote into the developer's real repo):
 
-* ``session_store.SESSION_FILE`` is bound at IMPORT time from
-  ``settings.upload_dir``, so patching ``upload_dir`` alone is not enough —
-  the endpoints' ``save_sessions`` calls would overwrite the real
-  ``uploads/sessions.json``;
+* the session backend is pinned into ``tmp_path`` by the harness fixture in
+  ``conftest.py``, so the endpoints' ``save_sessions`` calls cannot overwrite
+  the developer's real ``uploads/sessions.json``;
 * ``output_dir``/``upload_dir`` must exist: production gets them from the app
   lifespan, and ``TestClient`` without ``with`` never runs it;
 * R2 is stubbed over the real ``storage`` module, so no test can reach the
@@ -34,7 +33,6 @@ import soundfile as sf
 from fastapi.testclient import TestClient
 
 import audiomind.api.mastering as mastering_mod
-import audiomind.session_store as session_store_mod
 from audiomind.api.upload import sessions
 from audiomind.config import settings
 from audiomind.main import app
@@ -81,10 +79,6 @@ def _fresh_store(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "upload_dir", tmp_path / "uploads")
     for _dir in ("outputs", "uploads"):
         (tmp_path / _dir).mkdir(parents=True, exist_ok=True)
-    # Bound at import time → the real uploads/sessions.json would be wiped.
-    monkeypatch.setattr(
-        session_store_mod, "SESSION_FILE", tmp_path / "sessions.json"
-    )
     yield
     sessions.clear()
     mastering_mod._prerender_cache.clear()
