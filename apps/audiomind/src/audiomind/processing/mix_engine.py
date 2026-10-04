@@ -87,6 +87,7 @@ bloquea").
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -94,6 +95,7 @@ import numpy as np
 import soundfile as sf
 
 from audiomind.config import settings
+from audiomind.models.mix_metadata import MixMetadata
 from audiomind.processing.adaptive_comp import AdaptiveCompressor
 from audiomind.processing.creative import (
     apply_variant_to_profiles,
@@ -129,10 +131,9 @@ from audiomind.processing.render_versions import (
     render_version_buses,
 )
 from audiomind.processing.resample import resample_audio
+from audiomind.processing.spatial import mid_side_encode
 from audiomind.processing.splitter import STEM_NAMES, split_audio
 from audiomind.processing.stem_balance import compute_stem_balance
-from audiomind.models.mix_metadata import MixMetadata
-from audiomind.processing.spatial import mid_side_encode
 
 #: Per-stem fields extracted from ``AnalysisResult`` (spec: LUFS/DR/centroid).
 _STEM_ANALYSIS_FIELDS: tuple[str, ...] = (
@@ -473,7 +474,6 @@ def _compute_mix_metadata(
     }
 
     # 4. Transient headroom (True Peak - ceiling)
-    from scipy.signal import find_peaks
     peak = float(np.max(np.abs(final_bus)))
     true_peak_db = 20.0 * float(np.log10(peak + 1e-10))
     transient_headroom_db = limiter_ceiling_db - true_peak_db
@@ -504,6 +504,7 @@ def build_mix(
     creative_manual: bool = False,
     auto_balance: bool = False,
     stem_trims: dict[str, float] | None = None,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> dict[str, Any]:
     """Run the per-stem routing pipeline for a session.
 
@@ -623,6 +624,12 @@ def build_mix(
             with at least one non-zero gain the payload carries
             ``trim_report`` = ``{"gains": {non-zero ``{stem}_db`` keys},
             "applied": true}``.
+        progress_cb: Optional ``(pct, stage)`` callback invoked as each key
+            pipeline stage completes. ``pct`` is 0-100 and ``stage`` is one
+            of the Mix Engine's stage ids (``split``, ``eq``, ``pan``,
+            ``dimension``, ``dynamics``, ``emphasis``, ``bus``). The callback
+            is best-effort UI feedback: it is never allowed to raise into the
+            DSP, and ``None`` (default) keeps the exact previous behaviour.
 
     Returns:
         ``{
@@ -703,6 +710,17 @@ def build_mix(
             negative, or variants are requested without a
             ``creative_seed``.
     """
+    def _report(pct: float, stage: str) -> None:
+        """Report pipeline progress. A callback must never break the DSP."""
+        if progress_cb is None:
+            return
+        try:
+            progress_cb(pct, stage)
+        except Exception:
+            pass
+
+    _report(0, "split")
+
     # Paso 08 contract validation — cheap, before any heavy work. The
     # slider lives in [0, 1] and creative mode REQUIRES a seed (the
     # per-variant streams are what make the A/B reproducible).
@@ -727,6 +745,8 @@ def build_mix(
     missing = [name for name in STEM_NAMES if name not in stems]
     if missing:
         raise ValueError(f"split_audio missing stems: {', '.join(missing)}")
+
+    _report(25, "split")
 
     # Read + resample every stem to the common bus rate. Paso 03 measures
     # the M/S position on the RESAMPLED stem (before any correction) and
@@ -812,6 +832,8 @@ def build_mix(
             resampled_stems, pan_profiles
         )
 
+    _report(35, "pan")
+
     # Paso 06: the genre-scaled dimension profiles are computed ONCE per
     # stem (they are pure functions of the base profile + the weights)
     # and feed the PRINCIPAL routing below. Paso 08 creative variants
@@ -863,7 +885,7 @@ def build_mix(
     eq_profiles_applied: dict[str, list[dict[str, Any]]] = {}
     dimension_stems_report: dict[str, Any] = {}
     compressor_stems_report: dict[str, Any] = {}
-    for name in STEM_NAMES:
+    for stem_index, name in enumerate(STEM_NAMES):
         comp_profile = (
             compressor_profiles.get(name) if compressor_enabled else None
         )
@@ -896,6 +918,9 @@ def build_mix(
             )
         bus_audio.append(shaped)
         processed_stems[name] = shaped
+        _report(40 + (stem_index + 1) * 8, "eq")
+
+    _report(75, "dimension")
 
     # T3/T4 — auto-balance: measure the processed stems and correct ONLY the
     # voice toward the genre target (emphasis weights), bounded by the
@@ -998,12 +1023,17 @@ def build_mix(
             "technique": bus_stage_report["technique"],
         }
 
+    _report(82, "dynamics")
+    _report(86, "emphasis")
+
     # Paso 07: QC report on the FINAL compressed bus — informational
     # flags that never block the render (human decision per the plan).
     qc_report = run_qc_checks(bus, target_sr, pan_info=pan_report)
 
     mix_path = (settings.output_dir / f"{session_id}_mix.wav").resolve()
     write_output(bus, mix_path, target_sr, bit_depth=24)
+
+    _report(90, "bus")
 
     # Paso 07: alternative versions from the SAME processed stems (only
     # the vocals trim differs — ``render_versions``). The principal is
@@ -1036,6 +1066,8 @@ def build_mix(
                 "trim_db": VERSION_TRIMS_DB[version_name],
                 "description": VERSION_DESCRIPTIONS[version_name],
             }
+
+        _report(93, "bus")
 
     # Paso 08: CREATIVE MODE — "exploración creativa acotada"
     # (``creative.py``). Variants reroute the SAME raw resampled stems (no
@@ -1146,6 +1178,8 @@ def build_mix(
             manual=creative_manual,
         )
 
+    _report(95, "bus")
+
     # Analysis is heavy (librosa) — lazy import, same policy as mastering.
     from audiomind.analysis.analyzer import analyze_audio
 
@@ -1157,6 +1191,7 @@ def build_mix(
         }
 
     mix_result = analyze_audio(mix_path)
+    _report(98, "bus")
     build_result: dict[str, Any] = {
         "mix_path": str(mix_path),
         "sample_rate": target_sr,

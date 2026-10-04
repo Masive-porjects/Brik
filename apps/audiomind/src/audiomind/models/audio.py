@@ -749,6 +749,10 @@ class PresetMasterEntry(BaseModel):
 
     preset_id: str
     output_path: str | None = None
+    # Durable R2 pointer for this preset's master. ``output_path`` is a LOCAL
+    # path and Railway has no persistent disk, so a redeploy leaves it dangling;
+    # this key is what re-hydrates the WAV from storage.
+    r2_key: str | None = None
     master_result: MasterResultMetrics | None = None
     validation: ValidationReport | None = None
     status: str = "pending"
@@ -767,6 +771,11 @@ class SessionData(BaseModel):
     reference_filename: str | None = None
     reference_comparison: ReferenceComparison | None = None
     mastered_path: str | None = None
+    # Durable R2 pointer for ``mastered_path``. Same story as
+    # ``PresetMasterEntry.r2_key``: the local path is ephemeral on Railway, so
+    # this key is the only thing that survives a redeploy. Independent of the
+    # per-preset keys, because ``mastered_path`` is its own pointer.
+    master_r2_key: str | None = None
     analysis: AnalysisResult | None = None
     parameters: MasteringParameters = MasteringParameters()
     master_result: MasterResultMetrics | None = None
@@ -801,6 +810,19 @@ class SessionData(BaseModel):
     mix_metadata: dict | None = Field(
         default=None,
         description="Metadatos de mezcla serializados (MixMetadata.model_dump()) para master adaptativo"
+    )
+    # Durable pointer to the delivered mix in Cloudflare R2. ``mix_path`` is a
+    # LOCAL path and Railway has no persistent disk, so a redeploy leaves the
+    # session pointing at a file that no longer exists. This key survives, and
+    # the mastering resolver re-downloads the bytes from it when needed. It is
+    # the async mix path (``POST /api/jobs/mix/{id}``) that sets it; sessions
+    # persisted before it existed keep loading with ``None``.
+    mix_r2_key: str | None = Field(
+        default=None,
+        description=(
+            "Clave del WAV de mezcla en Cloudflare R2. Único puntero que "
+            "sobrevive al redeploy cuando el archivo local se pierde."
+        ),
     )
 
 

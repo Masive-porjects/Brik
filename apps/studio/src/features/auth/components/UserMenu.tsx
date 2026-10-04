@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { User as UserIcon, LogOut, ChevronDown, ShieldCheck, Mail, ArrowLeft, Music2 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { useAuth } from "../hooks/useAuth";
 import { useTranslation } from "@/i18n/useTranslation";
 import { GoogleIcon, SpotifyIcon, DiscordIcon, GitHubIcon } from "./SocialIcons";
@@ -55,7 +56,7 @@ function getProviderMeta(providerRaw?: string, t?: (key: string, fallback: strin
   };
 }
 
-function getActiveProvider(user: any): string {
+function getActiveProvider(user: User | null): string {
   if (typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem("waveia_last_auth_provider");
@@ -66,7 +67,7 @@ function getActiveProvider(user: any): string {
   }
 
   if (user?.identities && Array.isArray(user.identities) && user.identities.length > 0) {
-    const sorted = [...user.identities].sort((a: any, b: any) => {
+    const sorted = [...user.identities].sort((a, b) => {
       const timeA = new Date(a.last_sign_in_at || a.created_at || 0).getTime();
       const timeB = new Date(b.last_sign_in_at || b.created_at || 0).getTime();
       return timeB - timeA;
@@ -119,11 +120,13 @@ export default function UserMenu({ onOpenLibrary }: UserMenuProps = {}) {
     );
   }
 
+  const identityEmail = user.identities?.find((i) => i.identity_data?.email)?.identity_data
+    ?.email;
   const userEmail =
     user.email ||
     profile?.email ||
     user.user_metadata?.email ||
-    user.identities?.find((i: any) => i.identity_data?.email)?.identity_data?.email ||
+    (typeof identityEmail === "string" ? identityEmail : undefined) ||
     "";
 
   const displayName =

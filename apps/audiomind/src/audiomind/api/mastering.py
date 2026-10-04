@@ -1,6 +1,7 @@
 """Mastering API endpoints."""
 from pathlib import Path
 import asyncio
+import logging
 import shutil
 import time
 import uuid
@@ -32,7 +33,7 @@ from audiomind.models.audio import (
     SessionData,
     ValidationReport,
 )
-from audiomind.services import demo_guard
+from audiomind.services import demo_guard, storage
 from audiomind.session_store import save_sessions
 from audiomind.api.upload import sessions
 # Heavy DSP modules (librosa/pedalboard) are imported lazily inside the
@@ -78,6 +79,8 @@ compare_tracks: Callable[..., ReferenceComparison] = _lazy_dsp_call(
 )
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 # Thread pool for CPU-bound DSP — keeps the FastAPI event loop free
 # so progress polling and other requests remain responsive during processing.
@@ -125,6 +128,7 @@ def _build_preset_params(preset_id: str) -> MasteringParameters:
         eq_bands=entry.get("eq_bands", []),
         output_bit_depth=24,
         target_lufs_db=entry.get("target_lufs"),
+        tape_enabled=entry.get("saturation", {}).get("type") == "tape" if entry.get("saturation") else False,
     )
 
 
@@ -240,29 +244,298 @@ class MasterInput(NamedTuple):
     mix_metadata: dict | None = None
 
 
-def _resolve_master_input(
+def _mix_is_deliverable(session: SessionData) -> bool:
+    """Whether a ``completed`` mix still has bytes we can master.
+
+    Local file first (fast path, no network), otherwise the durable R2 key.
+
+    Checking only ``mix_path`` used to be the whole test, and that is exactly
+    why a redeployed container silently mastered the ORIGINAL instead of the
+    delivered mix: the mix was fine and sitting in R2, the local copy was gone,
+    and the user got a master of the wrong audio with no error at all.
+    """
+    if session.mix_path and Path(session.mix_path).exists():
+        return True
+    return bool(session.mix_r2_key)
+
+
+async def _hydrate_mix_from_r2(session: SessionData) -> str | None:
+    """Re-download the delivered mix from R2 when the local file is gone.
+
+    Returns the local path of the rehydrated WAV, or ``None`` when the bytes
+    cannot be recovered (no key recorded, object absent, R2 unreachable, or no
+    credentials). Callers read ``None`` as "this mix is not deliverable" and
+    keep the honest error -- never a silent fall back to the original.
+
+    The download runs on a worker thread: it is network I/O, and blocking the
+    event loop on it is the exact failure this whole async-job design exists
+    to avoid. Deliberately NOT ``_dsp_executor``: a download must not occupy a
+    slot reserved for CPU-bound DSP on a single-worker container.
+    """
+    key = session.mix_r2_key
+    if not key:
+        return None
+
+    target = (settings.output_dir / f"{session.session_id}_mix_from_r2.wav").resolve()
+    try:
+        settings.output_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(storage.download_to, key, str(target))
+    except (storage.StorageError, OSError) as exc:
+        logger.warning(
+            "Could not rehydrate the mix for session %s from R2 key %s: %s",
+            session.session_id,
+            key,
+            exc,
+        )
+        return None
+
+    # An empty or truncated download would sail through exists() and then fail
+    # deep inside the DSP chain with a confusing codec error. Refuse it here.
+    try:
+        size = target.stat().st_size
+    except OSError as exc:  # pragma: no cover - stat on a just-written file
+        logger.warning(
+            "Rehydrated mix for %s is unreadable: %s", session.session_id, exc
+        )
+        return None
+    if size <= 0:
+        logger.warning(
+            "R2 returned an empty mix for session %s (key %s)", session.session_id, key
+        )
+        return None
+
+    # Cache the recovered pointer so the next master run is a plain local read
+    # and the session is self-healing across further requests.
+    session.mix_path = str(target)
+    save_sessions(sessions)
+    logger.info(
+        "Rehydrated mix for session %s from R2 key %s (%d bytes)",
+        session.session_id,
+        key,
+        size,
+    )
+    return str(target)
+
+
+async def _persist_master_to_r2(
+    session: SessionData,
+    path: str | Path | None,
+    *,
+    preset_id: str | None = None,
+) -> str | None:
+    """Upload a mastered WAV to R2 and record the durable key on the session.
+
+    Returns the key on success and ``None`` on ANY failure. It never raises:
+    the master already exists on the local disk, and R2 is only the insurance
+    that survives a Railway redeploy. Turning an R2 outage into a failed
+    mastering request would be a regression (the user already has the file),
+    and silently swallowing it is the documented policy of the mix twin
+    ``_record_mix_on_session``.
+
+    Which pointers get stamped:
+
+    * ``preset_id`` given → that entry's ``r2_key``, so a later
+      ``?preset_id=`` lookup can re-hydrate.
+    * always → ``session.master_r2_key``, because ``mastered_path`` is a
+      SEPARATE pointer that must stay independently durable.
+
+    When both point at the very file uploaded here (the preset on-demand
+    path), this is ONE PUT and both keys point at it — two R2 writes for one
+    object would be waste. ``output_path``/``mastered_path`` are never set
+    here: the call sites own their naming.
+
+    The PUT runs on a worker thread. Sites 2/3/5 are async and a blocking
+    upload would stall the single event-loop worker of the container.
+    """
+    if not path:
+        return None
+    source = Path(path)
+    if not source.exists():
+        logger.warning(
+            "Skipping the R2 upload of the master for session %s: %s is gone",
+            session.session_id,
+            source,
+        )
+        return None
+
+    key = (
+        storage.build_key(
+            "masters", session.session_id, f"{preset_id}_mastered.wav"
+        )
+        if preset_id
+        else storage.build_key(
+            "masters", session.session_id, f"{session.session_id}_mastered.wav"
+        )
+    )
+    try:
+        await asyncio.to_thread(
+            storage.upload_file, str(source), key, content_type="audio/wav"
+        )
+    except Exception as exc:
+        # Local pointers keep their values: the master is deliverable on THIS
+        # container, and a redeploy may then lose it (an honest 404 later).
+        logger.warning(
+            "Master %s for session %s was not persisted to R2 key %s: %s",
+            source.name,
+            session.session_id,
+            key,
+            exc,
+        )
+        return None
+
+    if preset_id:
+        # Only stamp an entry that already exists: inventing a pending one
+        # would advertise a master the client never received.
+        entry = session.preset_masters.get(preset_id)
+        if entry is not None:
+            entry.r2_key = key
+    session.master_r2_key = key
+    save_sessions(sessions)
+    logger.info("Master for session %s persisted to R2 key %s", session.session_id, key)
+    return key
+
+
+def _master_hydration_target(session: SessionData, preset_id: str | None) -> Path:
+    """Deterministic local filename for a re-hydrated master (D4).
+
+    Derived from the session id and the preset, never from the dead path
+    string, so it matches the production naming
+    (``{sid}_{preset_id}_mastered.wav`` / ``{sid}_mastered.wav``) instead of
+    trying to revive a filename that may contain characters no session id has.
+    """
+    if preset_id:
+        name = f"{session.session_id}_{preset_id}_mastered_from_r2.wav"
+    else:
+        name = f"{session.session_id}_mastered_from_r2.wav"
+    return (settings.output_dir / name).resolve()
+
+
+async def _resolve_master_file(
+    session: SessionData,
+    preset_id: str | None,
+    *,
+    missing_detail: str,
+    missing_status: int = 404,
+) -> Path:
+    """Return a local, readable path for the requested master.
+
+    Every endpoint that serves a master routes through here, so the
+    re-hydration logic exists once. Precedence is exactly what the endpoints
+    implemented on their own: with a ``preset_id`` only that entry counts
+    (an unknown preset never falls back to ``mastered_path``); without one,
+    the legacy ``mastered_path`` pointer.
+
+    A master whose local file vanished on a redeploy is re-downloaded from the
+    durable R2 key (the master-side twin of ``_hydrate_mix_from_r2``), then
+    the recovered pointer is cached on the session so the next request is a
+    plain local read.
+
+    ``missing_detail``/``missing_status`` keep each caller's existing answer
+    for "this master never existed" (the wording and the status the endpoint
+    already used). An EXISTING master that cannot be re-hydrated is a
+    different failure — the resource is gone, the request is fine — so it is
+    always a 404 naming the key and the real reason.
+    """
+    entry = session.preset_masters.get(preset_id) if preset_id else None
+    if preset_id:
+        pointer = entry.output_path if entry is not None else None
+        key = entry.r2_key if entry is not None else None
+        label = f"preset '{preset_id}'"
+    else:
+        pointer = session.mastered_path
+        key = session.master_r2_key
+        label = "master"
+
+    if pointer and Path(pointer).exists():
+        return Path(pointer)
+
+    if not key:
+        raise HTTPException(status_code=missing_status, detail=missing_detail)
+
+    target = _master_hydration_target(session, preset_id)
+    try:
+        settings.output_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(storage.download_to, key, str(target))
+        size = target.stat().st_size
+    except (storage.StorageError, OSError) as exc:
+        logger.warning(
+            "Could not rehydrate the %s of session %s from R2 key %s: %s",
+            label,
+            session.session_id,
+            key,
+            exc,
+        )
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"The {label} of session {session.session_id} is not recoverable: "
+                f"its local file is missing and the R2 key {key!r} could not be "
+                f"downloaded ({exc}). Re-run POST /session/{{id}}/process."
+            ),
+        ) from exc
+
+    # An empty object would sail past the existence check and then fail deep
+    # inside the codec, so it is treated as unrecoverable, never served.
+    if size <= 0:
+        logger.warning(
+            "R2 returned an empty master for session %s (key %s)",
+            session.session_id,
+            key,
+        )
+        target.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"The {label} of session {session.session_id} is not recoverable: "
+                f"its local file is missing and the R2 key {key!r} holds an empty "
+                "object. Re-run POST /session/{id}/process."
+            ),
+        )
+
+    # Cache the recovered pointer so the next request is a plain local read.
+    if entry is not None:
+        entry.output_path = str(target)
+    # ``mastered_path`` is repaired too when the key just fetched is its OWN
+    # durable pointer (the preset paths stamp both from one upload), so a
+    # preset lookup also un-breaks the legacy pointer. Never otherwise: a
+    # different key means different bytes.
+    if not preset_id or key == session.master_r2_key:
+        session.mastered_path = str(target)
+    save_sessions(sessions)
+    logger.info(
+        "Rehydrated the %s of session %s from R2 key %s (%d bytes)",
+        label,
+        session.session_id,
+        key,
+        size,
+    )
+    return target
+
+
+async def _resolve_master_input(
     session: SessionData, source: MasterSource | None
 ) -> MasterInput:
     """Resolve which file ``/process`` must master for this session.
 
     ``source=None`` (the default) is the SMART resolution: the mix wins
-    only when it is genuinely deliverable — ``mix_status == "completed"``
-    AND its file is on disk — otherwise the uploaded original. Any
-    client that does not know about mixes (older builds) therefore keeps
+    only when it is genuinely deliverable -- ``mix_status == "completed"``
+    AND its bytes are reachable (local file, or the durable R2 key that
+    ``_hydrate_mix_from_r2`` can re-fetch). Otherwise the uploaded original.
+    Any client that does not know about mixes (older builds) therefore keeps
     the historic behavior.
 
     An explicit ``source="mix"`` on a session that never completed a mix
     is a REQUEST error (400) with the real state in the message, not a
     silent fallback to the original: asking for the mix and getting the
     original back would be a lie.
+
+    ``async`` because recovering a mix that only exists in R2 is a network
+    round trip. Refusing instead would make every delivered mix unmasterable
+    after a redeploy, which is precisely the deployment we run on.
     """
     if source is None:
         resolved: MasterSource = "original"
-        if (
-            session.mix_status == "completed"
-            and session.mix_path
-            and Path(session.mix_path).exists()
-        ):
+        if session.mix_status == "completed" and _mix_is_deliverable(session):
             resolved = "mix"
     else:
         resolved = source
@@ -277,19 +550,28 @@ def _resolve_master_input(
             )
 
     if resolved == "mix":
-        # A ``completed`` mix whose file vanished (cleaned volume, manual
-        # delete) is not deliverable: refuse instead of 500ing inside DSP.
-        if not session.mix_path or not Path(session.mix_path).exists():
+        local: str | None = (
+            session.mix_path
+            if session.mix_path and Path(session.mix_path).exists()
+            else None
+        )
+        if local is None:
+            # A ``completed`` mix whose local copy vanished (redeploy, cleaned
+            # volume) is still recoverable from R2.
+            local = await _hydrate_mix_from_r2(session)
+        if local is None:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "source='mix' but the mix file is missing on disk "
-                    f"(mix_status='{session.mix_status}'). Re-run the mix."
+                    "source='mix' but the mix is not recoverable "
+                    f"(mix_status='{session.mix_status}', local file missing, "
+                    f"R2 key {'present' if session.mix_r2_key else 'absent'}). "
+                    "Re-run the mix."
                 ),
             )
         return MasterInput(
             source="mix",
-            input_path=str(session.mix_path),
+            input_path=local,
             mix_metadata=session.mix_metadata,
         )
 
@@ -547,6 +829,14 @@ async def _process_preset_on_demand(
         session.status = ProcessingStatus.ERROR
         session.error = f"Processing failed: {str(e)}"
         raise HTTPException(status_code=500, detail=session.error) from e
+
+    # The job ran in a worker thread, so the durable R2 pointer is written
+    # here, from async context. The preset entry and ``mastered_path`` share
+    # one file here, so this single call stamps BOTH keys from ONE upload.
+    if session.preset_masters.get(preset_id) is not None:
+        entry_path = session.preset_masters[preset_id].output_path
+        if entry_path and session.mastered_path == entry_path:
+            await _persist_master_to_r2(session, entry_path, preset_id=preset_id)
     return session
 
 
@@ -718,9 +1008,9 @@ async def process_session(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # Which file this run consumes (raises 400 on source=mix without a
-    # completed mix) — resolved before ANY read so the existence check,
+    # recoverable mix) — resolved before ANY read so the existence check,
     # the analysis and the engine all agree.
-    master_input = _resolve_master_input(session, source)
+    master_input = await _resolve_master_input(session, source)
 
     if not master_input.input_path or not Path(master_input.input_path).exists():
         raise HTTPException(
@@ -812,6 +1102,9 @@ async def process_session(
                 created_at=time.time(),
             )
             save_sessions(sessions)
+            # The entry and ``mastered_path`` are the SAME file (the copy
+            # above), so one upload stamps both durable keys.
+            await _persist_master_to_r2(session, output_path, preset_id=preset_id)
             return session
 
     # ── Pre-render cache: serve dynamically pre-rendered master ── */
@@ -848,6 +1141,11 @@ async def process_session(
                     created_at=time.time(),
                 )
                 save_sessions(sessions)
+                # Durability is recorded for the SESSION copy (the prerender
+                # artifact itself is shared by every session of that upload),
+                # and the entry is pointed at that same key so a later
+                # ?preset_id= lookup re-hydrates identical bytes.
+                await _persist_master_to_r2(session, output_path, preset_id=preset_id)
                 return session
 
     # ── Preset-aware on-demand processing (client demo mode) ──
@@ -970,6 +1268,10 @@ async def process_session(
 
     demo_guard.touch(session_id)
     save_sessions(sessions)
+    # ``_run_processing`` is a worker thread, so the R2 pointer is written from
+    # async context here. Upload failure never fails the request: the local
+    # master is already written and deliverable on this container.
+    await _persist_master_to_r2(session, session.mastered_path)
     return session
 
 
@@ -1086,6 +1388,9 @@ async def get_prerendered(session_id: str, preset_id: str) -> FileResponse:
                 session.mastered_path = str(path)
                 session.master_result = entry.get("master_result")
                 session.validation = entry.get("validation")
+                # Keep the durable pointer in step with the pointer this
+                # endpoint just published.
+                await _persist_master_to_r2(session, path)
             return FileResponse(str(path), media_type="audio/wav", filename=path.name)
 
     raise HTTPException(
@@ -1173,8 +1478,11 @@ async def reset_session_master(session_id: str) -> SessionData:
     Clears every master pointer and per-preset output and returns the
     session to the pre-master state (``uploaded``). The rendered WAV files
     stay on disk, untracked by the session — a later preset selection
-    re-masters normally. The uploaded original and its analysis are
-    untouched.
+    re-masters normally. The durable Cloudflare R2 pointers are cleared too
+    (``master_r2_key`` and every per-preset key), so a discarded master can
+    never be re-hydrated from storage; the objects themselves are left alone
+    (there is no lifecycle for them, same as the mixes). The uploaded
+    original and its analysis are untouched.
 
     ``mix_status`` is cleared with the rest of the session state (``none``):
     the mix is not a master pointer, but a reset means "start over from my
@@ -1189,6 +1497,10 @@ async def reset_session_master(session_id: str) -> SessionData:
         raise HTTPException(status_code=404, detail="Session not found")
 
     session.mastered_path = None
+    # The durable R2 pointer goes with the local one: a reset means the user
+    # discarded the master, so nothing must be able to re-hydrate it. The
+    # per-preset keys are dropped by ``preset_masters = {}`` below.
+    session.master_r2_key = None
     session.master_result = None
     session.mastering_report = None
     session.validation = None
@@ -1333,21 +1645,25 @@ async def compare_reference(session_id: str, _: object = Depends(require_license
                 "POST /session/{id}/reference-file first."
             ),
         )
-    if not session.mastered_path or not Path(session.mastered_path).exists():
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No mastered audio available. "
-                "POST /session/{id}/process first."
-            ),
-        )
+    # Re-hydrates the master from R2 when a redeploy took the local file, so
+    # the comparison view keeps working instead of asking for a re-master.
+    master_file = await _resolve_master_file(
+        session,
+        None,
+        missing_detail=(
+            "No mastered audio available. POST /session/{id}/process first."
+        ),
+        # Historic status for "this session was never mastered": an actionable
+        # request-state problem, not a missing resource.
+        missing_status=400,
+    )
 
     if session.reference_comparison is not None:
         return session.reference_comparison
 
     try:
         comparison = await asyncio.get_running_loop().run_in_executor(
-            _dsp_executor, compare_tracks, session.mastered_path, session.reference_path
+            _dsp_executor, compare_tracks, str(master_file), session.reference_path
         )
     except Exception as e:
         raise HTTPException(
@@ -1398,6 +1714,8 @@ async def get_audio(
     ``audio_type == "mastered"`` accepts an optional ``?preset_id=X`` to
     serve that preset's mastered file instead of the legacy
     ``mastered_path`` pointer; unknown presets / missing files → 404.
+    A master whose local file was lost with the container is re-hydrated
+    from its durable R2 pointer first, so playback survives a redeploy.
     """
     session = sessions.get(session_id)
     if not session:
@@ -1405,20 +1723,19 @@ async def get_audio(
 
     if audio_type == "original":
         path = session.original_path
+        if not path or not Path(path).exists():
+            raise HTTPException(status_code=404, detail="Audio file not found")
     elif audio_type == "mastered":
-        if preset_id:
-            entry = session.preset_masters.get(preset_id)
-            path = entry.output_path if entry is not None else None
-        else:
-            path = session.mastered_path
+        path = str(
+            await _resolve_master_file(
+                session, preset_id, missing_detail="Audio file not found"
+            )
+        )
     else:
         raise HTTPException(
             status_code=400,
             detail="audio_type must be 'original' or 'mastered'",
         )
-
-    if not path or not Path(path).exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
 
     return FileResponse(
         str(Path(path).resolve()),
@@ -1468,20 +1785,17 @@ async def get_raw_mastered_audio(
     """Return raw PCM audio data of the mastered version.
 
     ``?preset_id=X`` serves that preset's mastered file (404 when unknown
-    or missing); the no-param legacy behavior reads ``mastered_path``.
+    or missing); the no-param legacy behavior reads ``mastered_path``. A
+    master lost with the container is re-hydrated from R2 first, so the
+    waveform comparison keeps working after a redeploy.
     """
     session = sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if preset_id:
-        entry = session.preset_masters.get(preset_id)
-        path = entry.output_path if entry is not None else None
-    else:
-        path = session.mastered_path
-
-    if not path or not Path(path).exists():
-        raise HTTPException(status_code=404, detail="No mastered audio available")
+    path = await _resolve_master_file(
+        session, preset_id, missing_detail="No mastered audio available"
+    )
 
     audio, sr = sf.read(path, dtype="float32")
 
@@ -1510,22 +1824,21 @@ async def download_audio(
 
     ``?preset_id=X`` downloads THAT preset's mastered file (same
     precedence as ``/audio/mastered``); no param keeps the legacy
-    ``mastered_path`` behavior. MP3 conversion keeps using ffmpeg.
+    ``mastered_path`` behavior. MP3 conversion keeps using ffmpeg. A master
+    lost with the container is re-hydrated from R2 first, so a master the
+    user already paid for stays downloadable after a redeploy.
     """
     session = sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if preset_id:
-        entry = session.preset_masters.get(preset_id)
-        source = entry.output_path if entry is not None else None
-    else:
-        source = session.mastered_path
-
-    if not source or not Path(source).exists():
-        raise HTTPException(
-            status_code=404, detail="No mastered audio available. Process first."
+    source = str(
+        await _resolve_master_file(
+            session,
+            preset_id,
+            missing_detail="No mastered audio available. Process first.",
         )
+    )
 
     if format not in ("wav", "mp3"):
         raise HTTPException(status_code=400, detail="Format must be 'wav' or 'mp3'")

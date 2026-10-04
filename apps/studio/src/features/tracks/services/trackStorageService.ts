@@ -6,6 +6,7 @@ import type {
   AudioMetadata,
   MasterRecord,
   CreateMasterInput,
+  StoredMasteringParams,
   TrackFilterStatus,
   TrackEventType,
   TrackEvent,
@@ -31,7 +32,10 @@ export async function extractAudioMetadata(file: File): Promise<AudioMetadata> {
 
   // Method 1: Decode via Web Audio API for exact sample rate and channels
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    // Safari only exposes the vendor-prefixed AudioContext constructor.
+    const AudioCtx =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (AudioCtx) {
       const ctx = new AudioCtx();
       const arrayBuffer = await file.arrayBuffer();
@@ -279,12 +283,12 @@ export async function updateTrackStatus(
  */
 export async function saveTrackDraft(
   trackId: string,
-  draftParameters: Record<string, any>,
+  draftParameters: StoredMasteringParams,
   activePreset: string | null = null,
   draftName?: string | null
 ): Promise<void> {
   const supabase = createClient();
-  const updatePayload: Record<string, any> = {
+  const updatePayload: Record<string, unknown> = {
     draft_parameters: draftParameters,
     active_preset: activePreset,
     updated_at: new Date().toISOString(),
@@ -333,7 +337,7 @@ export async function clearTrackDraft(
   markCompleted = true
 ): Promise<void> {
   const supabase = createClient();
-  const updateData: Record<string, any> = {
+  const updateData: Record<string, unknown> = {
     draft_parameters: null,
     active_preset: null,
     updated_at: new Date().toISOString(),
@@ -415,7 +419,7 @@ export async function createMasterRecord(
   input: CreateMasterInput
 ): Promise<MasterRecord> {
   const supabase = createClient();
-  const insertPayload: Record<string, any> = {
+  const insertPayload: Record<string, unknown> = {
     id: input.id,
     track_id: input.track_id,
     user_id: userId,
@@ -552,7 +556,7 @@ export async function logTrackEvent(
   userId: string,
   trackId: string,
   eventType: TrackEventType,
-  details: Record<string, any> = {}
+  details: unknown = {}
 ): Promise<void> {
   try {
     const supabase = createClient();

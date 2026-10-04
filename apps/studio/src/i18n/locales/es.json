@@ -439,7 +439,17 @@
     "gateProcessingNotice": "Termina tu mezcla antes de masterizar.",
     "gateFailedNotice": "Tu mezcla falló. Reintenta la mezcla para continuar al master.",
     "gateProcessingCta": "Ir a la mezcla",
-    "gateFailedCta": "Reintentar la mezcla"
+    "gateFailedCta": "Reintentar la mezcla",
+    "jobInterrupted": "El procesamiento se interrumpió. Vuelve a intentarlo.",
+    "jobTimeout": "La mezcla tardó demasiado y se detuvo. Vuelve a intentarlo.",
+    "jobDone": "Mezcla final generada exitosamente"
+  },
+  "mezclas": {
+    "trackLoading": "Cargando tu proyecto de audio…",
+    "trackMissingTitle": "No encontramos esa pista",
+    "trackMissingBody": "Puede que pertenezca a otra cuenta o que ya no exista.",
+    "trackMissingCta": "Elegir otro audio",
+    "trackError": "No pudimos cargar la pista. Revisa tu conexión e intenta de nuevo."
   },
   "songstarter": {
     "title": "Beats",

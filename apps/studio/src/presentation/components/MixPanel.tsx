@@ -17,13 +17,15 @@ import {
 import {
   getAudioUrl,
   getMixAudioUrl,
-  mixTracks,
+  submitMixJob,
+  getMixJobState,
   type MixResult,
 } from "@/lib/api";
 import { genreDisplayLabel } from "@/lib/audioUtils";
 import MixWaveformAB from "@/presentation/components/MixWaveformAB";
 import MixStatusStream from "@/presentation/components/MixStatusStream";
 import { MIX_STATUS_STAGES } from "@/presentation/components/mixI18n";
+import { useTranslation } from "@/i18n";
 
 /* ── Módulo: tokens semánticos de globals.css (dark por defecto,
    light con html[data-theme="light"]). Los acentos de marca (verde
@@ -48,8 +50,6 @@ interface MixPanelProps {
   sessionMixPath?: string | null;
   /** ``session.mix_analysis`` persistido (espejo del header X-Mix-Result). */
   sessionMixAnalysis?: MixResult | null;
-  /** Duración del audio original en segundos (``session.analysis``). */
-  audioDurationSeconds?: number | null;
   disabled?: boolean;
   /** ``session.analysis.detected_genre`` — alimenta el mini-panel IA. */
   genreHint?: string | null;
@@ -77,23 +77,8 @@ interface MixPanelProps {
  */
 
 /**
- * Tiempo por etapa según la duración del audio. El backend es una sola
- * request blocking (sin progreso real), así que la UI camina por etapas
- * mientras el fetch está en vuelo:
- *   - ~1 min de audio  → ~7 s por etapa (≈42 s de recorrido) — pruebas
- *     locales rápidas.
- *   - ~3 min de audio  → ~15 s por etapa (≈90 s de recorrido) — cuando la
- *     infraestructura lo admita.
- * Interpola linealmente entre 60 s y 180 s y clampa fuera de ese rango.
- * El porcentaje NUNCA llega a 100 hasta que la promesa resuelve.
+ * Formatea segundos como mm:ss (o segundos con decimal si es corto).
  */
-function stageMsForDuration(audioDurationSeconds?: number | null): number {
-  const clamped = Math.min(Math.max(audioDurationSeconds ?? 60, 60), 180);
-  const t = (clamped - 60) / 120; // 0 (1 min) → 1 (3 min)
-  return Math.round(7000 + t * 8000); // 7 s → 15 s
-}
-
-/** Formatea segundos como mm:ss (o segundos con decimal si es corto). */
 function formatDuration(seconds: number): string {
   if (seconds >= 60) {
     const m = Math.floor(seconds / 60);
@@ -233,13 +218,22 @@ const FADER_DEFAULTS: Record<string, number> = {
 };
 const FADER_BAND = 6.0;
 
-/* ── Watchdog del POST /mix (T6) ────────────────────────────
-   El Mix Engine es una request blocking: si el backend se cuelga, sin
-   este watchdog la UI queda congelada en 95% para siempre. 600 s a
-   propósito, alineado con ``PROCESS_TIMEOUT_MS`` de
-   ``useMasteringWorkflow``: la mezcla nunca debe bloquear la UI más
-   tiempo que el master. */
+/* ── Watchdog del submit del job de mezcla ──────────────────────────
+    El submit devuelve un 202 con un ``job_id`` en milisegundos, así que
+    este timeout ya NO protege la request: protege el POLLING. Si el job
+    nunca resuelve, el cliente deja de preguntar en vez de quedarse colgado
+    para siempre. Alineado con ``PROCESS_TIMEOUT_MS`` de
+    ``useMasteringWorkflow``: la mezcla nunca debe bloquear la UI más
+    tiempo que el master. */
 const MIX_TIMEOUT_MS = 600_000;
+
+/* ── Intervalo de polling del job ────────────────────────────────────
+    2 s es un balance entre timely UI feedback y no martillar el backend
+    con una request cada frame. El backend responde con el estado real
+    (incluido "el worker murió"), así que no hace falta backoff: no
+    estamos midiendo nada aquí, solo preguntando. */
+const MIX_POLL_MS = 2_000;
+
 
 function FaderControl({
   label,
@@ -302,7 +296,6 @@ export default function MixPanel({
   sessionId,
   sessionMixPath,
   sessionMixAnalysis,
-  audioDurationSeconds,
   disabled,
   genreHint,
   hasMix,
@@ -310,13 +303,18 @@ export default function MixPanel({
   mode,
   onMasterize,
 }: MixPanelProps) {
+  const { t } = useTranslation();
   const [mixing, setMixing] = useState(false);
   const [mixUrl, setMixUrl] = useState<string | null>(null);
   const [mixResult, setMixResult] = useState<MixResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
-  const [progressStage, setProgressStage] = useState(0);
+  // Progreso REAL del job: lo reporta el backend, no lo simula la UI. Antes
+  // esto avanzaba con un ticker de etapas por segundo (``stageMsForDuration``)
+  // que llegaba a 95% sin que nadie hubiera medido nada. Ahora solo sube a 100
+  // cuando el WAV está de verdad en R2.
   const [progressPct, setProgressPct] = useState(0);
+
   // Sesión restaurada con mix ya hecho → el resultado se muestra al abrir;
   // la pill permite ocultarlo/mostrarlo.
   const [showResult, setShowResult] = useState(() => Boolean(sessionMixPath));
@@ -336,38 +334,29 @@ export default function MixPanel({
   const [faderValues, setFaderValues] =
     useState<Record<string, number>>(FADER_DEFAULTS);
 
-  const objectUrlRef = useRef<string | null>(null);
-  const stageRef = useRef(0);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  // Watchdog del POST /mix: si el backend no responde en MIX_TIMEOUT_MS,
-  // aborta el fetch en vuelo. ``timedOutRef`` distingue el timeout del
-  // cancel explícito del usuario (ambos llegan como AbortError).
+  // Watchdog del submit + polling: si el job nunca resuelve en
+  // MIX_TIMEOUT_MS, dejamos de preguntar en vez de quedarnos colgados.
+  // ``timedOutRef`` distingue el timeout del cancel explícito del usuario
+  // (ambos llegan como AbortError).
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timedOutRef = useRef(false);
-  // Lista dinámica de etapas DSP (filtrada por dimensionEnabled) vista por
-  // el ticker; se asigna en cada render para que el intervalo siempre use
-  // la longitud actual sin re-crear el timer.
-  const stagesRef = useRef<{ id: string; label: string }[]>([]);
+  // Controller del polling, aparte del submit: cancelar tiene que abortar
+  // las DOS requests, no solo la que ya terminó. No es estado de render
+  // porque el abort necesita leerlo sin re-suscribirse.
+  const pollAbortRef = useRef<AbortController | null>(null);
 
-  // Revoca el objectURL local al desmontar (el player lo usa hasta ese
-  // momento, por eso NO se revoca en el finally de handleMix), limpia el
-  // intervalo y el watchdog si se desmonta a mitad del mix y aborta el
-  // fetch en vuelo.
+  // Limpia el polling al desmontar: sin esto, un mix en vuelo seguiría
+  // golpeando el backend y, peor, haría setState sobre un componente
+  // desmontado (el warning de React 18+ y una fuga de memoria real).
   useEffect(() => {
     return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
       if (watchdogRef.current) {
         clearTimeout(watchdogRef.current);
         watchdogRef.current = null;
       }
       abortRef.current?.abort();
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-      }
+      pollAbortRef.current?.abort();
     };
   }, []);
 
@@ -379,28 +368,48 @@ export default function MixPanel({
     if (sessionMixPath) setShowResult(true);
   }
 
-  const clearProgressTimer = useCallback(() => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
+  const clearWatchdog = useCallback(() => {
+    if (watchdogRef.current) {
+      clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
     }
   }, []);
 
+  const sleep = (ms: number, signal: AbortSignal) =>
+    new Promise<void>((resolve, reject) => {
+      if (signal.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(new DOMException("Aborted", "AbortError"));
+        },
+        { once: true },
+      );
+    });
+
   const handleMix = useCallback(async () => {
     if (!sessionId || mixing) return;
-    // Re-mezcla: aborta un mix previo si quedó en vuelo.
+    // Re-mezcla: aborta el submit/poll anterior si quedó en vuelo.
     abortRef.current?.abort();
+    pollAbortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const pollController = new AbortController();
+    pollAbortRef.current = pollController;
 
-    // Watchdog: si el backend se cuelga, el fetch se aborta solo en vez de
-    // dejar la UI clavada en 95%. Se limpia en el success, en el catch y
-    // en el finally para no disparar después de terminar.
+    // Watchdog del submit + polling: si el job no resuelve en
+    // MIX_TIMEOUT_MS, dejamos de preguntar en vez de quedar colgados.
     timedOutRef.current = false;
-    if (watchdogRef.current) clearTimeout(watchdogRef.current);
+    clearWatchdog();
     watchdogRef.current = setTimeout(() => {
       timedOutRef.current = true;
       controller.abort();
+      pollController.abort();
     }, MIX_TIMEOUT_MS);
 
     setMixing(true);
@@ -408,93 +417,84 @@ export default function MixPanel({
     setCancelled(false);
     // Re-mezcla: ocultar el resultado previo mientras procesa.
     setShowResult(false);
-    stageRef.current = 0;
-    setProgressStage(0);
     setProgressPct(0);
 
-    // Progreso por etapas simuladas: el POST /mix del backend es una sola
-    // request blocking que devuelve el WAV completo; la UI avanza por etapas
-    // mientras el fetch está en vuelo (timing según la duración del audio:
-    // ~1 min → etapas de 7 s; ~3 min → etapas de 15 s). Las etapas son
-    // MONÓTONAS y NO se repiten: cada tick completa una etapa más hasta la
-    // última. El 100% solo llega con la respuesta real — nunca se marca
-    // done antes.
-    const stageMs = stageMsForDuration(audioDurationSeconds);
-    progressIntervalRef.current = setInterval(() => {
-      const total = stagesRef.current.length || 1;
-      stageRef.current = Math.min(stageRef.current + 1, total - 1);
-      setProgressStage(stageRef.current);
-      // El % es MONÓTONO creciente por etapa completada: avanza una vez por
-      // etapa, jamás retrocede y nunca llega a 95/100 sin la respuesta real.
-      setProgressPct((prev) =>
-        Math.min(
-          95,
-          Math.max(prev, Math.round(((stageRef.current + 1) / total) * 100)),
-        ),
-      );
-    }, stageMs);
-
     try {
+      // Paso 1 — submit: 202 + job_id en milisegundos. El audio ya está
+      // subido, así que no hay transferencia en vuelo: la UI queda libre
+      // desde este punto, que es justo lo que mata el 502/504 del edge.
       const stemTrims = Object.fromEntries(
         Object.entries(faderValues).filter(([, db]) => db !== 0),
       );
-      const { audioUrl, result } = await mixTracks(sessionId, {
-        signal: controller.signal,
-        dimensionEnabled,
-        autoBalance,
-        stemTrims,
-      });
-      clearProgressTimer();
-      if (watchdogRef.current) {
-        clearTimeout(watchdogRef.current);
-        watchdogRef.current = null;
+      const accepted = await submitMixJob(
+        sessionId,
+        { dimensionEnabled, autoBalance, stemTrims },
+        controller.signal,
+      );
+
+      // Paso 2 — polling. El backend reporta el estado real del job
+      // (incluido "el worker murió"), así que cada tick es un dato
+      // verdadeiro, no una interpolación.
+      let terminal = false;
+      while (!terminal) {
+        await sleep(MIX_POLL_MS, pollController.signal);
+        const state = await getMixJobState(accepted.job_id, pollController.signal);
+        setProgressPct(state.progress ?? 0);
+        if (state.status === "completed") {
+          terminal = true;
+          clearWatchdog();
+          setProgressPct(100);
+          const downloadUrl = state.result?.download_url;
+          if (downloadUrl) {
+            // El WAV vive en R2, no en un blob local: por eso ya NO
+            // revocamos nada aquí. La URL presignada caduca, y por eso el
+            // backend la regenera al leer el job (no se persiste muerta).
+            setMixUrl(downloadUrl);
+            setMixResult(state.result?.analysis ?? null);
+            setShowResult(true);
+          } else {
+            // Job completado sin URL utilizable: no fingimos éxito.
+            setError(t("mezcla.jobInterrupted"));
+          }
+        } else if (state.status === "error") {
+          terminal = true;
+          clearWatchdog();
+          setError(
+            state.error || t("mezcla.jobInterrupted"),
+          );
+        }
       }
-      objectUrlRef.current = audioUrl;
-      setProgressPct(100);
-      setMixUrl(audioUrl);
-      setMixResult(result);
-      setShowResult(true);
-      // El POST /mix ya publicó mix_status en el backend (T2): el padre
-      // relee la sesión para que `hasMix` (y con él la etiqueta y el
-      // source=mix del master) reflejen la entrega.
       onMixSettled?.();
     } catch (e) {
-      clearProgressTimer();
-      if (watchdogRef.current) {
-        clearTimeout(watchdogRef.current);
-        watchdogRef.current = null;
-      }
+      const isAbort = (e as { name?: string })?.name === "AbortError";
       // El estado de mezcla cambió igual (failed / processing tras abort):
       // sincronizamos para no arrastrar un `hasMix` viejo.
       onMixSettled?.();
-      // Watchdog: el backend no respondió a tiempo. SÍ es un fallo (el
-      // usuario no pidió cancelar), así que se muestra como error y no
-      // como el aviso informativo de cancelación.
-      if ((e as { name?: string })?.name === "AbortError" && timedOutRef.current) {
+      if (isAbort && timedOutRef.current) {
         setCancelled(false);
-        setError("La mezcla tardó demasiado y se detuvo. Vuelve a intentarlo.");
-      } else if ((e as { name?: string })?.name === "AbortError") {
+        setError(t("mezcla.jobTimeout"));
+      } else if (isAbort) {
         // Cancelación explícita del usuario: estado informativo, NO un fallo.
-        // (El backend puede seguir procesando server-side; el cliente deja de
-        // esperar y no marca done.)
+        // (El backend puede seguir procesando server-side; el cliente deja
+        // de esperar y no marca done.)
         setCancelled(true);
       } else {
-        setError(e instanceof Error ? e.message : "No se pudo mezclar el audio");
+        setError(
+          e instanceof Error ? e.message : "No se pudo mezclar el audio",
+        );
       }
     } finally {
-      if (watchdogRef.current) {
-        clearTimeout(watchdogRef.current);
-        watchdogRef.current = null;
-      }
+      clearWatchdog();
       if (abortRef.current === controller) abortRef.current = null;
+      if (pollAbortRef.current === pollController) pollAbortRef.current = null;
       setMixing(false);
     }
-  }, [sessionId, mixing, audioDurationSeconds, clearProgressTimer, dimensionEnabled, autoBalance, faderValues, onMixSettled]);
+  }, [sessionId, mixing, clearWatchdog, dimensionEnabled, autoBalance, faderValues, onMixSettled, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
-    // El catch del fetch hace el resto: limpia el timer, marca `cancelled`
-    // y baja `mixing`.
+    pollAbortRef.current?.abort();
+    // El catch hace el resto: marca `cancelled` y baja `mixing`.
   }, []);
 
   // Sesión recargada con mix ya hecho: el player usa la URL estable del
@@ -515,12 +515,6 @@ export default function MixPanel({
       ),
     [dimensionEnabled],
   );
-  // La ref se sincroniza tras cada render (prohibido escribir refs durante
-  // el render) para que el intervalo siempre use la longitud actual sin
-  // re-crear el timer.
-  useEffect(() => {
-    stagesRef.current = stages;
-  }, [stages]);
 
   // Género real del análisis (chip + panel IA). "other" se normaliza a "Otro".
   const rawGenre =
@@ -885,13 +879,16 @@ export default function MixPanel({
             </span>
           </div>
 
-          {/* Feed secuencial de etapas DSP (no repetitivo): completadas en
-              verde, la siguiente activa con Loader2, el resto pendiente.
-              La fila final de éxito aparece SOLO con la respuesta real. */}
+          {/* Feed de etapas DSP. Con el job async el backend no expone la
+              etapa en curso, así que va en modo indeterminado: ninguna fila
+              se marca activa porque no lo sabemos. El anillo y el % de
+              arriba son los que muestran el avance real. */}
           <MixStatusStream
             stages={stages}
-            stageIndex={progressStage}
+            stageIndex={-1}
             percent={progressPct}
+            indeterminate
+            doneLabel={t("mezcla.jobDone")}
           />
         </motion.div>
       )}

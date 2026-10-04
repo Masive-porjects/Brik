@@ -62,7 +62,9 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     if (pathname !== "/") {
-      url.searchParams.set("redirect", pathname);
+      // Se incluye el query string: con `pathname` pelado se perdía `?track=<id>`
+      // y el login aterrizaba en /mezclas sin pista -> pantalla en blanco.
+      url.searchParams.set("redirect", `${pathname}${request.nextUrl.search}`);
     }
     return NextResponse.redirect(url);
   }

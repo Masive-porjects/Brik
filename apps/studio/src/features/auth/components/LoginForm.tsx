@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,20 +21,16 @@ export default function LoginForm() {
 
   const [authMethod, setAuthMethod] = useState<"social" | "email">("social");
   const [showPassword, setShowPassword] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [errorModal, setErrorModal] = useState<{
-    isOpen: boolean;
-    provider: SocialProvider | null;
-    message: string | null;
-  }>({
-    isOpen: false,
-    provider: null,
-    message: null,
-  });
+  // Errors raised by the credentials form; OAuth callback errors are derived below.
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // The `?error=` value the user already dismissed, so the modal stays closed even
+  // though the param is still in the URL until the router.replace below lands.
+  const [dismissedErrorParam, setDismissedErrorParam] = useState<string | null>(null);
 
-  useEffect(() => {
-    const errorParam = searchParams.get("error");
-    if (!errorParam) return;
+  const errorParam = searchParams.get("error");
+
+  const oauthError = useMemo<{ provider: SocialProvider | null; message: string } | null>(() => {
+    if (!errorParam || errorParam === dismissedErrorParam) return null;
 
     const providerParam = searchParams.get("provider");
     let detectedProvider: SocialProvider | null = null;
@@ -67,17 +63,19 @@ export default function LoginForm() {
       message = t("auth.oauthErrorGeneric");
     }
 
-    setServerError(message);
-    setErrorModal({
-      isOpen: true,
-      provider: detectedProvider,
-      message,
-    });
-  }, [searchParams, t]);
+    return { provider: detectedProvider, message };
+  }, [errorParam, dismissedErrorParam, searchParams, t]);
+
+  const serverError = oauthError?.message ?? submitError;
+  const errorModal = {
+    isOpen: oauthError !== null,
+    provider: oauthError?.provider ?? null,
+    message: oauthError?.message ?? null,
+  };
 
   const handleCloseErrorModal = () => {
-    setErrorModal({ isOpen: false, provider: null, message: null });
-    setServerError(null);
+    setDismissedErrorParam(errorParam);
+    setSubmitError(null);
     router.replace(
       redirectTo !== "/" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"
     );
@@ -101,7 +99,7 @@ export default function LoginForm() {
   const supabase = createClient();
 
   const onSubmit = async (data: LoginFormData) => {
-    setServerError(null);
+    setSubmitError(null);
 
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -110,14 +108,14 @@ export default function LoginForm() {
       });
 
       if (signInError) {
-        setServerError(signInError.message);
+        setSubmitError(signInError.message);
         return;
       }
 
       router.push(redirectTo);
       router.refresh();
     } catch {
-      setServerError(t("auth.errorGeneric", "Ocurrió un error inesperado al iniciar sesión."));
+      setSubmitError(t("auth.errorGeneric", "Ocurrió un error inesperado al iniciar sesión."));
     }
   };
 

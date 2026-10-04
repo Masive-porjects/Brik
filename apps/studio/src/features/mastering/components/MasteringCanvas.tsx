@@ -171,7 +171,6 @@ export default function MasteringCanvas({
             sessionId={session.session_id}
             sessionMixPath={session.mix_path ?? null}
             sessionMixAnalysis={session.mix_analysis ?? null}
-            audioDurationSeconds={session.analysis?.duration_seconds ?? null}
             genreHint={session.analysis?.detected_genre ?? null}
             disabled={processing}
             mode={masteringMode}

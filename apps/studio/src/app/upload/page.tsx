@@ -14,6 +14,32 @@ import { UploadView } from "@/features/upload";
 import { LibraryView, ResumeSessionModal } from "@/features/remastering-history";
 import { useAuth } from "@/features/auth";
 import { fetchLatestUserTrack, type Track } from "@/features/tracks";
+import { useMasteringJob } from "@/features/mastering";
+
+// ── Nuevo hook: submeter job asíncrono y hacer polling ──────────────────
+const {
+  state,
+  jobId,
+  result,
+  error: jobError,
+  progress,
+  isComplete,
+  isTerminal,
+  submit,
+  reset,
+} = useMasteringJob({
+  payload: {
+    track_id: "",
+    preset_id: "universal",
+    is_async: true, // Fase 6: encolar en background queue
+  },
+  onComplete: (res) => {
+    console.log("✅ Mastering job completado:", res);
+  },
+  onError: (err) => {
+    console.error("❌ Mastering job falló:", err);
+  },
+});
 
 export default function UploadPage() {
   const router = useRouter();
@@ -31,14 +57,17 @@ export default function UploadPage() {
   const [pendingTrackTitle, setPendingTrackTitle] = useState<string>("");
   const hasCheckedLatestRef = useRef(false);
 
+  // Signed out: drop the returning-user state in the same commit instead of
+  // resetting it from an effect one render later.
+  if (!user) {
+    if (latestTrack !== null) setLatestTrack(null);
+    if (hasSavedTracks) setHasSavedTracks(false);
+    if (resumeModalOpen) setResumeModalOpen(false);
+  }
+
   // Check for returning user's latest project without forcing blindly into mastering
   useEffect(() => {
-    if (!user) {
-      setLatestTrack(null);
-      setHasSavedTracks(false);
-      setResumeModalOpen(false);
-      return;
-    }
+    if (!user) return;
     if (hasCheckedLatestRef.current) return;
     hasCheckedLatestRef.current = true;
 
@@ -62,6 +91,11 @@ export default function UploadPage() {
     await workflow.handleFileSelected(file);
     // After audio upload and spectral analysis completes, show the mode choice modal
     setWorkflowModalOpen(true);
+    // Auto-submit the async job after workflow is confirmed (para testing E2E)
+    // We wait a tick for the modal state to settle, then submit
+    setTimeout(() => {
+      submit();
+    }, 500);
   };
 
   const handleConfirmWorkflow = (mode: "manual" | "ai") => {
@@ -78,6 +112,32 @@ export default function UploadPage() {
     setLibraryOpen(false);
     window.open(`/mezclas?track=${track.id}`, "_blank");
   };
+
+  // Render job status UI when we have a terminal result
+  const jobStatusUI = isComplete && result ? (
+    <div className="mt-4 p-3 rounded-xl"
+         style={{
+           background: "var(--bg-glass)",
+           border: "1px solid var(--border-subtle)",
+         }}>
+      <p className="text-sm font-medium text-[var(--text-primary)]">
+        {isTerminal ? "Job completado" : "Job en proceso"}
+      </p>
+      {jobId && <p className="text-xs text-[var(--text-muted)] mt-1">Job ID: {jobId}</p>}
+      {progress >= 0 && <p className="text-xs text-[var(--text-muted)] mt-1">Progreso: {progress}%</p>}
+      {result.download_url && (
+        <a
+          href={result.download_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-[var(--accent-primary)] underline"
+        >
+          ↓ Descargar master WAV
+        </a>
+      )}
+      {jobError && <p className="mt-2 text-sm text-[var(--accent-error)]">{jobError}</p>}
+    </div>
+  ) : null;
 
   return (
     <LicenseGuard>
@@ -111,7 +171,6 @@ export default function UploadPage() {
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}
           autosaveStatus={workflow.autosaveStatus}
-          onOpenLibrary={() => setLibraryOpen(true)}
           hasSavedTracks={hasSavedTracks}
         />
 
@@ -124,6 +183,9 @@ export default function UploadPage() {
             onFileSelected={handleFileSelected}
           />
         </div>
+
+        {/* Job Status UI (async job queue E2E testing) */}
+        {jobStatusUI}
 
         {/* User Songs Library / History Modal */}
         <LibraryView
@@ -148,7 +210,7 @@ export default function UploadPage() {
             setResumeModalOpen(false);
           }}
           onOpenLibrary={() => {
-            setResumeModalOpen(false);
+            setResumeModalOpen(false;
             setLibraryOpen(true);
           }}
         />

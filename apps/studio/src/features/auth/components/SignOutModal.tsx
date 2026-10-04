@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "@/i18n/useTranslation";
+import { useIsMounted } from "@/shared/hooks";
 import { GhostIcon } from "@/presentation/components/ThemeToggle";
 
 interface SignOutModalProps {
@@ -14,11 +14,7 @@ interface SignOutModalProps {
 
 export default function SignOutModal({ isOpen, displayName }: SignOutModalProps) {
   const { t } = useTranslation();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useIsMounted();
 
   if (!mounted) return null;
 
