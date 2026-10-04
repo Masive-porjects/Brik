@@ -4,8 +4,8 @@ import { LoginForm } from "@/features/auth";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 
 export const metadata: Metadata = {
-  title: "Login | WaveIA Studio",
-  description: "Accede a tu cuenta de WaveIA Studio para masterizar tus pistas.",
+  title: "Login | Brik Studio",
+  description: "Accede a tu cuenta de Brik Studio para masterizar tus pistas.",
 };
 
 export default function LoginPage() {

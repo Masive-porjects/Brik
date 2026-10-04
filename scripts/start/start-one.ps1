@@ -12,7 +12,18 @@ param(
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $scriptsDir = Split-Path -Parent $PSScriptRoot
 $pidsFile = Join-Path $scriptsDir '.pids'
-$pythonExe = Join-Path $root '.venv\Scripts\python.exe'
+$venvCandidates = @(
+    (Join-Path $root 'apps\audiomind\.venv\Scripts\python.exe'),
+    (Join-Path $root '.venv\Scripts\python.exe'),
+    (Join-Path $root 'apps\audiomind\.venv\bin\python'),
+    (Join-Path $root '.venv\bin\python')
+)
+$pythonExe = $venvCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $pythonExe) {
+    Write-Error "No se encontro python.exe en apps\audiomind\.venv ni en .venv. Ejecuta primero 'scripts\setup\setup.bat'."
+    exit 1
+}
 
 $services = @{
     audiomind = @{

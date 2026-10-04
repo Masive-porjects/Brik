@@ -155,7 +155,7 @@ export default function ConsolidateMasterModal({
             {/* Header */}
             <div className="relative z-10 flex items-center justify-between pb-4 border-b border-[var(--border-subtle)]">
               <div className="flex items-center gap-3">
-                {/* WaveIA Brand Mascot with Orbiting Notes */}
+                {/* Brik Brand Mascot with Orbiting Notes */}
                 <div className="relative size-11 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-[var(--accent-primary)]/15 to-transparent border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10 text-[var(--accent-primary)]">
                   <GhostIcon size={22} />
                   <span className="absolute -top-1 -right-1 animate-bounce">

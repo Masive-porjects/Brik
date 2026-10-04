@@ -82,7 +82,7 @@ export default function MobileDrawer({
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                    WaveIA
+                    Brik
                   </h2>
                   <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">
                     Studio
@@ -165,7 +165,7 @@ export default function MobileDrawer({
             {/* Footer */}
             <div className="mt-auto px-5 py-4 border-t border-[var(--border-subtle)]">
               <p className="text-[9px] text-[var(--text-muted)] text-center">
-                WaveIA v0.1 — Mastering Profesional
+                Brik v0.1 — Mastering Profesional
               </p>
             </div>
           </motion.div>

@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Public routes: auth routes, APIs, voice stream
+  // Public routes: landing page ("/"), auth routes, APIs, voice stream
   const pathname = request.nextUrl.pathname;
   const isAuthRoute =
     pathname.startsWith("/login") ||
@@ -45,6 +45,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/callback");
 
   const isPublicRoute =
+    pathname === "/" ||
     isAuthRoute ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/voz");

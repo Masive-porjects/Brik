@@ -13,7 +13,7 @@ interface ProcessingOverlayProps {
 
 export function getSubtext(progress: number, phase: Phase = "process"): string {
   if (phase === "upload") {
-    if (progress < 100) return "Subiendo tu track a WaveIA...";
+    if (progress < 100) return "Subiendo tu track a Brik...";
     return "Subido — preparando el análisis...";
   }
   if (progress < 30) return "Analizando espectro y aplicando Gain Staging...";
@@ -213,7 +213,7 @@ export default function ProcessingOverlay({
             {/* Subtle branding */}
             {!showCheck && (
               <p className="text-[10px] text-[var(--text-muted)] tracking-widest uppercase">
-                {phase === "upload" ? "WAVEAI" : "WaveEngine"}
+                {phase === "upload" ? "BRIK" : "BrikEngine"}
               </p>
             )}
           </div>

@@ -287,7 +287,7 @@ export default function LibraryView({
                 <p className="text-xs text-[var(--text-secondary)] max-w-sm mt-1 mb-4">
                   {t(
                     "library.emptyDesc",
-                    "Sube una pista de audio para comenzar a procesar con los presets y motores IA de WaveIA.",
+                    "Sube una pista de audio para comenzar a procesar con los presets y motores IA de Brik.",
                   )}
                 </p>
                 <button

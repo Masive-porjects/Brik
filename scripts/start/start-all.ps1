@@ -19,10 +19,13 @@ $audiomindReady = $false
 $maxAttempts = 30
 $delaySeconds = 1
 
-Write-Host "Esperando a que audiomind este online (http://localhost:8000/health)... " -NoNewline
+Write-Host "Esperando a que audiomind este online (http://127.0.0.1:8000/health)... " -NoNewline
 for ($i = 1; $i -le $maxAttempts; $i++) {
     try {
-        $resp = Invoke-WebRequest -Uri "http://localhost:8000/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8000/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
+        if (-not $resp) {
+            $resp = Invoke-WebRequest -Uri "http://localhost:8000/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        }
         if ($resp.StatusCode -eq 200) {
             $audiomindReady = $true
             break

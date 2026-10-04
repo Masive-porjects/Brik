@@ -4,8 +4,8 @@ import { RegisterForm } from "@/features/auth";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 
 export const metadata: Metadata = {
-  title: "Registro | WaveIA Studio",
-  description: "Crea una cuenta en WaveIA Studio y lleva tus producciones musicales al siguiente nivel.",
+  title: "Registro | Brik Studio",
+  description: "Crea una cuenta en Brik Studio y lleva tus producciones musicales al siguiente nivel.",
 };
 
 export default function RegisterPage() {

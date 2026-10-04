@@ -18,7 +18,7 @@ export interface FeatureDefinition {
 }
 
 /**
- * Registro central de funcionalidades de WaveAI.
+ * Registro central de funcionalidades de Brik.
  * Permite apagar, encender o añadir módulos de forma desacoplada
  * sin alterar la lógica interna de los componentes.
  */

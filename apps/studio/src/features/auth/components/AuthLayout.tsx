@@ -66,7 +66,7 @@ export default function AuthLayout({
 
       {/* Footer */}
       <footer className="relative z-20 shrink-0 py-2 text-center text-[11px] text-[var(--text-muted)]">
-        &copy; {new Date().getFullYear()} WaveIA Studio &bull; Next-Gen Audio Engine
+        &copy; {new Date().getFullYear()} Brik Studio &bull; Next-Gen Audio Engine
       </footer>
     </div>
   );

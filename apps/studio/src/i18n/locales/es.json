@@ -149,7 +149,7 @@
     "logout": "Cerrar Sesión",
     "email": "Correo Electrónico",
     "password": "Contraseña",
-    "welcome": "Bienvenido a WaveAI"
+    "welcome": "Bienvenido a Brik"
   },
   "admin": {
     "menuLink": "Panel de Administración",
@@ -554,7 +554,7 @@
     "noDrafts": "No tienes borradores activos actualmente",
     "noMastered": "Aún no has masterizado ninguna canción",
     "emptyTitle": "Tu biblioteca de canciones está vacía",
-    "emptyDesc": "Sube una pista de audio para comenzar a procesar con los presets y motores IA de WaveIA.",
+    "emptyDesc": "Sube una pista de audio para comenzar a procesar con los presets y motores IA de Brik.",
     "startMastering": "Subir mi primera pista",
     "draftBadge": "Borrador",
     "masteredBadge": "Masterizado",
@@ -585,5 +585,207 @@
     "continueProject": "Continuar con este proyecto",
     "newAudio": "Subir un nuevo audio",
     "openLibrary": "O ver todas mis canciones guardadas"
+  },
+  "landing": {
+    "scrollToTop": "Volver al inicio",
+    "nav": {
+      "brand": "BRIK",
+      "dspCore": "DSP Core",
+      "stage13": "Arquitectura 13 Etapas",
+      "presets": "Presets Fantasmagóricos",
+      "abCompare": "Comparador A/B",
+      "founders": "Equipo Fundador",
+      "docs": "Documentación",
+      "enterStudio": "Ingresar a Brik Studio",
+      "studioBadge": "(/studio)"
+    },
+    "hero": {
+      "badgeDsp": "DSP Core v2.4 Activo",
+      "badgeNeural": "Motor Neuronal AudioMind",
+      "badgeFormat": "96kHz / 64-bit FP Listo",
+      "title": "El master ya no es un problema.",
+      "titleGradient": "Deja que el sonido cobre vida del más allá.",
+      "description": "Arquitectura de 13 etapas de procesamiento espectral en tiempo real. Eliminamos la planicie dimensional de tus mezclas mediante inteligencia tímbrica, balance psicoacústico Haas y fidelidad cuántica.",
+      "hud": {
+        "loudness": "Target Loudness",
+        "loudnessVal": "-14.0 LUFS",
+        "loudnessSub": "Cumple EBU R128",
+        "truePeak": "True-Peak Ceiling",
+        "truePeakVal": "-1.0 dBTP",
+        "truePeakSub": "Cero Intersample Peaks",
+        "throughput": "DSP Throughput",
+        "throughputVal": "<420 ms",
+        "throughputSub": "Pipeline Rust SIMD",
+        "quantum": "Profundidad Cuántica",
+        "quantumVal": "48 kHz",
+        "quantumSub": "24-bit PCM Impecable"
+      },
+      "ctaEnter": "Ingresar a Brik Studio",
+      "ctaListenDemo": "Escuchar Demostración A/B",
+      "ocularMonitor": "SPECTRAL OCULAR MONITOR",
+      "dualPrecision": "64-BIT DUAL PRECISION",
+      "telemetryCorrelation": "CORRELACIÓN",
+      "telemetryCorrelationVal": "+0.94 ESTÉREO",
+      "telemetryDynamicCrest": "CRESTA DINÁMICA",
+      "telemetryDynamicCrestVal": "11.8 dB PLR",
+      "telemetryHaasPhase": "FASE HAAS",
+      "telemetryHaasPhaseVal": "BLOQUEO EN FASE"
+    },
+    "philosophy": {
+      "badge": "Tríada Ontológica",
+      "title": "Fenomenología Sonora de Brik",
+      "subtitle": "Comprender el audio no como simple oscilación de voltaje, sino como un espectro vivo que habita múltiples dimensiones simultáneamente.",
+      "paradigmChip": "PARADIGMA DSP NO DESTRUCTIVO",
+      "viewSpecs": "Examinar fenómeno",
+      "hideSpecs": "Ocultar especificación",
+      "card1": {
+        "tag": "Fenómeno 01",
+        "title": "El Fantasma de la Mezcla Plana",
+        "desc": "Las mezclas convencionales mueren en cajas bidimensionales sofocadas por transitorios sofocados y subgraves desalineados. Brik resucita el micro-contraste dinámico recuperando la respiración original que el limitador genérico aplasta.",
+        "metricLabel": "RESURRECCIÓN ARMÓNICA",
+        "metricVal": "2.4x DINÁMICA"
+      },
+      "card2": {
+        "tag": "Fenómeno 02",
+        "title": "Mid/Side Decorrelacionada",
+        "desc": "El canal central conserva la contundencia matemática del bombo y la voz principal, mientras que los flancos laterales se expanden espectralmente sin inducir cancelaciones de fase al reproducirse en sistemas monoaurales de club.",
+        "metricLabel": "COHERENCIA MONO",
+        "metricVal": "100% PROTEGIDA"
+      },
+      "card3": {
+        "tag": "Fenómeno 03",
+        "title": "Validación de Ultratumba",
+        "desc": "Cada renderizado es sometido a un análisis espectro-temporal que simula 14 entornos de escucha reales: desde monitores de estudio estocásticos hasta altavoces de teléfonos y transductores de compresión en festivales masivos.",
+        "metricLabel": "CONTROL DE CALIDAD MULTI-DISPOSITIVO",
+        "metricVal": "14 PERFILES"
+      }
+    },
+    "abPlayer": {
+      "badge": "Escucha Espectral",
+      "title": "Comparador A/B: Original vs Master Brik",
+      "subtitle": "Experimenta la alteración psicoacústica en vivo. Alterna entre la mezcla previa y el resultado final procesado por nuestro motor de 13 etapas.",
+      "trackTitle": "Resonancia Espectral (Stems Master)",
+      "trackMeta": "ELECTRONIC BASS MUSIC — 128 BPM — 24-BIT 48KHZ",
+      "intensityLabel": "INTENSIDAD DSP:",
+      "btnOrig": "ORIGINAL [A]",
+      "btnBrik": "MASTER BRIK [B]",
+      "statusBrik": "SATURACIÓN ARMÓNICA BRIK ACTIVADA (+2.8 dB AIR)",
+      "statusOrig": "MEZCLA PREVIA SIN PROCESAR (PUNTAS DINÁMICAS PLANAS)",
+      "meterLufs": "INTEGRATED LUFS",
+      "meterTp": "MAX TRUE PEAK",
+      "meterWidth": "ESTÉREO HAAS WIDTH",
+      "meterHarm": "DENSIDAD ARMÓNICA"
+    },
+    "chain": {
+      "badge": "Matriz Algorítmica Lineal — 13 Etapas DSP",
+      "title": "Arquitectura DSP de 13 Etapas",
+      "subtitle": "Cada muestra de audio atraviesa una cadena modular con cero alteración destructiva de fase. Haz clic en cualquier módulo para examinar los parámetros internos, sub-etapas y tensores en tiempo real.",
+      "pipelineBadge": "PIPELINE RUST SIMD: CERO FUGAS INTERSAMPLE",
+      "autoCycle": "Ciclo Automático",
+      "autoCycleActive": "ACTIVO",
+      "autoCyclePaused": "PAUSADO",
+      "chainHeader": "CADENA SECUENCIAL (13 MÓDULOS)",
+      "feedForward": "FEED-FORWARD 64-BIT",
+      "activeState": "ESTADO ACTIVO",
+      "bypassedState": "EN BYPASS",
+      "latency": "LATENCIA:",
+      "tabSubstages": "Sub-etapas",
+      "tabSpatial": "Bloque Espacial Haas",
+      "tabTelemetry": "Tensores & SIMD",
+      "loadInStudio": "Cargar en Brik Studio",
+      "thd": "DISTORSIÓN THD",
+      "phaseCorrelation": "CORRELACIÓN FASE",
+      "overSampling": "SOBREMUESTREO",
+      "tensorsComputed": "Tensores calculados en SSE/AVX-512 nativo"
+    },
+    "presets": {
+      "badge": "Invocaciones Sónicas",
+      "title": "Presets Fantasmagóricos de Brik",
+      "subtitle": "Perfiles tímbricos calibrados para canalizar estéticas sonoras precisas con un solo clic en la consola.",
+      "viewDetails": "Ver calibración",
+      "hideDetails": "Ocultar calibración",
+      "loadPreset": "Usar preset en Studio",
+      "preset1": {
+        "genre": "GÉNERO: TECHNO / CLUB",
+        "title": "Pulido Espectral",
+        "desc": "Realza la presencia aérea de las frecuencias altas y limpia el barro en la zona de 250Hz. Ideal para producciones electrónicas de alta velocidad.",
+        "metric": "CLARIDAD +4.5 dB"
+      },
+      "preset2": {
+        "genre": "GÉNERO: URBAN / TRAP",
+        "title": "Brutal Transmutación",
+        "desc": "Empuja la pared de sonoridad hasta el límite extremo (-9 LUFS de club) preservando el punch seco del subgrave 808 sin ahogo dinámico.",
+        "metric": "DENSIDAD MÁXIMA"
+      },
+      "preset3": {
+        "genre": "GÉNERO: AMBIENT / SCORE",
+        "title": "Cristalino de Ultratumba",
+        "desc": "Expansión dimensional extrema de la imagen estéreo. Convierte sintetizadores etéreos y cuerdas orquestales en una experiencia envolvente de 360 grados.",
+        "metric": "ANCHO HAAS 160%"
+      },
+      "preset4": {
+        "genre": "GÉNERO: LO-FI / INDIE",
+        "title": "Vintage Ectoplasma",
+        "desc": "Inyección de distorsión armónica par a través de transformadores de consola británica y suave compresión óptica con sensación orgánica y cálida.",
+        "metric": "CALIDEZ VÁLVULA"
+      }
+    },
+    "founders": {
+      "badge": "Arquitectos del Sonido",
+      "title": "El Aquelarre Técnico — Equipo Fundador de Brik",
+      "subtitle": "Las 3 mentes que combinan ciencia acústica, algoritmos neuronales y experiencia de software para masterizar con fidelidad espectral.",
+      "social": {
+        "listLabel": "Redes sociales de {name}",
+        "linkedin": "Perfil de LinkedIn de {name} (abre en nueva pestaña)",
+        "github": "Perfil de GitHub de {name} (abre en nueva pestaña)",
+        "website": "Portafolio web de {name} (abre en nueva pestaña)",
+        "titleLinkedin": "LinkedIn",
+        "titleGithub": "GitHub",
+        "titleWebsite": "Portafolio / Web"
+      },
+      "brikman": {
+        "name": "Brikman Paul Morales Lancheros",
+        "role": "AUDIO SOFTWARE ARCHITECT & FULL STACK DEVELOPER",
+        "badge": "DSP & FULL-STACK",
+        "bio": "Ingeniero de software y creador principal del ecosistema de mezcla y masterización. Especialista en la convergencia de DSP e IA, combinando 10 años como productor musical con una sólida trayectoria en desarrollo full-stack y arquitecturas cloud.",
+        "quote": "“Transformando bytes en frecuencias: donde la inteligencia artificial esculpe el futuro del sonido profesional.”"
+      },
+      "miguel": {
+        "name": "Miguel Angel Ariza",
+        "role": "INGENIERO DE IA",
+        "badge": "IA & MACHINE LEARNING",
+        "bio": "Ingeniero de Inteligencia Artificial enfocado en modelos neuronales de análisis y predicción acústica. Artífice de los algoritmos de inteligencia auditiva que potencian el motor AudioMind, con amplia experiencia en deep learning, redes neuronales generativas y pipelines de inferencia DSP de ultra-baja latencia.",
+        "quote": "“La inteligencia artificial no reemplaza la emoción de la música; le da precisión milimétrica para que trascienda.”"
+      },
+      "andres": {
+        "name": "Andrés Villanueva Tabares",
+        "role": "FULLSTACK ENGINEER",
+        "badge": "FRONTEND & BACKEND",
+        "bio": "Ingeniero FullStack con más de 7 años de trayectoria diseñando, liderando y desplegando plataformas web de alta concurrencia y proyectos de alto impacto social y empresarial. Especialista en arquitecturas frontend reactivas y servicios distribuidos de alto desempeño.",
+        "quote": "“Uniendo ambos mundos: interfaces frontend fluidas e intuitivas respaldadas por la solidez y escala de un backend de alto rendimiento.”"
+      }
+    },
+    "cta": {
+      "badge": "SISTEMA DE ACCESO DIRECTO ABIERTO",
+      "title": "Eleva tu sonido al estándar cuántico de Brik",
+      "subtitle": "Ingresa al entorno de producción definitivo donde la precisión matemática y el carácter espectral se fusionan para entregar masters definitivos.",
+      "btnStudio": "Ingresar a Brik Studio",
+      "btnStudioTag": "(/studio)",
+      "btnSpecs": "Ver Especificación DSP (13 Etapas)",
+      "guarantees": {
+        "artifacts": "Cero Artefactos",
+        "simd": "Rust SIMD 64-bit",
+        "haas": "True Haas Estéreo",
+        "instantWs": "WebSocket Instantáneo"
+      }
+    },
+    "footer": {
+      "brand": "BRIK AUDIO",
+      "engineOnline": "MOTOR DSP v3.4 EN LÍNEA",
+      "copy": "© 2024 Brik Audio DSP Systems. Masterizado bajo conciencia espectral.",
+      "ebu": "EBU R128 (-14.0 LUFS)",
+      "truePeak": "TRUE PEAK: -1.0 dBTP",
+      "clock": "RELOJ: 96kHz / 64-bit FP"
+    }
   }
 }
