@@ -724,26 +724,35 @@
       "badge": "Arquitectos del Sonido",
       "title": "El Aquelarre Técnico — Equipo Fundador de Brik",
       "subtitle": "Las 3 mentes que combinan ciencia acústica, algoritmos neuronales y experiencia de software para masterizar con fidelidad espectral.",
-      "valerya": {
-        "name": "Dra. Valerya Vance",
-        "role": "Arquitecta Principal de DSP & Aprendizaje Automático",
-        "badge": "NÚCLEO DSP & IA",
-        "bio": "Especialista en redes neuronales espectrales y tensores en C++/Rust. Lideró la concepción del motor AudioMind y la simulación matemática de la resonancia de salas no-lineales.",
-        "quote": "“El sonido tiene memoria; la IA solo la despierta.”"
+      "social": {
+        "listLabel": "Redes sociales de {name}",
+        "linkedin": "Perfil de LinkedIn de {name} (abre en nueva pestaña)",
+        "github": "Perfil de GitHub de {name} (abre en nueva pestaña)",
+        "website": "Portafolio web de {name} (abre en nueva pestaña)",
+        "titleLinkedin": "LinkedIn",
+        "titleGithub": "GitHub",
+        "titleWebsite": "Portafolio / Web"
       },
-      "kaelen": {
-        "name": "Kaelen Thorne",
-        "role": "Líder de Infraestructura de Sistemas & Full-Stack",
-        "badge": "LÍDER DE INFRAESTRUCTURA",
-        "bio": "Arquitecto del monorepo Next.js 16 + React 19 y FastAPI con WebSockets a 48 kHz. Ha diseñado el pipeline de streaming distribuido que procesa audio a escala masiva sin pérdida de paquetes.",
-        "quote": "“Rendimiento implacable: cada microsegundo cuenta.”"
+      "brikman": {
+        "name": "Brikman Paul Morales Lancheros",
+        "role": "AUDIO SOFTWARE ARCHITECT & FULL STACK DEVELOPER",
+        "badge": "DSP & FULL-STACK",
+        "bio": "Ingeniero de software y creador principal del ecosistema de mezcla y masterización. Especialista en la convergencia de DSP e IA, combinando 10 años como productor musical con una sólida trayectoria en desarrollo full-stack y arquitecturas cloud.",
+        "quote": "“Transformando bytes en frecuencias: donde la inteligencia artificial esculpe el futuro del sonido profesional.”"
+      },
+      "miguel": {
+        "name": "Miguel Angel Ariza",
+        "role": "INGENIERO DE IA",
+        "badge": "IA & MACHINE LEARNING",
+        "bio": "Ingeniero de Inteligencia Artificial enfocado en modelos neuronales de análisis y predicción acústica. Artífice de los algoritmos de inteligencia auditiva que potencian el motor AudioMind, con amplia experiencia en deep learning, redes neuronales generativas y pipelines de inferencia DSP de ultra-baja latencia.",
+        "quote": "“La inteligencia artificial no reemplaza la emoción de la música; le da precisión milimétrica para que trascienda.”"
       },
       "andres": {
         "name": "Andrés Villanueva Tabares",
-        "role": "FullStack Engineer",
-        "badge": "Frontend & Backend",
-        "bio": "Ingeniero FullStack con más de 7 años de trayectoria diseñando, liderando y desplegando plataformas web de alta concurrencia y proyectos de alto impacto social y empresarial.",
-        "quote": "“Un espectro en el código: hace vibrar cada frecuencia.”"
+        "role": "FULLSTACK ENGINEER",
+        "badge": "FRONTEND & BACKEND",
+        "bio": "Ingeniero FullStack con más de 7 años de trayectoria diseñando, liderando y desplegando plataformas web de alta concurrencia y proyectos de alto impacto social y empresarial. Especialista en arquitecturas frontend reactivas y servicios distribuidos de alto desempeño.",
+        "quote": "“Uniendo ambos mundos: interfaces frontend fluidas e intuitivas respaldadas por la solidez y escala de un backend de alto rendimiento.”"
       }
     },
     "cta": {

@@ -724,26 +724,35 @@
       "badge": "Sound Architects",
       "title": "The Technical Coven — Brik Founding Team",
       "subtitle": "The 3 minds uniting acoustic science, neural algorithms, and software engineering to master with spectral fidelity.",
-      "valerya": {
-        "name": "Dr. Valerya Vance",
-        "role": "Lead Audio DSP & Machine Learning Architect",
-        "badge": "DSP & ML CORE",
-        "bio": "Specialist in spectral neural networks and C++/Rust audio tensors. Led the creation of the AudioMind engine and mathematical simulation of non-linear room resonances.",
-        "quote": "“Sound has memory; AI simply awakens it.”"
+      "social": {
+        "listLabel": "{name}'s social links",
+        "linkedin": "{name}'s LinkedIn profile (opens in new tab)",
+        "github": "{name}'s GitHub profile (opens in new tab)",
+        "website": "{name}'s portfolio website (opens in new tab)",
+        "titleLinkedin": "LinkedIn",
+        "titleGithub": "GitHub",
+        "titleWebsite": "Portfolio / Web"
       },
-      "kaelen": {
-        "name": "Kaelen Thorne",
-        "role": "Full-Stack & Systems Infrastructure Lead",
-        "badge": "INFRASTRUCTURE LEAD",
-        "bio": "Architect of the Next.js 16 + React 19 monorepo and FastAPI with 48 kHz WebSockets. Designed the distributed streaming pipeline processing audio at scale with zero packet loss.",
-        "quote": "“Relentless performance: every microsecond counts.”"
+      "brikman": {
+        "name": "Brikman Paul Morales Lancheros",
+        "role": "AUDIO SOFTWARE ARCHITECT & FULL STACK DEVELOPER",
+        "badge": "DSP & FULL-STACK",
+        "bio": "Software engineer and lead creator of the mixing and mastering ecosystem. Specialist in the convergence of DSP and AI, pairing 10 years as a music producer with a proven track record in full-stack engineering and cloud architectures.",
+        "quote": "“Transforming bytes into frequencies: where artificial intelligence sculpts the future of professional sound.”"
+      },
+      "miguel": {
+        "name": "Miguel Angel Ariza",
+        "role": "AI ENGINEER",
+        "badge": "AI & MACHINE LEARNING",
+        "bio": "Artificial Intelligence Engineer focused on acoustic neural analysis and predictive modeling. Architect of the auditory intelligence algorithms powering the AudioMind engine, with extensive expertise in deep learning, generative neural architectures, and ultra-low-latency DSP inference pipelines.",
+        "quote": "“Artificial intelligence does not replace musical emotion; it grants millimeter precision so it can transcend.”"
       },
       "andres": {
         "name": "Andrés Villanueva Tabares",
-        "role": "FullStack Engineer",
-        "badge": "Frontend & Backend",
-        "bio": "FullStack Engineer with over 7 years of experience designing, leading, and deploying high-concurrency web platforms and projects of high social and enterprise impact.",
-        "quote": "“A phantom in the code: making every frequency vibrate.”"
+        "role": "FULLSTACK ENGINEER",
+        "badge": "FRONTEND & BACKEND",
+        "bio": "FullStack Engineer with over 7 years of experience designing, leading, and deploying high-concurrency web platforms and high-impact enterprise projects. Specialist in reactive frontend architectures and high-performance distributed services.",
+        "quote": "“Bridging both worlds: fluid and intuitive frontend interfaces backed by the strength and scale of a high-performance backend.”"
       }
     },
     "cta": {

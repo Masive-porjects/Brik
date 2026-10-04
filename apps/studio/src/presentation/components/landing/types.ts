@@ -43,6 +43,12 @@ export interface PresetItem {
   color: "primary" | "secondary" | "tertiary";
 }
 
+export interface FounderSocials {
+  linkedin?: string;
+  github?: string;
+  website?: string;
+}
+
 export interface FounderItem {
   id: string;
   name: string;
@@ -53,4 +59,5 @@ export interface FounderItem {
   quote: string;
   image: string;
   alt: string;
+  socials?: FounderSocials;
 }
