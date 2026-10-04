@@ -790,6 +790,7 @@ export interface AsyncJobStatus {
   job_id: string;
   track_id: string;
   status: "processing" | "completed" | "error";
+  progress?: number;
   result?: MasterJobResult;
   error?: string;
   started_at?: string;

@@ -16,36 +16,36 @@ import { useAuth } from "@/features/auth";
 import { fetchLatestUserTrack, type Track } from "@/features/tracks";
 import { useMasteringJob } from "@/features/mastering";
 
-// ── Nuevo hook: submeter job asíncrono y hacer polling ──────────────────
-const {
-  state,
-  jobId,
-  result,
-  error: jobError,
-  progress,
-  isComplete,
-  isTerminal,
-  submit,
-  reset,
-} = useMasteringJob({
-  payload: {
-    track_id: "",
-    preset_id: "universal",
-    is_async: true, // Fase 6: encolar en background queue
-  },
-  onComplete: (res) => {
-    console.log("✅ Mastering job completado:", res);
-  },
-  onError: (err) => {
-    console.error("❌ Mastering job falló:", err);
-  },
-});
-
 export default function UploadPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useTranslation();
   const workflow = useMastering();
+
+  // ── Nuevo hook: submeter job asíncrono y hacer polling ──────────────────
+  const {
+    state,
+    jobId,
+    result,
+    error: jobError,
+    progress,
+    isComplete,
+    isTerminal,
+    submit,
+    reset,
+  } = useMasteringJob({
+    payload: {
+      track_id: "",
+      preset_id: "universal",
+      is_async: true, // Fase 6: encolar en background queue
+    },
+    onComplete: (res) => {
+      console.log("✅ Mastering job completado:", res);
+    },
+    onError: (err) => {
+      console.error("❌ Mastering job falló:", err);
+    },
+  });
 
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -210,7 +210,7 @@ export default function UploadPage() {
             setResumeModalOpen(false);
           }}
           onOpenLibrary={() => {
-            setResumeModalOpen(false;
+            setResumeModalOpen(false);
             setLibraryOpen(true);
           }}
         />

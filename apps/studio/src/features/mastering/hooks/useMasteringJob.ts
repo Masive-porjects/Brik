@@ -7,7 +7,6 @@ import {
   type MasterJobResult,
   submitMasterJob,
   getMasterJobStatus,
-  MasterJobResult,
 } from "@/lib/api";
 import { useTranslation } from "@/i18n/useTranslation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -37,7 +36,7 @@ export interface UseMasteringJobResult {
   /** ¿El trabajo está completo y listo para consumir? */
   isComplete: boolean;
   /** Funcula para submeter un nuevo trabajo asíncrono. */
-  submit: (payload: MasterJobPayload) => Promise<void>;
+  submit: (payload?: MasterJobPayload) => Promise<void>;
   /** Funcula para reiniciar/limpiar el trabajo actual. */
   reset: () => void;
   /** Callback invocado cuando el trabajo llega a estado terminal. */
@@ -102,9 +101,110 @@ export function useMasteringJob(
   onCompleteRef.current = options.onComplete;
   onErrorRef.current = options.onError;
 
+  /** Iniciar el intervalo de polling. */
+  const startPolling = useCallback(
+    (overrideJobId?: string) => {
+      // Clear any existing interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      setProgress(0);
+      setError(null);
+      setIsTerminal(false);
+      setIsComplete(false);
+
+      intervalRef.current = setInterval(async () => {
+        const activeJobId = overrideJobId || jobId;
+        if (!activeJobId) {
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+          setState("error");
+          setError(t("errors.masteringJobNoId", "ID de job inexistente"));
+          return;
+        }
+
+        try {
+          const status: AsyncJobStatus = await getMasterJobStatus(activeJobId);
+
+          // Actualizar progreso y estado según el response
+          setProgress(status.progress ?? 0);
+
+          switch (status.status) {
+            case "processing":
+              setState("processing");
+              // Reset error if was previously errored and now running again
+              setError(null);
+              break;
+
+            case "completed":
+              clearInterval(intervalRef.current!);
+              intervalRef.current = null;
+              setState("completed");
+              setIsTerminal(true);
+              setIsComplete(true);
+              setProgress(100);
+              const resultData: MasterJobResult = status.result || {
+                success: true,
+                job_id: status.job_id,
+                track_id: status.track_id,
+                master_id: status.job_id,
+                status: "completed",
+                file_size_bytes: 0,
+                format: "wav",
+              };
+              setResult(resultData);
+              setError(null);
+              onCompleteRef.current?.(resultData);
+              setIsComplete(true);
+              break;
+
+            case "error":
+              clearInterval(intervalRef.current!);
+              intervalRef.current = null;
+              setState("error");
+              setIsTerminal(true);
+              const errMsg =
+                status.error ||
+                t("errors.masteringJobFailed", "El job de mastering falló");
+              setError(errMsg);
+              onErrorRef.current?.(errMsg);
+              break;
+
+            default:
+              // Estado desconocido, continuar polling
+              break;
+          }
+        } catch (pollErr: unknown) {
+          console.error(
+            `[useMasteringJob] Error polling job ${activeJobId}:`,
+            pollErr,
+          );
+          // Si el job desaparece (404), tratar como error de lease expirado
+          if (pollErr instanceof Error && pollErr.message.includes("404")) {
+            clearInterval(intervalRef.current!);
+            intervalRef.current = null;
+            setState("error");
+            setError(
+              t(
+                "errors.masteringJobStale",
+                "El job expiró (el worker pudo detenerse). Recarga y sube el audio de nuevo.",
+              ),
+            );
+          } else {
+            setError(
+              t("errors.masteringJobPoll", "Error al consultar el estado del job"),
+            );
+          }
+        }
+      }, 2500); // 2.5 segundos: balance entre responsividad y carga de API
+    },
+    [jobId, t],
+  );
+
   /** Submeter el job asíncrono. */
   const submit = useCallback(
-    async (payload: MasterJobPayload) => {
+    async (overridePayload?: MasterJobPayload) => {
+      const activePayload = overridePayload || options.payload;
       // Prevent concurrent submissions
       if (isSubmittingRef.current) {
         console.warn("[useMasteringJob] Ya hay un job en proceso de submisión.");
@@ -120,24 +220,22 @@ export function useMasteringJob(
       setIsComplete(false);
 
       try {
-        const response = await submitMasterJob(payload);
+        const response = await submitMasterJob(activePayload);
         // El response shape depends on implementation; accept both shapes:
         // { job_id, status, track_id, ... } or the full MasterJobResult
-        const jobIdVal = response.job_id || response.id;
-        const statusVal = response.status || "processing";
+        const jobIdVal = response.job_id || (response as unknown as { id?: string }).id;
 
         if (jobIdVal) {
           setJobId(jobIdVal as string);
           setState("processing");
+          // Iniciar polling interval inmediatamente con el id recién devuelto
+          startPolling(jobIdVal as string);
         } else {
           setState("error");
           setError(t("errors.masteringJobSubmit", "No se recibió job_id del servidor"));
           return;
         }
-
-        // Iniciar polling interval
-        startPolling();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("[useMasteringJob] Error submitting master job:", err);
         setState("error");
         setError(
@@ -148,131 +246,8 @@ export function useMasteringJob(
         isSubmittingRef.current = false;
       }
     },
-    [t],
+    [options.payload, startPolling, t],
   );
-
-  /** Iniciar el intervalo de polling. */
-  const startPolling = useCallback(() => {
-    // Clear any existing interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    setProgress(0);
-    setError(null);
-    isTerminalRef.current = false;
-    isCompleteRef.current = false;
-
-    intervalRef.current = setInterval(async () => {
-      if (!jobId) {
-        clearInterval(intervalRef.current!);
-        intervalRef.current = null;
-        setState("error");
-        setError(t("errors.masteringJobNoId", "ID de job inexistente"));
-        return;
-      }
-
-      try {
-        const status: AsyncJobStatus = await getMasterJobStatus(jobId);
-
-        // Actualizar progreso y estado según el response
-        setProgress(status.progress ?? 0);
-
-        switch (status.status) {
-          case "processing":
-            setState("processing");
-            // Reset error if was previously errored and now running again
-            setError(null);
-            break;
-
-          case "completed":
-            clearInterval(intervalRef.current!);
-            intervalRef.current = null;
-            setState("completed");
-            setIsTerminal(true);
-            setIsComplete(true);
-            setProgress(100);
-            const resultData: MasterJobResult = status.result
-              ? {
-                  success: true,
-                  job_id: status.job_id,
-                  track_id: status.track_id,
-                  master_id: status.result.master_id || status.job_id,
-                  status: "completed",
-                  storage_path: status.result.storage_path,
-                  download_url: status.result.download_url,
-                  file_size_bytes: status.result.file_size_bytes || 0,
-                  format: status.result.format || "wav",
-                  metrics: status.result.metrics
-                    ? {
-                        integrated_lufs: status.result.metrics.integrated_lufs,
-                        true_peak_db: status.result.metrics.true_peak_db,
-                        crest_factor_db: status.result.metrics.crest_factor_db,
-                        limiter_ceiling_db: status.result.metrics.limiter_ceiling_db,
-                        duration_seconds: status.result.metrics.duration_seconds,
-                        sample_rate: status.result.metrics.sample_rate,
-                        output_bit_depth: status.result.metrics.output_bit_depth,
-                        stereo_correlation: status.result.metrics.stereo_correlation,
-                        lra: status.result.metrics.lra,
-                      }
-                    : undefined,
-                  validation: status.result.validation
-                    ? {
-                        status: status.result.validation.status,
-                        issues: status.result.validation.issues,
-                        retry_recommended: status.result.validation.retry_recommended,
-                        suggested_preset_id: status.result.validation.suggested_preset_id,
-                        note: status.result.validation.note,
-                      }
-                    : undefined,
-                  error: null,
-                }
-              : MasterJobResult.success;
-            setResult(resultData);
-            setError(null);
-            onCompleteRef.current?.(resultData);
-            setIsComplete(true);
-            break;
-
-          case "error":
-            clearInterval(intervalRef.current!);
-            intervalRef.current = null;
-            setState("error");
-            setIsTerminal(true);
-            const errMsg =
-              status.error ||
-              t("errors.masteringJobFailed", "El job de mastering falló");
-            setError(errMsg);
-            onErrorRef.current?.(errMsg);
-            break;
-
-          default:
-            // Estado desconocido, continuar polling
-            break;
-        }
-      } catch (pollErr: any) {
-        console.error(
-          `[useMasteringJob] Error polling job ${jobId}:`,
-          pollErr,
-        );
-        // Si el job desaparece (404), tratar como error de lease expirado
-        if (pollErr instanceof Error && pollErr.message.includes("404")) {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
-          setState("error");
-          setError(
-            t(
-              "errors.masteringJobStale",
-              "El job expiró (el worker pudo detenerse). Recarga y sube el audio de nuevo.",
-            ),
-          );
-        } else {
-          setError(
-            t("errors.masteringJobPoll", "Error al consultar el estado del job"),
-          );
-        }
-      }
-    }, 2500); // 2.5 segundos: balance entre responsividad y carga de API
-  }, [jobId, t]);
 
   /** Detener polling y limpiar. */
   const stopPolling = useCallback(() => {
@@ -322,10 +297,7 @@ export function useMasteringJob(
     isComplete,
     submit,
     reset,
-    onComplete,
-    onError,
+    onComplete: options.onComplete,
+    onError: options.onError,
   } as UseMasteringJobResult;
 }
-
-/** Hook listo para usar en el contexto de mastering. */
-export { useMasteringJob };
