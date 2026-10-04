@@ -106,7 +106,7 @@ async function renderCard(opts: {
 
   // Ghost watermark — low opacity, right side (best-effort)
   try {
-    const ghost = await loadImage("/brand/WaveAI.png");
+    const ghost = await loadImage("/brand/mascota-3d.png");
     const h = CARD_H * 0.92;
     const w = (ghost.width / ghost.height) * h;
     ctx.save();
@@ -119,7 +119,7 @@ async function renderCard(opts: {
 
   // Logo top-left (SVG; styled-text fallback)
   try {
-    const logo = await loadImage("/brand/WaveAI.svg");
+    const logo = await loadImage("/brand/mascota-3d.png");
     const h = 84;
     const w = (logo.width / logo.height) * h;
     ctx.drawImage(logo, PAD, PAD - 10, w, h);
@@ -127,7 +127,7 @@ async function renderCard(opts: {
     ctx.fillStyle = opts.accent;
     ctx.font = '800 34px system-ui, sans-serif';
     ctx.textBaseline = "alphabetic";
-    ctx.fillText("WaveIA", PAD, PAD + 24);
+    ctx.fillText("Brik", PAD, PAD + 24);
   }
 
   // Track name
@@ -175,7 +175,7 @@ async function renderCard(opts: {
   // Footer
   ctx.font = '500 20px system-ui, sans-serif';
   ctx.fillStyle = TEXT_MUTED;
-  ctx.fillText("masterizado con WaveIA", PAD, CARD_H - 36);
+  ctx.fillText("masterizado con Brik", PAD, CARD_H - 36);
 
   return canvas;
 }
@@ -223,15 +223,15 @@ export default function ShareCard({
     }
     if (!blob) return;
 
-    const fileName = `waveai_${sessionId}_card.png`;
+    const fileName = `brik_${sessionId}_card.png`;
     const file = new File([blob], fileName, { type: "image/png" });
 
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({
           files: [file],
-          title: "WaveIA",
-          text: `${trackName} — masterizado con WaveIA`,
+          title: "Brik",
+          text: `${trackName} — masterizado con Brik`,
         });
         return;
       } catch (err) {

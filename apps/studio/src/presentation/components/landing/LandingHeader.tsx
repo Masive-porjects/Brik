@@ -59,7 +59,13 @@ export default function LandingHeader() {
       <div className="h-20 w-full px-4 sm:px-8 lg:px-12 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
         {/* Brand Logo */}
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/mascota-3d.png"
+              alt="Brik Logo"
+              className="w-8 h-8 rounded-lg object-contain transition-transform group-hover:scale-110 shadow-sm"
+            />
             <span className="font-display-xl text-2xl lg:text-3xl text-primary font-bold tracking-tight transition-transform group-hover:scale-105">
               {t("landing.nav.brand", "BRIK")}
             </span>

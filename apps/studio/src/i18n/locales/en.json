@@ -149,7 +149,7 @@
     "logout": "Sign Out",
     "email": "Email Address",
     "password": "Password",
-    "welcome": "Welcome to WaveAI"
+    "welcome": "Welcome to Brik"
   },
   "admin": {
     "menuLink": "Admin Panel",
@@ -544,7 +544,7 @@
     "noDrafts": "No active drafts at the moment",
     "noMastered": "You haven't mastered any songs yet",
     "emptyTitle": "Your song library is empty",
-    "emptyDesc": "Upload an audio track to start processing with WaveIA presets and AI engines.",
+    "emptyDesc": "Upload an audio track to start processing with Brik presets and AI engines.",
     "startMastering": "Upload my first track",
     "draftBadge": "Draft",
     "masteredBadge": "Mastered",

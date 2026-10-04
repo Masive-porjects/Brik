@@ -76,7 +76,7 @@ export default function SelectWorkflowModal({
               aria-hidden="true"
             />
 
-            {/* Ambient WaveIA Floating Notes & Ghost Mascot Accent */}
+            {/* Ambient Brik Floating Notes & Ghost Mascot Accent */}
             <div className="pointer-events-none absolute top-4 right-16 opacity-25" aria-hidden="true">
               <MusicNote color="#4ecdc4" size={14} />
             </div>

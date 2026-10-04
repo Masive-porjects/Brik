@@ -175,7 +175,7 @@ export default function LandingHero() {
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-fmfq5NimQX-KKfJ4fWMewu5MlsJOqcAlQENP0biAEI3m4enl2vxmiVIMdHMa4MJP6ocm9Lhxm7Ny_alOeJpsRMlOIqSEiFcXCrLOH_RXyHUoM-arBOrQb2RAymPPLFuGyJqKkUbOeJ1Y1LYLPC2U9UUHzrim_b2MfANOaPOUBaWoU_mL6ifhA6VRJkYCkrQLeUhr1YJycN1fB0Ik4C2_sDgsbzjehg3iMKwaUrHldxSGlTT63HnP0dXJbc_P_HtNPg"
                 />
 
-                {/* Overlaid WaveAI Ghost Mascot */}
+                {/* Overlaid Brik Ghost Mascot */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <BigGhostWithNotes size={64} radius={80} noteCount={6} />
                 </div>

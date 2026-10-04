@@ -14,7 +14,7 @@ interface WelcomeGateProps {
 
 /**
  * Welcome overlay (sin licencia — deja de pegarte contra /license/*).
- * Muestra "Bienvenido a WaveIA" y un botón Continuar que revela la
+ * Muestra "Bienvenido a Brik" y un botón Continuar que revela la
  * app (vista de adjuntar audio). No hay llamadas a la API acá: el demo
  * corre en modo desarrollo, sin clave de licencia.
  */
@@ -146,7 +146,7 @@ export default function WelcomeGate({ children }: WelcomeGateProps) {
             className="text-xl font-semibold text-[var(--text-primary)] mb-2 relative z-10"
             style={{ letterSpacing: "-0.02em" }}
           >
-            Bienvenido a WaveIA
+            Bienvenido a Brik
           </h1>
 
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-6 relative z-10">
@@ -169,7 +169,7 @@ export default function WelcomeGate({ children }: WelcomeGateProps) {
 
           {/* Credits */}
           <p className="text-[10px] text-[var(--text-muted)] mt-4 leading-relaxed relative z-10">
-            WaveIA © {new Date().getFullYear()}
+            Brik © {new Date().getFullYear()}
           </p>
         </div>
       </div>

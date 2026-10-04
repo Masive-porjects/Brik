@@ -149,7 +149,7 @@
     "logout": "Cerrar Sesión",
     "email": "Correo Electrónico",
     "password": "Contraseña",
-    "welcome": "Bienvenido a WaveAI"
+    "welcome": "Bienvenido a Brik"
   },
   "admin": {
     "menuLink": "Panel de Administración",
@@ -544,7 +544,7 @@
     "noDrafts": "No tienes borradores activos actualmente",
     "noMastered": "Aún no has masterizado ninguna canción",
     "emptyTitle": "Tu biblioteca de canciones está vacía",
-    "emptyDesc": "Sube una pista de audio para comenzar a procesar con los presets y motores IA de WaveIA.",
+    "emptyDesc": "Sube una pista de audio para comenzar a procesar con los presets y motores IA de Brik.",
     "startMastering": "Subir mi primera pista",
     "draftBadge": "Borrador",
     "masteredBadge": "Masterizado",

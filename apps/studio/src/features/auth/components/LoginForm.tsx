@@ -134,8 +134,10 @@ export default function LoginForm() {
       }}
     >
       <div className="text-center mb-3">
-        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider mb-1.5 border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]">
-          WaveIA Studio
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider mb-1.5 border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/mascota-3d.png" alt="Brik Logo" className="w-4 h-4 rounded-full object-contain" />
+          Brik Studio
         </div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--text-primary)]">
           {t("auth.loginTitle", "Iniciar Sesión")}
@@ -190,7 +192,7 @@ export default function LoginForm() {
                   <input
                     type="email"
                     {...register("email")}
-                    placeholder="producer@waveia.com"
+                    placeholder="producer@brik.audio"
                     className={`w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border bg-[var(--surface-elevated)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none transition-all ${
                       errors.email
                         ? "border-red-500/50 focus:border-red-500"

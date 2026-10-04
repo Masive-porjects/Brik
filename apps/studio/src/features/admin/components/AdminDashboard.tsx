@@ -436,7 +436,7 @@ export default function AdminDashboard() {
               </Link>
               <span className="sm:hidden text-[var(--border-strong)]">•</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                WaveIA Control
+                Brik Control
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2.5">

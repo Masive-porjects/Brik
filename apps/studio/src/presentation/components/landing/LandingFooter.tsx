@@ -10,7 +10,13 @@ export default function LandingFooter() {
       <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-10">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/mascota-3d.png"
+                alt="Brik Logo"
+                className="w-6 h-6 rounded-md object-contain"
+              />
               <span className="font-headline-sm text-base text-[#e3e2e8] font-bold tracking-tight">
                 {t("landing.footer.brand", "BRIK AUDIO")}
               </span>

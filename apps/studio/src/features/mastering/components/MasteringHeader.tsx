@@ -77,9 +77,15 @@ export default function MasteringHeader({
   return (
     <nav className="relative z-50 flex items-center justify-between px-4 lg:px-6 pt-safe py-3 shrink-0">
       <div className="flex items-center gap-2.5 flex-wrap">
-        <div className="rounded-full px-4 py-2 glass">
+        <div className="rounded-full px-3.5 py-1.5 glass flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/mascota-3d.png"
+            alt="Brik Ghost Logo"
+            className="w-5 h-5 rounded-md object-contain"
+          />
           <span className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
-            Wave<span className="text-[var(--accent-primary)]">IA</span>
+            Brik<span className="text-[var(--accent-primary)]">.</span>
           </span>
         </div>
 
