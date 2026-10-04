@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -91,13 +92,26 @@ def run_mix_job(job_id: str, session_id: str, options: MixJobOptions) -> None:
     """
     store = get_job_store()
     stop = threading.Event()
-    store.update(job_id, progress=_RUNNING_PROGRESS)
+    store.update(job_id, progress=_RUNNING_PROGRESS, stage="split")
     heartbeat = threading.Thread(
         target=_heartbeat_loop, args=(store, job_id, stop), daemon=True
     )
     heartbeat.start()
+
+    def _progress(pct: float, stage: str) -> None:
+        """Forward DSP pipeline progress into the durable job record.
+
+        Progress is UI feedback, never a reason to fail the job: a store
+        write that fails here must not take down a mix whose bytes are
+        already on their way to R2.
+        """
+        try:
+            store.update(job_id, progress=int(round(pct)), stage=stage)
+        except Exception:
+            logger.warning("Progress update failed for job %s", job_id)
+
     try:
-        _delivered = _execute(job_id, session_id, options)
+        _delivered = _execute(job_id, session_id, options, progress_cb=_progress)
         store.update(
             job_id,
             status=JobStatus.COMPLETED,
@@ -128,7 +142,13 @@ def _heartbeat_loop(store: Any, job_id: str, stop: threading.Event) -> None:
         store.heartbeat(job_id)
 
 
-def _execute(job_id: str, session_id: str, options: MixJobOptions) -> dict[str, Any]:
+def _execute(
+    job_id: str,
+    session_id: str,
+    options: MixJobOptions,
+    *,
+    progress_cb: Callable[[float, str], None] | None = None,
+) -> dict[str, Any]:
     """Run the DSP chain on the gated pool, then upload the result.
 
     ``get_or_create_flight`` is reused so a double-click submits ONE DSP run
@@ -151,6 +171,7 @@ def _execute(job_id: str, session_id: str, options: MixJobOptions) -> dict[str, 
             dimension_profiles=dimension_profiles,
             auto_balance=options.auto_balance,
             stem_trims=options.stem_trims,
+            progress_cb=progress_cb,
         )
 
     future = demo_guard.get_or_create_flight(session_id, f"job:{job_id}", _work)

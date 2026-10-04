@@ -128,6 +128,7 @@ def _build_preset_params(preset_id: str) -> MasteringParameters:
         eq_bands=entry.get("eq_bands", []),
         output_bit_depth=24,
         target_lufs_db=entry.get("target_lufs"),
+        tape_enabled=entry.get("saturation", {}).get("type") == "tape" if entry.get("saturation") else False,
     )
 
 
