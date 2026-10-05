@@ -68,6 +68,24 @@ class JobStatus(StrEnum):
 
 TERMINAL_STATUSES = frozenset({JobStatus.COMPLETED, JobStatus.ERROR})
 
+#: Every column `SupabaseJobStore` reads or writes. Kept next to `JobRecord` so
+#: adding a field to the model without adding it here fails the probe instead of
+#: failing silently at the first write. Order is irrelevant to PostgREST.
+WRITE_COLUMNS = (
+    "job_id",
+    "kind",
+    "status",
+    "progress",
+    "stage",
+    "session_id",
+    "meta",
+    "result",
+    "error",
+    "created_at",
+    "updated_at",
+    "lease_expires_at",
+)
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -239,15 +257,29 @@ class SupabaseJobStore:
 
     @classmethod
     def probe(cls, client: Any) -> None:
-        """Raise unless the job table is actually queryable.
+        """Raise unless the job table can actually carry a job through.
 
-        Deliberately a real read rather than a metadata check: Supabase
-        reports a missing table, a revoked key and a disabled project
-        differently, and this only needs to distinguish "usable" from
-        "not usable" before we commit to the durable path. One row at
-        startup is cheaper than a job that answers 202 and then 404s.
+        Deliberately a real read of *every column the writes touch* rather than
+        a metadata check: Supabase reports a missing table, a revoked key and a
+        disabled project differently, and this only needs to distinguish
+        "usable" from "not usable" before we commit to the durable path.
+
+        WHY EVERY COLUMN, NOT JUST ``job_id``: probing the primary key alone is
+        not enough. ``create()`` inserts the full ``JobRecord`` payload and
+        ``update()`` patches ``lease_expires_at``, so a table carrying only
+        ``job_id`` passes a key-only probe and then fails every single write.
+        That is the exact production failure this guards: the store is chosen,
+        each insert raises and is swallowed by ``create()``, the endpoint still
+        answers 202 with the in-memory record, and the first poll returns 404
+        while the DSP happily produced a master nobody can fetch. Probing the
+        write contract turns that into a log line at startup.
         """
-        response = client.table(cls.TABLE).select("job_id").limit(1).execute()
+        response = (
+            client.table(cls.TABLE)
+            .select(", ".join(WRITE_COLUMNS))
+            .limit(1)
+            .execute()
+        )
         # A row-less result is fine: the table exists, it is just empty.
         if getattr(response, "data", None) is None:
             raise RuntimeError(f"Supabase returned no data for {cls.TABLE}")

@@ -20,6 +20,18 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# Cache de Hugging Face en un path CONOCIDO y estable.
+#
+# Antes los pesos se bajaban dentro del request: la primera separacion de stems
+# descargaba ~300 MB y compilaba la sesion ONNX mientras el servidor ya estaba
+# vivo. En un contenedor chico eso es un pico de memoria que el kernel mata
+# ("Killed", sin traceback de Python) -> 502 con el job ya completado en
+# Supabase. Horneando los pesos aca, el runtime solo mapea memoria.
+#
+# Este ENV vive en la imagen, asi que build y runtime comparten el mismo path y
+# la separacion en runtime no vuelve a descargar nada.
+ENV HF_HOME=/opt/hf-cache
+
 # onnxruntime primero: demucs-onnx pide >=1.17 y sin un wheel instalado el
 # resolver puede intentar compilarlo (o fallar la resolucion). Con onnxruntime
 # ya instalado, el paso siguiente lo ve satisfecho y no lo re-resuelve.
@@ -34,6 +46,25 @@ RUN pip install --no-cache-dir onnxruntime \
 # site-packages y las rutas de archivos se romperian.
 COPY src/ src/
 RUN pip install --no-cache-dir --no-deps --no-build-isolation -e .
+
+# HORNEAR los pesos de HTDemucs en la imagen.
+#
+# demucs_onnx.prewarm() existe justamente para esto ("Pre-download + compile
+# sessions... where the first separate call would otherwise trigger a 300 MB
+# download"). OJO con dos trampas aca:
+#
+#  1. prewarm() SIN argumentos hornea "htdemucs_ft" (bag-of-specialists), pero
+#     processing/splitter.py llama separate(model="htdemucs"). Hay que pasar el
+#     modelo explicito o queda horneado uno que la app nunca usa.
+#  2. La precision debe coincidir con la que pide runtime. split_audio() llama
+#     separate() sin argumento precision, o sea fp32 (el default). Si horneamos
+#     solo fp16, el runtime vuelve a descargar el fp32.
+#
+# Si la descarga falla el build se cae a proposito: una imagen sin pesos
+# horneados reintroduce el OOM en runtime, y eso es peor que un deploy
+# postergado que un 502 silencioso.
+RUN python -c "import demucs_onnx, json; baked = demucs_onnx.prewarm(['htdemucs'], precision='fp32'); print('Baked HTDemucs weights:', json.dumps(baked, indent=2))" \
+    && python -c "import os,pathlib; p=pathlib.Path(os.environ['HF_HOME']); print('HF cache size:', sum(f.stat().st_size for f in p.rglob('*') if f.is_file())//1048576, 'MiB')"
 
 RUN mkdir -p uploads outputs
 
