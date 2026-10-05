@@ -63,8 +63,11 @@ RUN pip install --no-cache-dir --no-deps --no-build-isolation -e .
 # Si la descarga falla el build se cae a proposito: una imagen sin pesos
 # horneados reintroduce el OOM en runtime, y eso es peor que un deploy
 # postergado que un 502 silencioso.
-RUN python -c "import demucs_onnx, json; baked = demucs_onnx.prewarm(['htdemucs'], precision='fp32'); print('Baked HTDemucs weights:', json.dumps(baked, indent=2))" \
-    && python -c "import os,pathlib; p=pathlib.Path(os.environ['HF_HOME']); print('HF cache size:', sum(f.stat().st_size for f in p.rglob('*') if f.is_file())//1048576, 'MiB')"
+#
+# prewarm() devuelve dict[str, Path]: los values son PosixPath y NO son JSON
+# serializables, asi que el log usa str() y no json.dumps() (un json.dumps()
+# aca tumbaba el build entero con TypeError, despues de haber descarga bien).
+RUN python -c "import os,pathlib,demucs_onnx; baked=demucs_onnx.prewarm(['htdemucs'], precision='fp32'); print('baked:', {k: str(v) for k, v in baked.items()}); root=pathlib.Path(os.environ['HF_HOME']); print('HF cache MiB:', sum(f.stat().st_size for f in root.rglob('*') if f.is_file())//1048576)"
 
 RUN mkdir -p uploads outputs
 
