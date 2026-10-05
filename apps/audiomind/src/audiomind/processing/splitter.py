@@ -58,10 +58,16 @@ def split_audio(
     duration = info.duration
 
     # Run demucs-onnx separation — write stems to disk
+    #
+    # precision MUST match the weights baked into the image (see the prewarm
+    # step in apps/audiomind/Dockerfile). demucs-onnx keys its download cache
+    # by precision, so a mismatch here means a fresh ~300 MB download inside
+    # the request — the request-time download that used to OOM the container.
     stems: dict[str, np.ndarray] = demo.separate(
         str(input_path),
         output_dir=str(output_dir),
         model=model,
+        precision=settings.demucs_precision,
         verbose=False,
         progress=False,
     )

@@ -183,6 +183,23 @@ class Settings(BaseSettings):
     # will never finish.
     job_lease_seconds: int = 900
 
+    # ── Stem separation (Demucs ONNX) ────────────────────────────────────
+    # The ONNX graph dominates the container's peak RSS: htdemucs fp32 is
+    # ~302 MiB of weights, fp16weights ~158 MiB. On a small Railway container
+    # the fp32 graph is what pushes inference into the OOM killer ("Killed"
+    # with no Python traceback, surfaced to the client as a 502 while the job
+    # record already says "completed").
+    #
+    # KEEP IN SYNC with the precision baked into apps/audiomind/Dockerfile
+    # (the prewarm step). These two drift apart silently: demucs-onnx keys its
+    # cache by precision, so asking for fp32 when only fp16weights was baked
+    # just downloads fp32 on the first separation, which is exactly the
+    # request-time download this setting exists to remove.
+    #
+    # Overridable with AUDIOMIND_DEMUCS_PRECISION, but changing it away from
+    # fp16weights requires re-baking the image.
+    demucs_precision: Literal["fp32", "fp16weights"] = "fp16weights"
+
     model_config = {
         "env_prefix": "AUDIOMIND_",
         "env_file": str(_BACKEND_DIR / ".env"),
