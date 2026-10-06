@@ -47,6 +47,7 @@ Audio → AudioMind (FastAPI DSP) → Master → Studio Live Engine (Web Audio) 
   - [`reports/REPORT_FASE_3.md`](evidence/reports/REPORT_FASE_3.md): Cierre Fase 3 — Sistema multiidioma i18n extensible (ES/EN).
   - [`reports/REPORT_FASE_4.md`](evidence/reports/REPORT_FASE_4.md): Cierre Fase 4 — Autenticación con Supabase Auth y control de roles (RBAC).
   - [`reports/REPORT_FASE_5.md`](evidence/reports/REPORT_FASE_5.md): Cierre Fase 5 — Persistencia 1:N, drafts no destructivos y consolidación de masters.
+  - [`reports/REPORT_IA_WAVEAI.md`](evidence/reports/REPORT_IA_WAVEAI.md): Línea de IA (en curso) — IA → mezcla, contrato IntentProfile, RAG local sobre los libros de mezcla, pendientes por persona.
 - **Mediciones y Auditorías**:
   - [`DEMO_RESOURCE_AUDIT.md`](evidence/DEMO_RESOURCE_AUDIT.md): Auditoría de consumo de RAM, tiempos de respuesta y límites técnicos.
   - [`DEMO_LOCAL_VALIDATION.md`](evidence/DEMO_LOCAL_VALIDATION.md): Validación local de métricas y latencia de audio.
