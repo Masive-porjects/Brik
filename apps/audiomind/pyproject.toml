@@ -28,6 +28,13 @@ dev = [
     "mypy>=1.10.0",
     "psutil>=6.0",
 ]
+# Offline RAG ingestion of the mixing books (intelligence/rag). Kept out of
+# the runtime deps: the Railway image never renders PDFs. Tesseract (OCR)
+# and Ollama (embeddings) are system tools, not pip packages.
+rag = [
+    "pypdfium2>=4.30",
+    "pillow>=10.0",
+]
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -51,7 +58,7 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 # Third-party libs without stubs: restrict ignore_missing_imports to these
 # modules only — global strict stays intact.
-module = ["scipy.*", "soundfile", "soxr", "demucs_onnx"]
+module = ["scipy.*", "soundfile", "soxr", "demucs_onnx", "pypdfium2"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
