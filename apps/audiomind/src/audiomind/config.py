@@ -200,6 +200,22 @@ class Settings(BaseSettings):
     # fp16weights requires re-baking the image.
     demucs_precision: Literal["fp32", "fp16weights"] = "fp16weights"
 
+    # Run Demucs in a child process so its memory is reclaimed on exit.
+    #
+    # HTDemucs reserves memory that ONNX Runtime and numpy never return to the
+    # OS. Measured on Railway (dev, 8 GB): the mastering chain peaks at ~170 MB,
+    # but after a single mix the container could not serve the next master — the
+    # kernel SIGKILLed it. Isolating the separation removes the cause instead of
+    # buying more RAM.
+    #
+    # Set AUDIOMIND_DEMUCS_ISOLATED=false for in-process runs (local
+    # debugging, or tests that stub the model).
+    demucs_isolated: bool = True
+
+    # Generous: a 30s probe took 227s on 8 vCPU without a GPU. Long tracks on a
+    # busy container need room, and a timeout mid-separation is worse than slow.
+    demucs_timeout_seconds: int = 1800
+
     model_config = {
         "env_prefix": "AUDIOMIND_",
         "env_file": str(_BACKEND_DIR / ".env"),

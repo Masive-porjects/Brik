@@ -167,5 +167,21 @@ def test_does_not_touch_existing_tables() -> None:
     sorted(Path(__file__).resolve().parents[3].glob("supabase/migrations/*.sql")),
 )
 def test_every_migration_declares_a_table(path: Path) -> None:
-    """Cheap sanity net so an accidentally empty migration file is caught."""
-    assert "create table" in path.read_text(encoding="utf-8").lower()
+    """Cheap sanity net so an accidentally empty migration file is caught.
+
+    A migration may legitimately ADD to an existing table (the public.masters
+    status column is ALTER TABLE, not CREATE TABLE), so any real DDL statement
+    counts. What must never happen is a file with no statement at all.
+    """
+    sql = path.read_text(encoding="utf-8").lower()
+    statements = (
+        "create table",
+        "alter table",
+        "create index",
+        "create unique index",
+        "create type",
+        "create or replace function",
+    )
+    assert any(statement in sql for statement in statements), (
+        f"{path.name} has no DDL statement — it looks like an empty migration"
+    )
