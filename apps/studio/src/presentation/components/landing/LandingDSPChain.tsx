@@ -200,12 +200,12 @@ export default function LandingDSPChain() {
                             {stage.name}
                           </h4>
                           {stage.substagesCount && (
-                            <span className="font-label-technical text-[8px] bg-secondary/20 text-secondary border border-secondary/30 px-1.5 py-0.2 rounded font-bold">
+                            <span className="font-label-technical text-[10px] bg-secondary/20 text-secondary border border-secondary/30 px-1.5 py-0.2 rounded font-bold">
                               {stage.substagesCount} SUB-ETAPAS
                             </span>
                           )}
                           {stage.modulesCount && (
-                            <span className="font-label-technical text-[8px] bg-tertiary-container/20 text-tertiary-container border border-tertiary-container/30 px-1.5 py-0.2 rounded font-bold">
+                            <span className="font-label-technical text-[10px] bg-tertiary-container/20 text-tertiary-container border border-tertiary-container/30 px-1.5 py-0.2 rounded font-bold">
                               {stage.modulesCount} MÓDULOS
                             </span>
                           )}

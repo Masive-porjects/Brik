@@ -184,7 +184,7 @@ export default function LandingPresets() {
                         <div className="grid grid-cols-2 gap-2 text-left">
                           {preset.specs.map((spec) => (
                             <div key={spec.label} className="p-2 bg-[#292a2e] rounded-lg flex flex-col">
-                              <span className="font-label-technical text-[8px] text-[#869391] uppercase">
+                              <span className="font-label-technical text-[9px] text-[#869391] uppercase">
                                 {spec.label}
                               </span>
                               <span className="font-label-technical text-[10px] text-[#e3e2e8] font-bold">
