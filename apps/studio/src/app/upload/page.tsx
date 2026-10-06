@@ -31,7 +31,6 @@ export default function UploadPage() {
     progress,
     isComplete,
     isTerminal,
-    submit,
     reset,
   } = useMasteringJob({
     payload: {
@@ -91,11 +90,6 @@ export default function UploadPage() {
     await workflow.handleFileSelected(file);
     // After audio upload and spectral analysis completes, show the mode choice modal
     setWorkflowModalOpen(true);
-    // Auto-submit the async job after workflow is confirmed (para testing E2E)
-    // We wait a tick for the modal state to settle, then submit
-    setTimeout(() => {
-      submit();
-    }, 500);
   };
 
   const handleConfirmWorkflow = (mode: "manual" | "ai") => {
