@@ -216,6 +216,13 @@ class Settings(BaseSettings):
     # busy container need room, and a timeout mid-separation is worse than slow.
     demucs_timeout_seconds: int = 1800
 
+    # Thread cap for the isolated child. ONNX Runtime and OpenBLAS each spawn one
+    # thread per core by default and their per-thread arenas stack up; on an
+    # 8-vCPU box the child was SIGKILLed at startup (exit -9, no traceback).
+    # 4 keeps every core busy without the multiplicative arenas. 0 = let the
+    # libraries decide.
+    demucs_threads: int = 4
+
     model_config = {
         "env_prefix": "AUDIOMIND_",
         "env_file": str(_BACKEND_DIR / ".env"),

@@ -94,6 +94,7 @@ def _split_audio_isolated(
             model,
             settings.demucs_precision,
             str(result_json),
+            str(settings.demucs_threads),
         ]
         logger.info(
             "Running Demucs in an isolated process (pid-less, %s timeout): %s",

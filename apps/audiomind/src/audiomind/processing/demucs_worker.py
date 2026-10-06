@@ -26,6 +26,7 @@ Supabase client, no session store. Only numpy/soundfile/demucs_onnx.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -40,8 +41,23 @@ def separate(
     output_dir: Path,
     model: str,
     precision: str,
+    threads_limit: int = 0,
 ) -> dict[str, Any]:
     """Do the heavy separation. Mirrors splitter._split_audio_in_process."""
+    # Cap the thread pools BEFORE importing numpy/onnxruntime, which read these
+    # at import time. Left alone, ONNX Runtime and OpenBLAS each spawn one
+    # thread per core and their per-thread arenas stack up; on an 8-vCPU box the
+    # child gets SIGKILLed at startup (observed as exit -9, no traceback).
+    threads = str(threads_limit)
+    for var in (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+    ):
+        os.environ[var] = threads
+
     import demucs_onnx as demo
     import soundfile as sf
 
@@ -86,17 +102,19 @@ def separate(
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 5:
+    if len(args) != 6:
         print(
             "usage: python -m audiomind.processing.demucs_worker "
-            "INPUT OUTPUT_DIR MODEL PRECISION RESULT_JSON",
+            "INPUT OUTPUT_DIR MODEL PRECISION RESULT_JSON THREADS",
             file=sys.stderr,
         )
         return 2
 
-    input_path, output_dir, model, precision, result_json = args
+    input_path, output_dir, model, precision, result_json, threads = args
     try:
-        result = separate(Path(input_path), Path(output_dir), model, precision)
+        result = separate(
+            Path(input_path), Path(output_dir), model, precision, int(threads)
+        )
     except Exception:  # noqa: BLE001
         # Full traceback on stderr; the parent surfaces the tail to the log.
         traceback.print_exc()

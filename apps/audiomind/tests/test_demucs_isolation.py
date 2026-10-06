@@ -47,7 +47,9 @@ def _patch_subprocess(monkeypatch, *, returncode=0, payload=None, stderr=""):
         captured["cmd"] = cmd
         captured["timeout"] = kwargs.get("timeout")
 
-        result_file = Path(cmd[-1])
+        # argv is INPUT OUTPUT_DIR MODEL PRECISION RESULT_JSON THREADS; the
+        # result file is positional (-2), not the last argument.
+        result_file = Path(cmd[-2])
         if returncode == 0 and payload is not None:
             result_file.write_text(json.dumps(payload), encoding="utf-8")
         return subprocess.CompletedProcess(
@@ -80,6 +82,25 @@ class TestIsolatedDispatch:
         assert result["sample_rate"] == 44100
         assert result["duration_seconds"] == 12.5
         assert set(result["stems"]) == set(STEM_NAMES)
+
+    def test_child_receives_a_thread_cap(self, tmp_path, monkeypatch):
+        """Uncapped ONNX+OpenBLAS arenas SIGKILLed the child at startup."""
+        monkeypatch.setattr(splitter.settings, "demucs_isolated", True)
+        monkeypatch.setattr(splitter.settings, "demucs_threads", 4)
+        source = tmp_path / "in.wav"
+        source.write_bytes(b"RIFF")
+        target = tmp_path / "stems"
+        payload = {
+            "stems": _fake_stems(target),
+            "sample_rate": 44100,
+            "duration_seconds": 1.0,
+            "stem_audio_dir": str(target),
+        }
+        captured = _patch_subprocess(monkeypatch, payload=payload)
+
+        splitter.split_audio(source, target)
+
+        assert captured["cmd"][-1] == "4"
 
     def test_child_receives_the_baked_precision(self, tmp_path, monkeypatch):
         """A precision mismatch would make demucs-onnx download ~300 MB."""
@@ -206,6 +227,27 @@ class TestWorkerContract:
 
         assert main(["only", "three", "args"]) == 2
         assert "usage" in capsys.readouterr().err
+
+    def test_worker_caps_threads_before_importing_onnx(self):
+        """The cap must land in os.environ BEFORE numpy/onnxruntime import.
+
+        Both libraries read these at import time, so setting them afterwards has
+        no effect — which is what let the child be SIGKILLed on startup.
+        """
+        import inspect
+
+        from audiomind.processing import demucs_worker
+
+        source = inspect.getsource(demucs_worker.separate)
+        cap_at = source.find('os.environ[var] = threads')
+        imports_at = source.find("import demucs_onnx")
+
+        assert cap_at != -1, "worker must set the thread cap"
+        assert imports_at != -1
+        assert cap_at < imports_at, (
+            "thread cap must be set before importing demucs_onnx — those "
+            "libraries read the env at import time"
+        )
 
     def test_worker_writes_the_result_contract(self, tmp_path):
         """The parent parses exactly these keys; drift here breaks the mix."""
