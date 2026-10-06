@@ -7,6 +7,7 @@ import ShareCard from "@/presentation/components/ShareCard";
 import DropZone from "@/presentation/components/DropZone";
 import type { SessionData } from "@/lib/api";
 import { getAudioUrl } from "@/lib/api";
+import { isPresetCompleted } from "@/lib/audioUtils";
 import type { MasteringTab } from "@/presentation/components/dock/types";
 import { useTranslation } from "@/i18n/useTranslation";
 
@@ -101,7 +102,7 @@ export default function AnalysisSidebar({
             </>
           ) : currentTab === "stereo" ? (
             <>
-              {session?.mastered_path ? (
+              {session && isPresetCompleted(session, activePresetId) ? (
                 <StereoField
                   audioUrl={getAudioUrl(
                     session.session_id,

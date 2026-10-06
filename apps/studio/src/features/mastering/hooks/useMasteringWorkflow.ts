@@ -571,13 +571,20 @@ export function useMasteringWorkflow(
     if (!session) return;
     try {
       const reset = await resetSession(session.session_id);
-      // The reset response is the backend truth for the mix lifecycle
-      // (mix_status goes back to "none"), so `hasMix` must follow it —
-      // otherwise a later run would ask for source=mix and get a 400.
-      // Only the mix field is adopted: the local session keeps its master
-      // pointers until the next process replaces them (unchanged behavior).
+      // The backend's `reset_session_master` clears mastered_path and
+      // preset_masters alongside mix_status, so the local session must
+      // mirror all three: stale master pointers make isPresetCompleted()
+      // report a preset as ready and the UI then requests a preset that
+      // no longer exists → 404.
       setSession((prev) =>
-        prev ? { ...prev, mix_status: reset.mix_status ?? "none" } : prev,
+        prev
+          ? {
+              ...prev,
+              mix_status: reset.mix_status ?? "none",
+              mastered_path: null,
+              preset_masters: {},
+            }
+          : prev,
       );
     } catch {
       // Backend best-effort
