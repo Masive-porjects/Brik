@@ -10,9 +10,13 @@ CONTRACTS_DIR="$SCRIPT_DIR"
 SCHEMA_FILE="$CONTRACTS_DIR/live_params.schema.json"
 
 # ──────────────────────────────────────────────────────────────────────
-# TypeScript → apps/studio/src/lib/live/liveParams.gen.ts
+# TypeScript → packages/contracts/liveParams.gen.ts
+#
+# El generador escribía en apps/studio/src/lib/live/liveParams.gen.ts, que
+# se eliminó junto al Live Engine. El contrato se conserva como artefacto
+# propio del paquete: el schema sigue siendo la fuente de verdad.
 # ──────────────────────────────────────────────────────────────────────
-TS_OUT="$CONTRACTS_DIR/../apps/studio/src/lib/live/liveParams.gen.ts"
+TS_OUT="$CONTRACTS_DIR/liveParams.gen.ts"
 mkdir -p "$(dirname "$TS_OUT")"
 
 if command -v json-schema-to-typescript >/dev/null 2>&1; then

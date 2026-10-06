@@ -52,7 +52,6 @@ export function useAutosaveDraft({
     if (!trackId || !enabled) {
       currentTrackIdRef.current = null;
       lastSerializedRef.current = "";
-      setAutosaveStatus("idle");
       return;
     }
 
@@ -116,7 +115,10 @@ export function useAutosaveDraft({
   }, []);
 
   return {
-    autosaveStatus,
+    // Without an active track there is nothing to autosave, so the status is derived
+    // here rather than reset from an effect one render later. Reactivation still
+    // resets the stored status through the track-changed branch below.
+    autosaveStatus: trackId && enabled ? autosaveStatus : "idle",
     lastSavedAt,
     forceSave,
   };

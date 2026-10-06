@@ -101,12 +101,145 @@ class Settings(BaseSettings):
             "SUPABASE_MASTERS_BUCKET",
         ),
     )
+    # Which store owns the session record: "auto" (Supabase when it is
+    # configured AND its table probes clean, the file mirror otherwise),
+    # "supabase" (force, no fallback) or "file" (never touch the network).
+    #
+    # "auto" is what production wants. "file" exists for the test suite: it
+    # pins the backend at import time, BEFORE `api.upload` builds its in-memory
+    # dict, so a developer's real credentials can never make the suite read or
+    # write the production `sessions` table. That is the same class of leak as
+    # the one the conftest storage fixture already prevents for R2.
+    session_store_backend: str = Field(
+        default="auto",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_SESSION_STORE_BACKEND",
+            "SESSION_STORE_BACKEND",
+        ),
+    )
+
+    # ── Cloudflare R2 (S3-compatible object storage) ─────────────────────
+    # Credentials are ENV-ONLY on purpose: there is deliberately NO default
+    # value here. A credential baked into source is a leaked credential the
+    # moment the file is read, logged, or committed, and it silently keeps
+    # working in environments that were never configured. An unconfigured
+    # deployment must fail loudly (see ``r2_is_configured``) instead of
+    # quietly shipping uploads to an anonymous bucket.
+    #
+    # Both naming conventions are accepted so an operator can use either the
+    # Cloudflare-flavoured ``CLOUDFLARE_R2_*`` or the project-wide
+    # ``AUDIOMIND_R2_*`` prefix (the latter wins when both are set).
+    r2_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_R2_ENDPOINT", "CLOUDFLARE_R2_ENDPOINT", "R2_ENDPOINT"
+        ),
+    )
+    r2_access_key_id: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_R2_ACCESS_KEY_ID",
+            "CLOUDFLARE_R2_ACCESS_KEY_ID",
+            "R2_ACCESS_KEY_ID",
+        ),
+    )
+    r2_secret_access_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_R2_SECRET_ACCESS_KEY",
+            "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+            "R2_SECRET_ACCESS_KEY",
+        ),
+    )
+    r2_bucket: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_R2_BUCKET",
+            "CLOUDFLARE_R2_BUCKET",
+            "R2_BUCKET_NAME",
+        ),
+    )
+    # Public base URL of the bucket (r2.dev or a custom domain). Only used to
+    # build shareable links; a private bucket can still be served through
+    # presigned URLs, which need no public domain at all.
+    r2_public_url: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AUDIOMIND_R2_PUBLIC_URL",
+            "CLOUDFLARE_R2_PUBLIC_URL",
+            # Bare name, matching the alias set already accepted for
+            # endpoint/keys/bucket. Without it an operator who names the other
+            # five R2_* vars naturally is left with this one silently empty,
+            # and every read falls back to a presigned URL.
+            "R2_PUBLIC_URL",
+        ),
+    )
+
+    # ── Durable job store ────────────────────────────────────────────────
+    # A BackgroundTask dies with the worker process: if the container
+    # restarts mid-job the task is gone and nothing ever marks it failed. A
+    # lease (in seconds) lets the status endpoint recognise such an orphan and
+    # report it as ``error`` instead of leaving the client polling a job that
+    # will never finish.
+    job_lease_seconds: int = 900
+
+    # ── Stem separation (Demucs ONNX) ────────────────────────────────────
+    # The ONNX graph dominates the container's peak RSS: htdemucs fp32 is
+    # ~302 MiB of weights, fp16weights ~158 MiB. On a small Railway container
+    # the fp32 graph is what pushes inference into the OOM killer ("Killed"
+    # with no Python traceback, surfaced to the client as a 502 while the job
+    # record already says "completed").
+    #
+    # KEEP IN SYNC with the precision baked into apps/audiomind/Dockerfile
+    # (the prewarm step). These two drift apart silently: demucs-onnx keys its
+    # cache by precision, so asking for fp32 when only fp16weights was baked
+    # just downloads fp32 on the first separation, which is exactly the
+    # request-time download this setting exists to remove.
+    #
+    # Overridable with AUDIOMIND_DEMUCS_PRECISION, but changing it away from
+    # fp16weights requires re-baking the image.
+    demucs_precision: Literal["fp32", "fp16weights"] = "fp16weights"
+
+    # Run Demucs in a child process so its memory is reclaimed on exit.
+    #
+    # HTDemucs reserves memory that ONNX Runtime and numpy never return to the
+    # OS. Measured on Railway (dev, 8 GB): the mastering chain peaks at ~170 MB,
+    # but after a single mix the container could not serve the next master — the
+    # kernel SIGKILLed it. Isolating the separation removes the cause instead of
+    # buying more RAM.
+    #
+    # Set AUDIOMIND_DEMUCS_ISOLATED=false for in-process runs (local
+    # debugging, or tests that stub the model).
+    demucs_isolated: bool = True
+
+    # Generous: a 30s probe took 227s on 8 vCPU without a GPU. Long tracks on a
+    # busy container need room, and a timeout mid-separation is worse than slow.
+    demucs_timeout_seconds: int = 1800
+
+    # Thread cap for the isolated child. ONNX Runtime and OpenBLAS each spawn one
+    # thread per core by default and their per-thread arenas stack up; on an
+    # 8-vCPU box the child was SIGKILLed at startup (exit -9, no traceback).
+    # 4 keeps every core busy without the multiplicative arenas. 0 = let the
+    # libraries decide.
+    demucs_threads: int = 4
 
     model_config = {
         "env_prefix": "AUDIOMIND_",
         "env_file": str(_BACKEND_DIR / ".env"),
         "env_file_encoding": "utf-8",
     }
+
+    @property
+    def r2_is_configured(self) -> bool:
+        """True only when every credential needed to reach the bucket is set."""
+        return all(
+            (
+                self.r2_endpoint,
+                self.r2_access_key_id,
+                self.r2_secret_access_key,
+                self.r2_bucket,
+            )
+        )
 
 
 settings = Settings()

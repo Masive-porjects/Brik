@@ -4,7 +4,7 @@
 
 # WaveAI
 
-**Estudio de mastering asistido por IA + Live Engine Web Audio.**
+**Estudio de mastering asistido por IA.** Análisis, mezcla y master.
 
 <sub>La onda púrpura→cian es la marca, el favicon y el icono de la app.</sub>
 
@@ -17,22 +17,18 @@
 WaveAI es una sola interfaz de mastering IA:
 
 1. **Studio de mastering IA** — subes un WAV/MP3, el backend analiza (loudness, espectro, tempo, género) y corre una cadena DSP de 13 etapas para entregar un master profesional con player **A/B** (original vs masterizado).
-2. **Live Engine** — el master se carga en un motor Web Audio en el navegador con FX en tiempo real.
+2. **Mix Engine** — mezcla IA+DSP con balance de stems por género y faders ±6 dB.
 
-**La unión:** WaveAI masteriza primero (offline, una vez). El master se carga en un **Live Engine** (Web Audio API en el navegador) con FX en tiempo real (filtro → drive → delay/echo → reverb), operado **standalone** desde los knobs de la UI — sin WebSocket ni MIDI (el bridge y el simulator fueron removidos). Todo en la pestaña **"Live"** del studio.
-
-```
-Knobs UI → LiveParams → Studio Live Engine (Web Audio) → Knobs/Meters/Audio
-```
+**Estado:** el **Live Engine se retiró** (`ba3b4a6`). Su pestaña solo mostraba un "próximamente" y su motor no tenía consumidores. Quedan Mix y Mastering como los dos motores del producto; el schema `live_params` sobrevive como contrato dormido.
 
 ## Mapa del repo
 
 | Ruta | Stack | Rol |
 |---|---|---|
-| `apps/studio/` | Next.js 16 + React 19 + TS + Tailwind 4 | Mastering UI + pestaña Live (Web Audio) |
+| `apps/studio/` | Next.js 16 + React 19 + TS + Tailwind 4 | Mastering UI + Mezcla (Web Audio) |
 | `apps/audiomind/` | Python/FastAPI, librosa, pedalboard | DSP de mastering + Mix Engine (análisis + cadena de 13 etapas) |
-| `packages/contracts/` | JSON Schema + generador | `live_params.schema.json` = fuente de verdad |
-| `e2e/` | Playwright | master → live |
+| `packages/contracts/` | JSON Schema + generador | `live_params.schema.json` = contrato dormido |
+| `e2e/` | Playwright | flujo master → mezcla |
 | `docs/` | Markdown | Especificaciones, setup, reportes de integración — índice central en [`docs/README.md`](docs/README.md) + [`docs/ESTADO_PROYECTO.md`](docs/ESTADO_PROYECTO.md) |
 
 ## Compliance Phase 1 (feature destacada)
@@ -95,9 +91,8 @@ npm run e2e                                               # desde apps/studio
 
 ## Reglas no negociables
 
-- **`packages/contracts/live_params.schema.json` es la fuente de verdad** del protocolo — regenera tipos con `packages/contracts/scripts/gen_types.sh`, nunca edites los generados a mano.
-- **Neutral = bypass**: parámetro neutral = audio idéntico (bit-exacto en backend, defaults del schema en Live Engine).
-- **El audio NUNCA viaja por WebSocket** — el Live Engine es **standalone** (knobs de la UI → `LiveParams`): no hay socket, ni MIDI, ni bridge (removidos).
+- **`packages/contracts/live_params.schema.json` es la fuente de verdad** del protocolo — regenera tipos con `packages/contracts/scripts/gen_types.sh`, nunca edites los generados a mano. El contrato está **dormido**: el Live Engine fue retirado.
+- **Neutral = bypass**: parámetro neutral = audio idéntico (bit-exacto en backend).
 - **`setTargetAtTime` siempre** (nunca asignación directa en Web Audio — anti-zipper).
 - **Microcopy en español latino neutro/colombiano** (sin voseo): "Sube tu audio", "Ajusta", "Prueba de nuevo".
 - **Commits semánticos** (`feat:`, `fix:`, `test:`, `docs:`, `chore:`), sin atribución AI.

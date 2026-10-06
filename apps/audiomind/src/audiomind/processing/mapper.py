@@ -18,7 +18,7 @@ from audiomind.models.intent_profile import IntentProfile
 _TAPE_ENGAGE = 0.55  # warmth / vintage
 _MULTIBAND_ENGAGE = 0.55  # bass_weight
 _EXCITER_ENGAGE = 0.6  # brightness
-_DYN_EQ_ENGAGE = 0.6  # clarity / vocal_focus
+_DYN_EQ_ENGAGE = 0.6  # clarity
 
 # Loudness ramp limits. At 0.5 the target is None (engine automatic, which
 # at the neutral ceiling evaluates to -14 LUFS); above 0.5 it ramps toward
@@ -70,9 +70,8 @@ def map_intent_to_mastering(intent: IntentProfile) -> MasteringParameters:
       both axes are active the warmth drive is scaled down linearly (up to
       half at max vintage). Neutral is untouched: below the 0.55 engage
       threshold there is no drive to scale.
-    - ``clarity`` x ``vocal_focus``: both may engage the dynamic EQ. The
-      stage is enabled when EITHER is active; vocal_focus configures band
-      2 (2.5 kHz) on top of the clarity-driven stage.
+    - ``clarity``: engages the dynamic EQ when active and configures band
+      2 (2.5 kHz).
     - ``punch``: ``adaptive_comp_ratio``/``attack_ms`` are mapped per the
       approved table but ``adaptive_comp_enabled`` stays False on purpose
       — engaging the adaptive module would REPLACE the fixed compressor
@@ -157,17 +156,15 @@ def map_intent_to_mastering(intent: IntentProfile) -> MasteringParameters:
             intent.bass_weight, [(0.5, 0.0), (1.0, 150.0)]
         )
 
-    # ── vocal_focus / clarity → dynamic EQ ──────────────────────────
-    params.dyn_eq_enabled = (
-        intent.clarity > _DYN_EQ_ENGAGE or intent.vocal_focus > _DYN_EQ_ENGAGE
-    )
-    if intent.vocal_focus > _DYN_EQ_ENGAGE:
+    # ── clarity → dynamic EQ ─────────────────────────────────────────
+    params.dyn_eq_enabled = intent.clarity > _DYN_EQ_ENGAGE
+    if intent.clarity > _DYN_EQ_ENGAGE:
         # 2.5 kHz band — freq/threshold are the stage defaults, set
-        # explicitly so the vocal-focus contract is self-documenting.
+        # explicitly so the clarity contract is self-documenting.
         params.dyn_eq_band2_freq_hz = 2500.0
         params.dyn_eq_band2_threshold_db = -20.0
         # dyn_eq_band2_ratio: 1.0 @ 0.5 (default), 2.0 @ 1.0.
-        params.dyn_eq_band2_ratio = _lerp(intent.vocal_focus, [(0.5, 1.0), (1.0, 2.0)])
+        params.dyn_eq_band2_ratio = _lerp(intent.clarity, [(0.5, 1.0), (1.0, 2.0)])
 
     # ── loudness ────────────────────────────────────────────────────
     # limiter_ceiling_db: -2.5 dB @ 0.0, -1.0 dB @ 0.5 (default), -0.3 @ 1.0.

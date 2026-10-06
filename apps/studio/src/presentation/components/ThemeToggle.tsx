@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useId } from "react";
+import { useState, useEffect, useCallback, useId, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "@/i18n/useTranslation";
 import { useIsMounted } from "@/shared/hooks";
@@ -9,36 +9,46 @@ const THEME_KEY = "waveai-theme";
 
 export type Theme = "dark" | "light";
 
-/* ── useThemeMode ────────────────────────────────────────
-   Shared theme state (dark/light). Initializes to 'dark' for
-   deterministic SSR, then updates to match document.dataset.theme
-   or localStorage in useEffect. */
-export function useThemeMode() {
-  const [theme, setTheme] = useState<Theme>("dark");
+/* The theme lives in the document/localStorage, not in a store we can subscribe to:
+   there is no cross-tab sync, so the subscription is inert and the value is only read
+   on render. `getServerSnapshot` keeps SSR deterministic ('dark') and React re-renders
+   with the stored value right after hydration. */
+const subscribeToTheme = () => () => {};
 
-  useEffect(() => {
-    try {
-      const current = document.documentElement.dataset.theme as Theme | undefined;
-      if (current === "light" || current === "dark") {
-        setTheme(current);
-        return;
-      }
-      const saved = localStorage.getItem(THEME_KEY) as Theme | null;
-      if (saved === "light" || saved === "dark") {
-        setTheme(saved);
-      }
-    } catch {
-      // Modo incógnito o storage bloqueado
+function readStoredTheme(): Theme {
+  try {
+    const current = document.documentElement.dataset.theme as Theme | undefined;
+    if (current === "light" || current === "dark") {
+      return current;
     }
-  }, []);
+    const saved = localStorage.getItem(THEME_KEY) as Theme | null;
+    if (saved === "light" || saved === "dark") {
+      return saved;
+    }
+  } catch {
+    // Modo incógnito o storage bloqueado
+  }
+  return "dark";
+}
+
+const getServerTheme = (): Theme => "dark";
+
+/* ── useThemeMode ────────────────────────────────────────
+   Shared theme state (dark/light). Reads the persisted theme straight from the DOM
+   and localStorage, with 'dark' as the deterministic SSR fallback. */
+export function useThemeMode() {
+  const storedTheme = useSyncExternalStore(subscribeToTheme, readStoredTheme, getServerTheme);
+  // An explicit toggle wins over whatever is persisted until the next full reload.
+  const [themeOverride, setThemeOverride] = useState<Theme | null>(null);
+  const theme = themeOverride ?? storedTheme;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
   const toggle = useCallback(() => {
-    setTheme((prev) => {
-      const next: Theme = prev === "dark" ? "light" : "dark";
+    setThemeOverride((prev) => {
+      const next: Theme = (prev ?? readStoredTheme()) === "dark" ? "light" : "dark";
       document.documentElement.dataset.theme = next;
       try {
         localStorage.setItem(THEME_KEY, next);

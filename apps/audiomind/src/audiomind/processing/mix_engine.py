@@ -87,6 +87,7 @@ bloquea").
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -94,6 +95,7 @@ import numpy as np
 import soundfile as sf
 
 from audiomind.config import settings
+from audiomind.models.mix_metadata import MixMetadata
 from audiomind.processing.adaptive_comp import AdaptiveCompressor
 from audiomind.processing.creative import (
     apply_variant_to_profiles,
@@ -129,15 +131,9 @@ from audiomind.processing.render_versions import (
     render_version_buses,
 )
 from audiomind.processing.resample import resample_audio
+from audiomind.processing.spatial import mid_side_encode
 from audiomind.processing.splitter import STEM_NAMES, split_audio
 from audiomind.processing.stem_balance import compute_stem_balance
-from audiomind.processing.vocal_adaptive import (
-    apply_register_dimension,
-    apply_vocal_treatment,
-    resolve_vocal_treatment,
-)
-from audiomind.models.mix_metadata import MixMetadata
-from audiomind.processing.spatial import mid_side_encode
 
 #: Per-stem fields extracted from ``AnalysisResult`` (spec: LUFS/DR/centroid).
 _STEM_ANALYSIS_FIELDS: tuple[str, ...] = (
@@ -478,7 +474,6 @@ def _compute_mix_metadata(
     }
 
     # 4. Transient headroom (True Peak - ceiling)
-    from scipy.signal import find_peaks
     peak = float(np.max(np.abs(final_bus)))
     true_peak_db = 20.0 * float(np.log10(peak + 1e-10))
     transient_headroom_db = limiter_ceiling_db - true_peak_db
@@ -507,9 +502,9 @@ def build_mix(
     creativity: float = 0.0,
     creative_variants: int = 0,
     creative_manual: bool = False,
-    vocal_treatment: bool = False,
     auto_balance: bool = False,
     stem_trims: dict[str, float] | None = None,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> dict[str, Any]:
     """Run the per-stem routing pipeline for a session.
 
@@ -604,18 +599,6 @@ def build_mix(
             positional/QC check and are MARKED ``non_standard`` in the
             report — never blocked ("salida no-estándar se marca, no se
             bloquea").
-        vocal_treatment: Opt-in ADAPTIVE vocal treatment by measured
-            register (Eje A, ``vocal_adaptive`` — feature
-            ``odd/tasks/voz-tratamiento-adaptativo.md``). Default
-            ``False``: the exact previous routing, no vocal analysis, no
-            ``vocal_treatment_report`` key (master-safe neutral). When
-            ``True`` the register/f0 measured on the VOCAL STEM (Eje B,
-            ``analyze_audio``) drives a per-register EQ (+ ``agudo`` LP)
-            applied at the end of the vocal chain and an OPTIONAL
-            refinement of the vocal reverb knobs AFTER the genre scaling
-            (propuesta §2.3 — genre owns the direction, register fine-
-            tunes only the vocal space); no credible voice → neutral
-            ``no_voice`` plan reported, never an invented register.
         auto_balance: Opt-in stem auto-balance (T3, ``stem_balance`` —
             feature ``odd/tasks/mix-stem-balance.md``). Default ``False``:
             the exact previous routing (bit-identical neutral, no
@@ -641,6 +624,12 @@ def build_mix(
             with at least one non-zero gain the payload carries
             ``trim_report`` = ``{"gains": {non-zero ``{stem}_db`` keys},
             "applied": true}``.
+        progress_cb: Optional ``(pct, stage)`` callback invoked as each key
+            pipeline stage completes. ``pct`` is 0-100 and ``stage`` is one
+            of the Mix Engine's stage ids (``split``, ``eq``, ``pan``,
+            ``dimension``, ``dynamics``, ``emphasis``, ``bus``). The callback
+            is best-effort UI feedback: it is never allowed to raise into the
+            DSP, and ``None`` (default) keeps the exact previous behaviour.
 
     Returns:
         ``{
@@ -662,7 +651,6 @@ def build_mix(
             "emphasis_report": {...}   # Paso 06, absent when emphasis disabled
             "qc_report": {...},        # Paso 07, always present (informational)
             "versions": {...},         # Paso 07, absent when with_versions=False
-            "vocal_treatment_report": {...}  # Eje A, absent unless vocal_treatment=True
             "balance_report": {...}    # T4, absent unless auto_balance=True
             "trim_report": {...}       # T5, absent unless a manual trim ≠ 0 is set
         }``
@@ -722,6 +710,17 @@ def build_mix(
             negative, or variants are requested without a
             ``creative_seed``.
     """
+    def _report(pct: float, stage: str) -> None:
+        """Report pipeline progress. A callback must never break the DSP."""
+        if progress_cb is None:
+            return
+        try:
+            progress_cb(pct, stage)
+        except Exception:
+            pass
+
+    _report(0, "split")
+
     # Paso 08 contract validation — cheap, before any heavy work. The
     # slider lives in [0, 1] and creative mode REQUIRES a seed (the
     # per-variant streams are what make the A/B reproducible).
@@ -746,6 +745,8 @@ def build_mix(
     missing = [name for name in STEM_NAMES if name not in stems]
     if missing:
         raise ValueError(f"split_audio missing stems: {', '.join(missing)}")
+
+    _report(25, "split")
 
     # Read + resample every stem to the common bus rate. Paso 03 measures
     # the M/S position on the RESAMPLED stem (before any correction) and
@@ -831,27 +832,7 @@ def build_mix(
             resampled_stems, pan_profiles
         )
 
-    # Eje A (entregable 2): opt-in adaptive vocal treatment. The register
-    # / median f0 measured on the VOCAL STEM (Eje B, analyzer + pyin)
-    # resolves the per-register plan ONCE, before any routing decision
-    # that consumes it. Default off skips the measurement entirely —
-    # exact previous routing (master-safe neutral). A failed analysis
-    # degrades to the neutral ``no_voice`` plan, never a crash (Alex
-    # guard): the backend never invents a register.
-    vocal_plan: dict[str, Any] | None = None
-    vocal_dimension_adjusted = False
-    vocal_stage_report: dict[str, Any] | None = None
-    if vocal_treatment:
-        from audiomind.analysis.analyzer import analyze_audio as _analyze_vocal
-
-        try:
-            vocal_result = _analyze_vocal(stems["vocals"])
-            vocal_plan = resolve_vocal_treatment(
-                vocal_result.vocal_register,
-                vocal_result.vocal_median_f0_hz,
-            )
-        except Exception:
-            vocal_plan = resolve_vocal_treatment(None, None)
+    _report(35, "pan")
 
     # Paso 06: the genre-scaled dimension profiles are computed ONCE per
     # stem (they are pure functions of the base profile + the weights)
@@ -890,20 +871,6 @@ def build_mix(
                     emphasis_dim_scaling["vocals_reverb_size"] = round(
                         float(reverb_cfg.get("size", 0.5)), 2
                     )
-            # Eje A: the register refinement rides AFTER the genre scaling
-            # (the genre owns the direction — Paso 06; the register
-            # fine-tunes ONLY the vocal reverb knobs, propuesta §2.3) and
-            # stays inside the engine's validated ranges
-            # (``vocal_adaptive.apply_register_dimension``).
-            if (
-                vocal_plan is not None
-                and vocal_plan["status"] == "applied"
-                and name == "vocals"
-            ):
-                dim_profile = apply_register_dimension(
-                    dim_profile, vocal_plan["dimension_adjustment"]
-                )
-                vocal_dimension_adjusted = True
             effective_dimension_profiles[name] = dim_profile
 
     # Apply the stem EQ profile AFTER the pan, then the COMPRESSOR (Paso
@@ -918,7 +885,7 @@ def build_mix(
     eq_profiles_applied: dict[str, list[dict[str, Any]]] = {}
     dimension_stems_report: dict[str, Any] = {}
     compressor_stems_report: dict[str, Any] = {}
-    for name in STEM_NAMES:
+    for stem_index, name in enumerate(STEM_NAMES):
         comp_profile = (
             compressor_profiles.get(name) if compressor_enabled else None
         )
@@ -949,17 +916,11 @@ def build_mix(
             dimension_stems_report[name] = _dimension_stem_entry(
                 stem_report, dim_profile
             )
-        # Eje A: the adaptive treatment closes the vocal chain AFTER the
-        # dimension stage (register EQ + optional ``agudo`` LP). A
-        # ``no_voice`` plan returns the SAME array object (honest neutral
-        # bypass) and reports ``applied=False``; the creative variants
-        # (Paso 08) keep their own chain and do NOT inherit this stage.
-        if vocal_plan is not None and name == "vocals":
-            shaped, vocal_stage_report = apply_vocal_treatment(
-                shaped, target_sr, vocal_plan
-            )
         bus_audio.append(shaped)
         processed_stems[name] = shaped
+        _report(40 + (stem_index + 1) * 8, "eq")
+
+    _report(75, "dimension")
 
     # T3/T4 — auto-balance: measure the processed stems and correct ONLY the
     # voice toward the genre target (emphasis weights), bounded by the
@@ -1062,12 +1023,17 @@ def build_mix(
             "technique": bus_stage_report["technique"],
         }
 
+    _report(82, "dynamics")
+    _report(86, "emphasis")
+
     # Paso 07: QC report on the FINAL compressed bus — informational
     # flags that never block the render (human decision per the plan).
     qc_report = run_qc_checks(bus, target_sr, pan_info=pan_report)
 
     mix_path = (settings.output_dir / f"{session_id}_mix.wav").resolve()
     write_output(bus, mix_path, target_sr, bit_depth=24)
+
+    _report(90, "bus")
 
     # Paso 07: alternative versions from the SAME processed stems (only
     # the vocals trim differs — ``render_versions``). The principal is
@@ -1100,6 +1066,8 @@ def build_mix(
                 "trim_db": VERSION_TRIMS_DB[version_name],
                 "description": VERSION_DESCRIPTIONS[version_name],
             }
+
+        _report(93, "bus")
 
     # Paso 08: CREATIVE MODE — "exploración creativa acotada"
     # (``creative.py``). Variants reroute the SAME raw resampled stems (no
@@ -1210,6 +1178,8 @@ def build_mix(
             manual=creative_manual,
         )
 
+    _report(95, "bus")
+
     # Analysis is heavy (librosa) — lazy import, same policy as mastering.
     from audiomind.analysis.analyzer import analyze_audio
 
@@ -1221,6 +1191,7 @@ def build_mix(
         }
 
     mix_result = analyze_audio(mix_path)
+    _report(98, "bus")
     build_result: dict[str, Any] = {
         "mix_path": str(mix_path),
         "sample_rate": target_sr,
@@ -1266,31 +1237,6 @@ def build_mix(
     if trim_report is not None:
         build_result["trim_report"] = trim_report
 
-    # Eje A (entregable 2): transparency report — QUÉ se aplicó, con qué
-    # registro medido y POR QUÉ (Spanish-neutral ``why``, honest about the
-    # HIPÓTESIS values and about a dimension stage that could not run).
-    # Present ONLY when the opt-in asked for the treatment (default off
-    # keeps the exact previous payload — master-safe neutral).
-    if vocal_treatment and vocal_plan is not None and vocal_stage_report is not None:
-        why = str(vocal_plan["why"])
-        if vocal_plan["status"] == "applied" and not dimension_enabled:
-            why += (
-                " El reverb no se ajustó: la etapa de dimensión está "
-                "desactivada."
-            )
-        build_result["vocal_treatment_report"] = {
-            "status": vocal_plan["status"],
-            "register": vocal_plan["register"],
-            "median_f0_hz": vocal_plan["median_f0_hz"],
-            "applied": vocal_stage_report["applied"],
-            "eq_bands": vocal_plan["eq_bands"],
-            "lp_hz": vocal_plan["lp_hz"],
-            "dimension_adjusted": vocal_dimension_adjusted,
-            "dimension_adjustment": vocal_plan["dimension_adjustment"],
-            "hypothesis": vocal_plan["hypothesis"],
-            "why": why,
-        }
-    
     # Mix → Master handshake metadata (computed after all reports are built)
     build_result["mix_metadata"] = _compute_mix_metadata(
         final_bus=bus,

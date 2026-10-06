@@ -10,7 +10,7 @@
 
 | Componente | Plataforma | Responsabilidad |
 |---|---|---|
-| **FRONTEND** | **VERCEL** · `apps/studio` (Next.js) | UI, Studio, Live Engine (Web Audio) |
+| **FRONTEND** | **VERCEL** · `apps/studio` (Next.js) | UI, Mastering, Mezcla |
 | **BACKEND** | **RAILWAY** · `apps/audiomind` (FastAPI) | `/api/upload`, análisis, `/api/session/*`, `/process`, DSP de mastering, cache de presets, generación WAV PCM24, download, cleanup/TTL |
 
 **En Vercel NO se ejecuta nada de backend:** FastAPI, audiomind, Python DSP, `process_audio`, upload/mastering/WAV proxy, procesamiento ni almacenamiento de masters.

@@ -48,17 +48,6 @@ class AnalysisResult(BaseModel):
     is_already_mastered: bool = False
     mastering_confidence: float = 0.0
 
-    # ── Vocal register / f0 (Eje A adaptive voice treatment — measurement) ──
-    # Populated by analyze_audio via librosa.pyin over the analyzed signal
-    # (the vocal stem when the mix engine analyzes per-stem files). All fields
-    # default to neutral (None/0) so they are backward compatible and so a
-    # signal without a credible voice never invents a register. Measurement
-    # only: the neutral/bypass chain of the master is untouched.
-    vocal_median_f0_hz: float | None = None
-    vocal_register: str | None = None  # "grave" | "medio" | "agudo" | None
-    vocal_f0_voiced_ratio: float = 0.0
-    vocal_phrase_count: int = 0
-
 
 class MasteringParameters(BaseModel):
     """Module-based mastering parameters — replaces fixed presets.
@@ -760,6 +749,10 @@ class PresetMasterEntry(BaseModel):
 
     preset_id: str
     output_path: str | None = None
+    # Durable R2 pointer for this preset's master. ``output_path`` is a LOCAL
+    # path and Railway has no persistent disk, so a redeploy leaves it dangling;
+    # this key is what re-hydrates the WAV from storage.
+    r2_key: str | None = None
     master_result: MasterResultMetrics | None = None
     validation: ValidationReport | None = None
     status: str = "pending"
@@ -778,6 +771,11 @@ class SessionData(BaseModel):
     reference_filename: str | None = None
     reference_comparison: ReferenceComparison | None = None
     mastered_path: str | None = None
+    # Durable R2 pointer for ``mastered_path``. Same story as
+    # ``PresetMasterEntry.r2_key``: the local path is ephemeral on Railway, so
+    # this key is the only thing that survives a redeploy. Independent of the
+    # per-preset keys, because ``mastered_path`` is its own pointer.
+    master_r2_key: str | None = None
     analysis: AnalysisResult | None = None
     parameters: MasteringParameters = MasteringParameters()
     master_result: MasterResultMetrics | None = None
@@ -813,13 +811,19 @@ class SessionData(BaseModel):
         default=None,
         description="Metadatos de mezcla serializados (MixMetadata.model_dump()) para master adaptativo"
     )
-    # Vocal Chain (VoiceChain Pro) output pointer. The processed vocal is a
-    # STEM artifact, never a master: it keeps its own field so ``POST /vocal``
-    # can never overwrite ``mastered_path`` (which ``/audio/mastered``,
-    # ``/raw-mastered``, ``/download`` and the reference comparison all read
-    # as "the master"). Same pattern as ``mix_path``: an additive optional
-    # pointer, so sessions persisted before the field existed load unchanged.
-    vocal_path: str | None = None
+    # Durable pointer to the delivered mix in Cloudflare R2. ``mix_path`` is a
+    # LOCAL path and Railway has no persistent disk, so a redeploy leaves the
+    # session pointing at a file that no longer exists. This key survives, and
+    # the mastering resolver re-downloads the bytes from it when needed. It is
+    # the async mix path (``POST /api/jobs/mix/{id}``) that sets it; sessions
+    # persisted before it existed keep loading with ``None``.
+    mix_r2_key: str | None = Field(
+        default=None,
+        description=(
+            "Clave del WAV de mezcla en Cloudflare R2. Único puntero que "
+            "sobrevive al redeploy cuando el archivo local se pierde."
+        ),
+    )
 
 
 class BeatData(BaseModel):

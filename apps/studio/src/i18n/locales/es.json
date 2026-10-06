@@ -43,13 +43,9 @@
     "mezcla": "Mezcla de Audio",
     "modules": "Masterizar Audio",
     "splitter": "Splitter",
-    "vocal": "Vocal",
     "songstarter": "Beats",
-    "genres": "Guía de Géneros",
-    "pipeline": "Cadena de Master",
     "analysis": "Análisis",
     "stereo": "Estéreo",
-    "live": "Live Engine",
     "album": "Álbum",
     "history": "Historial",
     "chat": "Asistente IA",
@@ -153,7 +149,7 @@
     "logout": "Cerrar Sesión",
     "email": "Correo Electrónico",
     "password": "Contraseña",
-    "welcome": "Bienvenido a WaveAI"
+    "welcome": "Bienvenido a Brik"
   },
   "admin": {
     "menuLink": "Panel de Administración",
@@ -391,7 +387,6 @@
     "cloudStored": "Track guardado en tu biblioteca",
     "or": "o"
   },
-
   "splitter": {
     "title": "Stem",
     "titleAccent": "Splitter",
@@ -444,29 +439,17 @@
     "gateProcessingNotice": "Termina tu mezcla antes de masterizar.",
     "gateFailedNotice": "Tu mezcla falló. Reintenta la mezcla para continuar al master.",
     "gateProcessingCta": "Ir a la mezcla",
-    "gateFailedCta": "Reintentar la mezcla"
+    "gateFailedCta": "Reintentar la mezcla",
+    "jobInterrupted": "El procesamiento se interrumpió. Vuelve a intentarlo.",
+    "jobTimeout": "La mezcla tardó demasiado y se detuvo. Vuelve a intentarlo.",
+    "jobDone": "Mezcla final generada exitosamente"
   },
-  "vocal": {
-    "title": "VoiceChain",
-    "subtitle": "Cadena de efectos vocales profesional",
-    "processVoice": "Procesar Voz",
-    "loadAudioPrompt": "Carga un audio para usar VoiceChain Pro.",
-    "channelStrip": "VOICECHAIN PRO — CHANNEL STRIP",
-    "deesser": "De-Esser",
-    "deesserDesc": "Reduce sibilancias en frecuencias agudas (5-8 kHz)",
-    "pitch": "Auto-Tune Pitch",
-    "pitchDesc": "Corrección tonal con preservación de formantes.",
-    "pitchHigh": "↑ Agudo",
-    "pitchLow": "↓ Grave",
-    "pitchNeutral": "Neutral",
-    "cohesion": "Cohesión",
-    "cohesionDesc": "Compresor óptico analógico. Controla picos dinámicos y adelanta la presencia vocal.",
-    "compressor": "Compresor",
-    "processedVoice": "Voz Procesada",
-    "playingPrompt": "Reproduciendo...",
-    "playPrompt": "Presioná Play para escuchar el resultado",
-    "adjustPrompt": "Ajusta los 3 controles y presiona \"Procesar Voz\" para aplicar la cadena vocal.",
-    "applyingChain": "Aplicando cadena vocal..."
+  "mezclas": {
+    "trackLoading": "Cargando tu proyecto de audio…",
+    "trackMissingTitle": "No encontramos esa pista",
+    "trackMissingBody": "Puede que pertenezca a otra cuenta o que ya no exista.",
+    "trackMissingCta": "Elegir otro audio",
+    "trackError": "No pudimos cargar la pista. Revisa tu conexión e intenta de nuevo."
   },
   "songstarter": {
     "title": "Beats",
@@ -503,132 +486,6 @@
     "load": "Cargar",
     "generatingBeat": "Generando beat...",
     "startPrompt": "Ajusta los parámetros y presiona \"Generar Beat\" para empezar."
-  },
-  "genreGuide": {
-    "title": "Géneros",
-    "titleAccent": "Musicales",
-    "subtitle": "Cómo suena cada género en el mastering comercial — guía educativa",
-    "genres": {
-      "urban": {
-        "name": "Urban / Hip-Hop / Reggaetón",
-        "description": "El sonido urbano moderno se caracteriza por la DOMINANCIA del sub-bass entre 50–80 Hz. En el mastering comercial para streaming, la densidad se controla con transitorios afinados para mantener la energía sin pasar del techo seguro de loudness (target -12 LUFS integrados y true-peak en -1 dBTP). Así el master suena caliente y consistente sin que Spotify/Apple/YouTube lo atenúen ni le sumen distorsión. La imagen estéreo tiende a ser angosta en las bajas frecuencias y abierta en los agudos, con una compresión del bus maestro que mantiene el ritmo constante y la energía sin picos disruptivos.",
-        "details": [
-          "Sub-bass profundo y controlado (60 Hz con alta densidad espectral)",
-          "Transitorios recortados para maximizar LUFS sin distorsión audible",
-          "Side chain rítmico en el bajo para dar espacio al kick",
-          "Vocales al frente con presencia en 2–4 kHz"
-        ]
-      },
-      "rock": {
-        "name": "Rock / Indie",
-        "description": "El mastering de rock busca preservar la AGRESIVIDAD natural de la batería y las guitarras, con un énfasis en los medios-graves (200–500 Hz) que dan peso y calidez. La compresión es moderada comparada con el urbano — se busca el 'punch' orgánico antes que la densidad absoluta. La imagen estéreo es ancha, aprovechando guitarras paneadas y overheads de batería para crear un muro de sonido envolvente.",
-        "details": [
-          "Batería con ataque natural y cola de resonancia preservada",
-          "Guitarras con presencia en medios-agudos (2–4 kHz) sin aspereza",
-          "Compresión suave (2:1 a 3:1) que mantiene la dinámica de la interpretación",
-          "Rango dinámico amplio (8–12 dB) comparado con otros géneros"
-        ]
-      },
-      "pop": {
-        "name": "Pop / Electrónica",
-        "description": "El pop comercial exige un BRILLO cristalino en las frecuencias altas (8–12 kHz) combinado con una compresión balanceada que mantenga la energía sin sacrificar claridad. La imagen estéreo es moderna y extendida, con pads y sintetizadores que llenan el espacio lateral mientras el kick y el bajo se mantienen sólidos en el centro. El target de loudness ronda los -13 a -14 LUFS integrados con true-peak en -1 dBTP, optimizado y seguro para streaming.",
-        "details": [
-          "Brightness extensivo en el rango de 8–12 kHz para brillo 'air'",
-          "Compresión multibanda suave para controlar picos sin bombear",
-          "Imagen estéreo amplia con elementos de relleno en los extremos",
-          "Transientes controlados pero presentes para mantener la energía rítmica"
-        ]
-      },
-      "jazz": {
-        "name": "Jazz / Clásica",
-        "description": "La música acústica y orquestal exige una PUREZA absoluta en la cadena de masterización. Aquí el objetivo NO es la loudness sino la preservación del rango dinámico original de la interpretación. La compresión se usa con extrema sutileza (1.1:1 a 1.5:1), solo para suavizar picos accidentales. El balance espectral busca ser plano y transparente, dejando que la acústica natural del espacio de grabación y la dinámica de los músicos sean protagonistas.",
-        "details": [
-          "Mínima compresión — se preserva la dinámica natural (rango de 15–25 dB)",
-          "Curva espectral plana sin realces artificiales en agudos ni graves",
-          "Sin limitación agresiva — el ceiling se coloca en -2 dBFS o más abajo",
-          "Reverberación natural del espacio de grabación se mantiene intacta"
-        ]
-      },
-      "latin": {
-        "name": "Latino / Fusiones",
-        "description": "El género latino y sus fusiones requieren un BALANCE dinámico que permita a las percusiones vivas mantener su ataque natural mientras la voz se posiciona al frente con claridad. La cohesión rítmica es la prioridad — todos los elementos deben funcionar como un motor sincronizado. El rango de frecuencia es amplio, desde tumbadoras y congas en los medios hasta el bajo eléctrico o synth en las frecuencias graves, con una presencia vocal prominente en 3–5 kHz.",
-        "details": [
-          "Percusiones con ataque preservado — no se sacrifican por loudness",
-          "Vocal al frente con claridad en 3–5 kHz y calidez en 200–400 Hz",
-          "Cohesión rítmica — compresión suave en el bus maestro que une la mezcla",
-          "Ancho estéreo moderado que mantiene la energía bailable en mono"
-        ]
-      }
-    },
-    "footnote": "Basado en estándares de la industria de mastering comercial y análisis espectral de lanzamientos certificados."
-  },
-  "pipeline": {
-    "title": "Cadena de",
-    "titleAccent": "Master",
-    "subtitle": "Cómo funciona WaveIA paso a paso — cadena DSP profesional",
-    "steps": {
-      "01": {
-        "title": "Gain Staging",
-        "description": "Normalizamos la señal de entrada a un headroom consistente de -6 dBFS. Esto asegura que todos los módulos DSP trabajen con el mismo margen dinámico, independientemente de qué tan fuerte o suave sea tu mezcla original."
-      },
-      "02": {
-        "title": "Match EQ (Corrección Espectral por Género)",
-        "description": "Analizamos el contenido espectral de tu audio y lo comparamos con perfiles objetivo de la industria comercial. Cada género tiene una 'firma espectral ideal' — el Match EQ empuja tu mezcla hacia ese target sin aplanar el carácter único de tu música."
-      },
-      "03": {
-        "title": "Compresión Proporcional",
-        "description": "El umbral de compresión se calcula dinámicamente a partir del RMS real de tu audio. La relación la controlas tú con el módulo 'Fuego / Empuje'. Más ratio = más control de picos; menos ratio = más dinámica natural."
-      },
-      "04": {
-        "title": "Procesamiento M/S (Mid/Side)",
-        "description": "Separamos la señal en canal Central (Mid, todo lo que suena en mono) y Lateral (Side, todo lo que suena en estéreo). Esto permite procesar la reverberación, el ancho estéreo y el delay Haas de forma independiente sin ensuciar el centro."
-      },
-      "05": {
-        "title": "Saturación Armónica (THD)",
-        "description": "Aplicamos distorsión armónica controlada simulando cinta analógica. El módulo 'Cinta / Saturación' te permite inyectar calidez y armónicos pares (al estilo cinta magnética) que el oído humano percibe como 'musicales' y 'cálidos'."
-      },
-      "06": {
-        "title": "True Peak Limiting (4x Oversampling)",
-        "description": "El limitador final trabaja con sobremuestreo 4x para atrapar picos entre muestras (inter-sample peaks) que los limitadores estándar no ven. Combinado con el Codec Pre-Matching, ajustamos el techo dinámicamente para evitar distorsión en streaming."
-      },
-      "07": {
-        "title": "Noise-Shaped Dithering (Lipshitz 2nd Order)",
-        "description": "Al exportar en 16 bits, aplicamos dither con modelado de ruido de 2do orden (Lipshitz) que empuja el piso de ruido de cuantización por encima de 15 kHz, donde el oído humano es menos sensible. El resultado: audio de 16 bits que suena como si fuera de 24."
-      }
-    },
-    "tipsTitle": "Tips para un Master Exitoso",
-    "tipsSubtitle": "Antes de subir tu audio, revisá estos puntos",
-    "tips": [
-      {
-        "title": "Deja headroom en tu mezcla",
-        "body": "Exporta tu mezcla con picos entre -6 dBFS y -3 dBFS. NO subas el master fader de tu DAW. El headroom le da espacio al motor DSP de WaveIA para trabajar sin recortar transitorios."
-      },
-      {
-        "title": "No apliques limitación en el bus maestro",
-        "body": "Si ya limitaste la mezcla en tu DAW, el motor no puede diferenciar entre tu intención creativa y la distorsión. Deja el bus maestro limpio — WaveIA se encarga de la limitación final profesional."
-      },
-      {
-        "title": "Exporta en WAV de 24 bits",
-        "body": "El formato WAV de 24-bit a 44.1 kHz o 48 kHz es el estándar de la industria. Evitá MP3, AAC u otros formatos con pérdida — el algoritmo necesita la información completa para procesar correctamente."
-      },
-      {
-        "title": "Verificá que el bajo no esté saturado en mono",
-        "body": "Las frecuencias bajo 120 Hz se convierten a mono automáticamente para evitar problemas de fase en vinilo y sistemas club. Si tu bajo ya tiene problemas de fase, escuchalo en mono ANTES de subir el archivo."
-      }
-    ],
-    "authorship": "Brikman Paul, el creador de WaveIA, se ha tomado el trabajo de pulir meticulosamente cada algoritmo y modelo matemático DSP para garantizar que cada canción que pase por la plataforma suene superbién, competitiva y lista para la industria musical internacional."
-  },
-  "signalChain": {
-    "title": "Cadena de Señal",
-    "flow": "Input → Procesamiento → Output",
-    "on": "ON",
-    "bypass": "BYPASS",
-    "blocks": {
-      "eq": "Claridad",
-      "comp": "Compresor",
-      "sat": "Saturación",
-      "lim": "Limiter"
-    }
   },
   "analysis": {
     "openAnalysis": "Abrir Análisis →",
@@ -697,7 +554,7 @@
     "noDrafts": "No tienes borradores activos actualmente",
     "noMastered": "Aún no has masterizado ninguna canción",
     "emptyTitle": "Tu biblioteca de canciones está vacía",
-    "emptyDesc": "Sube una pista de audio para comenzar a procesar con los presets y motores IA de WaveIA.",
+    "emptyDesc": "Sube una pista de audio para comenzar a procesar con los presets y motores IA de Brik.",
     "startMastering": "Subir mi primera pista",
     "draftBadge": "Borrador",
     "masteredBadge": "Masterizado",
@@ -728,5 +585,207 @@
     "continueProject": "Continuar con este proyecto",
     "newAudio": "Subir un nuevo audio",
     "openLibrary": "O ver todas mis canciones guardadas"
+  },
+  "landing": {
+    "scrollToTop": "Volver al inicio",
+    "nav": {
+      "brand": "BRIK",
+      "dspCore": "DSP Core",
+      "stage13": "Arquitectura 13 Etapas",
+      "presets": "Presets Fantasmagóricos",
+      "abCompare": "Comparador A/B",
+      "founders": "Equipo Fundador",
+      "docs": "Documentación",
+      "enterStudio": "Ingresar a Brik Studio",
+      "studioBadge": "(/studio)"
+    },
+    "hero": {
+      "badgeDsp": "DSP Core v2.4 Activo",
+      "badgeNeural": "Motor Neuronal AudioMind",
+      "badgeFormat": "96kHz / 64-bit FP Listo",
+      "title": "El master ya no es un problema.",
+      "titleGradient": "Deja que el sonido cobre vida del más allá.",
+      "description": "Arquitectura de 13 etapas de procesamiento espectral en tiempo real. Eliminamos la planicie dimensional de tus mezclas mediante inteligencia tímbrica, balance psicoacústico Haas y fidelidad cuántica.",
+      "hud": {
+        "loudness": "Target Loudness",
+        "loudnessVal": "-14.0",
+        "loudnessSub": "Cumple EBU R128",
+        "truePeak": "True-Peak Ceiling",
+        "truePeakVal": "-1.0",
+        "truePeakSub": "Cero Intersample Peaks",
+        "throughput": "DSP Throughput",
+        "throughputVal": "<420",
+        "throughputSub": "Pipeline Rust SIMD",
+        "quantum": "Profundidad Cuántica",
+        "quantumVal": "48",
+        "quantumSub": "24-bit PCM Impecable"
+      },
+      "ctaEnter": "Ingresar a Brik Studio",
+      "ctaListenDemo": "Escuchar Demostración A/B",
+      "ocularMonitor": "SPECTRAL OCULAR MONITOR",
+      "dualPrecision": "64-BIT DUAL PRECISION",
+      "telemetryCorrelation": "CORRELACIÓN",
+      "telemetryCorrelationVal": "+0.94 ESTÉREO",
+      "telemetryDynamicCrest": "CRESTA DINÁMICA",
+      "telemetryDynamicCrestVal": "11.8 dB PLR",
+      "telemetryHaasPhase": "FASE HAAS",
+      "telemetryHaasPhaseVal": "BLOQUEO EN FASE"
+    },
+    "philosophy": {
+      "badge": "Tríada Ontológica",
+      "title": "Fenomenología Sonora de Brik",
+      "subtitle": "Comprender el audio no como simple oscilación de voltaje, sino como un espectro vivo que habita múltiples dimensiones simultáneamente.",
+      "paradigmChip": "PARADIGMA DSP NO DESTRUCTIVO",
+      "viewSpecs": "Examinar fenómeno",
+      "hideSpecs": "Ocultar especificación",
+      "card1": {
+        "tag": "Fenómeno 01",
+        "title": "El Fantasma de la Mezcla Plana",
+        "desc": "Las mezclas convencionales mueren en cajas bidimensionales sofocadas por transitorios sofocados y subgraves desalineados. Brik resucita el micro-contraste dinámico recuperando la respiración original que el limitador genérico aplasta.",
+        "metricLabel": "RESURRECCIÓN ARMÓNICA",
+        "metricVal": "2.4x DINÁMICA"
+      },
+      "card2": {
+        "tag": "Fenómeno 02",
+        "title": "Mid/Side Decorrelacionada",
+        "desc": "El canal central conserva la contundencia matemática del bombo y la voz principal, mientras que los flancos laterales se expanden espectralmente sin inducir cancelaciones de fase al reproducirse en sistemas monoaurales de club.",
+        "metricLabel": "COHERENCIA MONO",
+        "metricVal": "100% PROTEGIDA"
+      },
+      "card3": {
+        "tag": "Fenómeno 03",
+        "title": "Validación de Ultratumba",
+        "desc": "Cada renderizado es sometido a un análisis espectro-temporal que simula 14 entornos de escucha reales: desde monitores de estudio estocásticos hasta altavoces de teléfonos y transductores de compresión en festivales masivos.",
+        "metricLabel": "CONTROL DE CALIDAD MULTI-DISPOSITIVO",
+        "metricVal": "14 PERFILES"
+      }
+    },
+    "abPlayer": {
+      "badge": "Escucha Espectral",
+      "title": "Comparador A/B: Original vs Master Brik",
+      "subtitle": "Experimenta la alteración psicoacústica en vivo. Alterna entre la mezcla previa y el resultado final procesado por nuestro motor de 13 etapas.",
+      "trackTitle": "Resonancia Espectral (Stems Master)",
+      "trackMeta": "ELECTRONIC BASS MUSIC — 128 BPM — 24-BIT 48KHZ",
+      "intensityLabel": "INTENSIDAD DSP:",
+      "btnOrig": "ORIGINAL [A]",
+      "btnBrik": "MASTER BRIK [B]",
+      "statusBrik": "SATURACIÓN ARMÓNICA BRIK ACTIVADA (+2.8 dB AIR)",
+      "statusOrig": "MEZCLA PREVIA SIN PROCESAR (PUNTAS DINÁMICAS PLANAS)",
+      "meterLufs": "INTEGRATED LUFS",
+      "meterTp": "MAX TRUE PEAK",
+      "meterWidth": "ESTÉREO HAAS WIDTH",
+      "meterHarm": "DENSIDAD ARMÓNICA"
+    },
+    "chain": {
+      "badge": "Matriz Algorítmica Lineal — 13 Etapas DSP",
+      "title": "Arquitectura DSP de 13 Etapas",
+      "subtitle": "Cada muestra de audio atraviesa una cadena modular con cero alteración destructiva de fase. Haz clic en cualquier módulo para examinar los parámetros internos, sub-etapas y tensores en tiempo real.",
+      "pipelineBadge": "PIPELINE RUST SIMD: CERO FUGAS INTERSAMPLE",
+      "autoCycle": "Ciclo Automático",
+      "autoCycleActive": "ACTIVO",
+      "autoCyclePaused": "PAUSADO",
+      "chainHeader": "CADENA SECUENCIAL (13 MÓDULOS)",
+      "feedForward": "FEED-FORWARD 64-BIT",
+      "activeState": "ESTADO ACTIVO",
+      "bypassedState": "EN BYPASS",
+      "latency": "LATENCIA:",
+      "tabSubstages": "Sub-etapas",
+      "tabSpatial": "Bloque Espacial Haas",
+      "tabTelemetry": "Tensores & SIMD",
+      "loadInStudio": "Cargar en Brik Studio",
+      "thd": "DISTORSIÓN THD",
+      "phaseCorrelation": "CORRELACIÓN FASE",
+      "overSampling": "SOBREMUESTREO",
+      "tensorsComputed": "Tensores calculados en SSE/AVX-512 nativo"
+    },
+    "presets": {
+      "badge": "Invocaciones Sónicas",
+      "title": "Presets Fantasmagóricos de Brik",
+      "subtitle": "Perfiles tímbricos calibrados para canalizar estéticas sonoras precisas con un solo clic en la consola.",
+      "viewDetails": "Ver calibración",
+      "hideDetails": "Ocultar calibración",
+      "loadPreset": "Usar preset en Studio",
+      "preset1": {
+        "genre": "GÉNERO: TECHNO / CLUB",
+        "title": "Pulido Espectral",
+        "desc": "Realza la presencia aérea de las frecuencias altas y limpia el barro en la zona de 250Hz. Ideal para producciones electrónicas de alta velocidad.",
+        "metric": "CLARIDAD +4.5 dB"
+      },
+      "preset2": {
+        "genre": "GÉNERO: URBAN / TRAP",
+        "title": "Brutal Transmutación",
+        "desc": "Empuja la pared de sonoridad hasta el límite extremo (-9 LUFS de club) preservando el punch seco del subgrave 808 sin ahogo dinámico.",
+        "metric": "DENSIDAD MÁXIMA"
+      },
+      "preset3": {
+        "genre": "GÉNERO: AMBIENT / SCORE",
+        "title": "Cristalino de Ultratumba",
+        "desc": "Expansión dimensional extrema de la imagen estéreo. Convierte sintetizadores etéreos y cuerdas orquestales en una experiencia envolvente de 360 grados.",
+        "metric": "ANCHO HAAS 160%"
+      },
+      "preset4": {
+        "genre": "GÉNERO: LO-FI / INDIE",
+        "title": "Vintage Ectoplasma",
+        "desc": "Inyección de distorsión armónica par a través de transformadores de consola británica y suave compresión óptica con sensación orgánica y cálida.",
+        "metric": "CALIDEZ VÁLVULA"
+      }
+    },
+    "founders": {
+      "badge": "Arquitectos del Sonido",
+      "title": "El Aquelarre Técnico — Equipo Fundador de Brik",
+      "subtitle": "Las 3 mentes que combinan ciencia acústica, algoritmos neuronales y experiencia de software para masterizar con fidelidad espectral.",
+      "social": {
+        "listLabel": "Redes sociales de {name}",
+        "linkedin": "Perfil de LinkedIn de {name} (abre en nueva pestaña)",
+        "github": "Perfil de GitHub de {name} (abre en nueva pestaña)",
+        "website": "Portafolio web de {name} (abre en nueva pestaña)",
+        "titleLinkedin": "LinkedIn",
+        "titleGithub": "GitHub",
+        "titleWebsite": "Portafolio / Web"
+      },
+      "brikman": {
+        "name": "Brikman Paul Morales Lancheros",
+        "role": "AUDIO SOFTWARE ARCHITECT & FULL STACK DEVELOPER",
+        "badge": "DSP & FULL-STACK",
+        "bio": "Ingeniero de software y creador principal del ecosistema de mezcla y masterización. Especialista en la convergencia de DSP e IA, combinando 10 años como productor musical con una sólida trayectoria en desarrollo full-stack y arquitecturas cloud.",
+        "quote": "“Transformando bytes en frecuencias: donde la inteligencia artificial esculpe el futuro del sonido profesional.”"
+      },
+      "miguel": {
+        "name": "Miguel Angel Ariza",
+        "role": "INGENIERO DE IA",
+        "badge": "IA & MACHINE LEARNING",
+        "bio": "Ingeniero de Inteligencia Artificial enfocado en modelos neuronales de análisis y predicción acústica. Artífice de los algoritmos de inteligencia auditiva que potencian el motor AudioMind, con amplia experiencia en deep learning, redes neuronales generativas y pipelines de inferencia DSP de ultra-baja latencia.",
+        "quote": "“La inteligencia artificial no reemplaza la emoción de la música; le da precisión milimétrica para que trascienda.”"
+      },
+      "andres": {
+        "name": "Andrés Villanueva Tabares",
+        "role": "FULLSTACK ENGINEER",
+        "badge": "FRONTEND & BACKEND",
+        "bio": "Ingeniero FullStack con más de 7 años de trayectoria diseñando, liderando y desplegando plataformas web de alta concurrencia y proyectos de alto impacto social y empresarial. Especialista en arquitecturas frontend reactivas y servicios distribuidos de alto desempeño.",
+        "quote": "“Uniendo ambos mundos: interfaces frontend fluidas e intuitivas respaldadas por la solidez y escala de un backend de alto rendimiento.”"
+      }
+    },
+    "cta": {
+      "badge": "SISTEMA DE ACCESO DIRECTO ABIERTO",
+      "title": "Eleva tu sonido al estándar cuántico de Brik",
+      "subtitle": "Ingresa al entorno de producción definitivo donde la precisión matemática y el carácter espectral se fusionan para entregar masters definitivos.",
+      "btnStudio": "Ingresar a Brik Studio",
+      "btnStudioTag": "(/studio)",
+      "btnSpecs": "Ver Especificación DSP (13 Etapas)",
+      "guarantees": {
+        "artifacts": "Cero Artefactos",
+        "simd": "Rust SIMD 64-bit",
+        "haas": "True Haas Estéreo",
+        "instantWs": "WebSocket Instantáneo"
+      }
+    },
+    "footer": {
+      "brand": "BRIK AUDIO",
+      "engineOnline": "MOTOR DSP v3.4 EN LÍNEA",
+      "copy": "© 2024 Brik Audio DSP Systems. Masterizado bajo conciencia espectral.",
+      "ebu": "EBU R128 (-14.0 LUFS)",
+      "truePeak": "TRUE PEAK: -1.0 dBTP",
+      "clock": "RELOJ: 96kHz / 64-bit FP"
+    }
   }
 }

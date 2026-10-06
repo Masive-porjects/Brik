@@ -1,3 +1,21 @@
+import type { MasteringParameters } from "@/lib/api";
+
+/**
+ * Parameter blob persisted in `tracks.draft_parameters`, `track_drafts.parameters`
+ * and `masters.parameters_applied`.
+ *
+ * Rows written before the parameter rename still carry the legacy `warmth`,
+ * `brightness` and `compression` keys that the library UI reads, so those are kept
+ * alongside the current `MasteringParameters` names. Declared as a type alias rather
+ * than an interface so it keeps an implicit index signature and therefore stays
+ * assignable to the `Record<string, unknown>` payloads sent to Supabase.
+ */
+export type StoredMasteringParams = Partial<MasteringParameters> & {
+  warmth?: number;
+  brightness?: number;
+  compression?: number;
+};
+
 export type TrackStatus =
   | "uploaded"
   | "analyzing"
@@ -18,7 +36,7 @@ export interface Track {
   channels: number | null;
   format: string | null;
   status: TrackStatus;
-  draft_parameters?: Record<string, any> | null;
+  draft_parameters?: StoredMasteringParams | null;
   active_preset?: string | null;
   draft_name?: string | null;
   created_at: string;
@@ -33,7 +51,7 @@ export interface TrackDraft {
   user_id: string;
   name: string;
   version_number: number;
-  parameters: Record<string, any>;
+  parameters: StoredMasteringParams;
   active_preset: string | null;
   is_active: boolean;
   created_at: string;
@@ -51,7 +69,7 @@ export interface CreateTrackInput {
   channels?: number | null;
   format?: string | null;
   status?: TrackStatus;
-  draft_parameters?: Record<string, any> | null;
+  draft_parameters?: StoredMasteringParams | null;
   active_preset?: string | null;
   draft_name?: string | null;
 }
@@ -74,7 +92,7 @@ export interface MasterRecord {
   file_size_bytes: number;
   integrated_lufs: number | null;
   true_peak_db: number | null;
-  parameters_applied: Record<string, any>;
+  parameters_applied: StoredMasteringParams;
   preset_name: string | null;
   created_at: string;
 }
@@ -88,7 +106,7 @@ export interface CreateMasterInput {
   file_size_bytes: number;
   integrated_lufs?: number | null;
   true_peak_db?: number | null;
-  parameters_applied?: Record<string, any>;
+  parameters_applied?: StoredMasteringParams;
   preset_name?: string | null;
 }
 
@@ -108,7 +126,7 @@ export interface TrackEvent {
   track_id: string;
   user_id: string;
   event_type: TrackEventType;
-  details: Record<string, any>;
+  details: unknown;
   created_at: string;
 }
 

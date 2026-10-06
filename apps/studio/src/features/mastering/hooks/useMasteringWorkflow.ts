@@ -6,12 +6,10 @@ import {
   type MasteringParameters,
   type MixStatus,
   DEFAULT_PARAMS,
-  type VocalChainParams,
   uploadAudio,
   processAudio,
   downloadMastered,
   splitStems,
-  processVocalChain,
   resetSession,
   getSession,
   ApiError,
@@ -107,10 +105,6 @@ export function useMasteringWorkflow(
   // Stem splitter state
 
   const [stemState, setStemState] = useState<StemSplitterState>(createDefaultStemState());
-
-  // Vocal chain state
-  const [vocalProcessing, setVocalProcessing] = useState(false);
-  const [vocalProcessed, setVocalProcessed] = useState(false);
 
   // Abort controller for in-flight processing requests
   const abortRef = useRef<AbortController | null>(null);
@@ -577,13 +571,20 @@ export function useMasteringWorkflow(
     if (!session) return;
     try {
       const reset = await resetSession(session.session_id);
-      // The reset response is the backend truth for the mix lifecycle
-      // (mix_status goes back to "none"), so `hasMix` must follow it —
-      // otherwise a later run would ask for source=mix and get a 400.
-      // Only the mix field is adopted: the local session keeps its master
-      // pointers until the next process replaces them (unchanged behavior).
+      // The backend's `reset_session_master` clears mastered_path and
+      // preset_masters alongside mix_status, so the local session must
+      // mirror all three: stale master pointers make isPresetCompleted()
+      // report a preset as ready and the UI then requests a preset that
+      // no longer exists → 404.
       setSession((prev) =>
-        prev ? { ...prev, mix_status: reset.mix_status ?? "none" } : prev,
+        prev
+          ? {
+              ...prev,
+              mix_status: reset.mix_status ?? "none",
+              mastered_path: null,
+              preset_masters: {},
+            }
+          : prev,
       );
     } catch {
       // Backend best-effort
@@ -617,25 +618,6 @@ export function useMasteringWorkflow(
     if (!session) throw new Error("No session");
     return await splitStems(session.session_id);
   }, [session]);
-
-  /* ── Vocal process ──────────────────────────────────── */
-  const handleVocalProcess = useCallback(
-    async (vocalParams: VocalChainParams) => {
-      if (!session) return;
-      setVocalProcessing(true);
-      setError(null);
-      try {
-        await processVocalChain(session.session_id, vocalParams);
-        setVocalProcessed(true);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Vocal processing failed";
-        setError(msg);
-      } finally {
-        setVocalProcessing(false);
-      }
-    },
-    [session],
-  );
 
   /* ── Download ──────────────────────────────────────── */
   const handleDownload = useCallback(
@@ -1009,8 +991,6 @@ export function useMasteringWorkflow(
     forceSave,
     stemState,
     setStemState,
-    vocalProcessing,
-    vocalProcessed,
     isConsolidating,
     isLoadingTrackProject,
     handleFileSelected,
@@ -1019,7 +999,6 @@ export function useMasteringWorkflow(
     handleReset,
     handleBackToUpload,
     handleStemSplit,
-    handleVocalProcess,
     handleDownload,
     handleConsolidateMaster,
     handleLoadTrackProject,

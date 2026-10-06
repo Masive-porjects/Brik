@@ -46,11 +46,10 @@ class MixRequest(BaseModel):
     behaviour. ``dimension_enabled=False`` routes the stems exactly like
     Paso 03 (no ``dimension_report`` in the payload).
 
-    ``vocal_treatment`` opts into the ADAPTIVE vocal treatment by
-    measured register (Eje A, ``vocal_adaptive``): default ``False``
-    keeps the exact previous routing (no ``vocal_treatment_report`` key);
-    ``True`` consumes the register/f0 measured on the vocal stem and
-    reports what ran in ``vocal_treatment_report``.
+    ``vocal_treatment`` is a DEPRECATED, accepted-and-ignored field. The
+    adaptive vocal treatment it used to opt into was removed with the Vocal
+    Chain module. It stays in the request body so an old client that still
+    sends it gets ``200`` instead of a ``422`` validation error.
 
     ``auto_balance`` opts into the STEM AUTO-BALANCE (feature
     ``odd/tasks/mix-stem-balance.md``, T3–T5): default ``False`` keeps
@@ -71,7 +70,7 @@ class MixRequest(BaseModel):
     """
 
     dimension_enabled: bool = True
-    vocal_treatment: bool = False
+    vocal_treatment: bool = False  # deprecated: accepted and ignored
     auto_balance: bool = False
     stem_trims: dict[str, float] | None = None
 
@@ -173,9 +172,6 @@ async def mix_session(
                 session_id,
                 str(session.original_path),
                 dimension_profiles=dimension_profiles,
-                vocal_treatment=bool(
-                    request is not None and request.vocal_treatment
-                ),
                 auto_balance=bool(
                     request is not None and request.auto_balance
                 ),

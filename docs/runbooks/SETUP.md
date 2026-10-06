@@ -2,7 +2,7 @@
 
 > Instrucciones para levantar el entorno **completo** en una máquina nueva.
 > Cualquier agente de IA puede seguir esto literalmente: comandos exactos, output esperado, pitfalls reales.
-> Stack: Studio (Next.js :3000) · AudioMind (FastAPI :8000) · Convex (cloud). El Live Engine es standalone (Web Audio, sin WS ni MIDI — bridge y simulator fueron removidos).
+> Stack: Studio (Next.js :3000) · AudioMind (FastAPI :8000) · Convex (cloud). El Live Engine fue eliminado (`ba3b4a6`); el contrato live_params queda dormido.
 
 ---
 
@@ -120,7 +120,7 @@ cd apps/audiomind && ../../.venv/bin/python -m pytest tests/ -q      # 628/628 p
 
 ## 8. Estado conocido del repo (2026-08-29; verificado 2026-09-23)
 
-- ✅ audiomind 628 tests · studio tsc (salvo mastering.ts) + 57 vitest + build · contrato live_params congelado
-- ✅ HumanMidi **removido del producto** (2026-09-11) — ver `../archive/HUMANMIDI_REMOVAL_REPORT.md`; bridge y simulator **removidos** también — ver `../ESTADO_PROYECTO.md` §5 (el Live Engine es standalone)
+- ✅ audiomind 707 tests · studio tsc + 61 vitest + build ✅ (27-Sep) · eslint 31 errores / 29 warnings, todos preexistentes y verificados sin regresiones · contrato live_params congelado (dormido)
+- ✅ HumanMidi **removido del producto** (2026-09-11) — ver `../archive/HUMANMIDI_REMOVAL_REPORT.md`; bridge y simulator **removidos** también — ver `../ESTADO_PROYECTO.md` §5 (el Live Engine fue eliminado)
 - ⚠️ Convex: deployment de David `proper-scorpion-625` (WaveIA) — el del equipo llega cuando Tomás comparta el suyo
 - ⚠️ CI inexistente — la verificación es manual (sección 6)

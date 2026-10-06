@@ -1,14 +1,13 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import SignalChain from "@/presentation/components/SignalChain";
 import AnalysisPanel from "@/presentation/components/AnalysisPanel";
 import StereoField from "@/presentation/components/StereoField";
 import ShareCard from "@/presentation/components/ShareCard";
-import { ComingSoonNotice } from "@/presentation/components/ComingSoonNotice";
 import DropZone from "@/presentation/components/DropZone";
-import type { MasteringParameters, SessionData } from "@/lib/api";
+import type { SessionData } from "@/lib/api";
 import { getAudioUrl } from "@/lib/api";
+import { isPresetCompleted } from "@/lib/audioUtils";
 import type { MasteringTab } from "@/presentation/components/dock/types";
 import { useTranslation } from "@/i18n/useTranslation";
 
@@ -18,7 +17,6 @@ interface AnalysisSidebarProps {
   currentTab: MasteringTab | null;
   onSelectTab: (tab: MasteringTab) => void;
   session: SessionData | null;
-  params: MasteringParameters;
   activePresetId: string | null;
   onDownload: (format: "wav" | "mp3") => void;
   onFileSelected: (file: File) => void;
@@ -32,7 +30,6 @@ export default function AnalysisSidebar({
   currentTab,
   onSelectTab,
   session,
-  params,
   activePresetId,
   onDownload,
   onFileSelected,
@@ -64,27 +61,7 @@ export default function AnalysisSidebar({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {currentTab === "pipeline" ? (
-            <>
-              <SignalChain params={params} />
-              {session?.mastered_path && (
-                <div className="rounded-xl border border-dashed border-[var(--border-subtle)] p-3 text-center mt-4">
-                  <p className="text-[10px] text-[var(--text-muted)]">
-                    {t(
-                      "analysis.viewFullPrompt",
-                      "¿Quieres ver el análisis completo y descargar?",
-                    )}
-                  </p>
-                  <button
-                    onClick={() => onSelectTab("analysis")}
-                    className="mt-1 text-[10px] font-medium text-[var(--accent-primary)] hover:underline"
-                  >
-                    {t("analysis.openAnalysis", "Abrir Análisis →")}
-                  </button>
-                </div>
-              )}
-            </>
-          ) : currentTab === "analysis" ? (
+          {currentTab === "analysis" ? (
             <>
               <AnalysisPanel
                 analysis={session?.analysis ?? null}
@@ -125,7 +102,7 @@ export default function AnalysisSidebar({
             </>
           ) : currentTab === "stereo" ? (
             <>
-              {session?.mastered_path ? (
+              {session && isPresetCompleted(session, activePresetId) ? (
                 <StereoField
                   audioUrl={getAudioUrl(
                     session.session_id,
@@ -144,14 +121,6 @@ export default function AnalysisSidebar({
                 </div>
               )}
             </>
-          ) : currentTab === "live" ? (
-            <ComingSoonNotice
-              title="Live Engine"
-              message={t(
-                "live.comingSoonNotice",
-                "El motor de efectos en vivo llega pronto. Por ahora, masterizá y escuchá el resultado en Análisis.",
-              )}
-            />
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--border-subtle)] p-4 text-center">
               <p className="text-xs leading-relaxed text-[var(--text-muted)]">

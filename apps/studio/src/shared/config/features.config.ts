@@ -18,7 +18,7 @@ export interface FeatureDefinition {
 }
 
 /**
- * Registro central de funcionalidades de WaveAI.
+ * Registro central de funcionalidades de Brik.
  * Permite apagar, encender o añadir módulos de forma desacoplada
  * sin alterar la lógica interna de los componentes.
  */
@@ -41,29 +41,11 @@ export const DEFAULT_FEATURES: Record<FeatureKey, FeatureDefinition> = {
     labelKey: "nav.splitter",
     defaultLabel: "Splitter",
   },
-  vocal: {
-    id: "vocal",
-    enabled: true,
-    labelKey: "nav.vocal",
-    defaultLabel: "Vocal",
-  },
   songstarter: {
     id: "songstarter",
     enabled: true,
     labelKey: "nav.songstarter",
     defaultLabel: "Beats",
-  },
-  genres: {
-    id: "genres",
-    enabled: true,
-    labelKey: "nav.genres",
-    defaultLabel: "Guía de Géneros",
-  },
-  pipeline: {
-    id: "pipeline",
-    enabled: true,
-    labelKey: "nav.pipeline",
-    defaultLabel: "Cadena de Master",
   },
   analysis: {
     id: "analysis",
@@ -76,12 +58,6 @@ export const DEFAULT_FEATURES: Record<FeatureKey, FeatureDefinition> = {
     enabled: true,
     labelKey: "nav.stereo",
     defaultLabel: "Estéreo",
-  },
-  live: {
-    id: "live",
-    enabled: true,
-    labelKey: "nav.live",
-    defaultLabel: "Live Engine",
   },
   album: {
     id: "album",

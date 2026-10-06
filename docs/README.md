@@ -3,7 +3,7 @@
 Este documento es la **fuente única de verdad** sobre la estructura documental de **WaveAI**: qué documento existe, dónde está ubicado, cuál es su propósito y la convención de nomenclatura estándar del proyecto (`MAYUSCULAS_MAYUSCULAS.md`).
 
 ```text
-Audio → AudioMind (FastAPI DSP) → Master → Studio Live Engine (Web Audio) → Knobs/Meters/Audio
+Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) → Audio
 ```
 
 ---
@@ -61,7 +61,7 @@ Audio → AudioMind (FastAPI DSP) → Master → Studio Live Engine (Web Audio) 
 - [`specs/08_implementacion_llm.md`](reference/specs/08_implementacion_llm.md): Valores exactos de DSP, presets, rangos, tokens y endpoints.
 - [`specs/03_waveai_backend_mastering.md`](reference/specs/03_waveai_backend_mastering.md): Arquitectura de la cadena DSP en FastAPI.
 - [`specs/04_waveai_sistema_diseno.md`](reference/specs/04_waveai_sistema_diseno.md): Sistema de diseño, paleta analógica y tokens CSS.
-- [`specs/05_live_engine_gestos_a_master.md`](reference/specs/05_live_engine_gestos_a_master.md): Motor de audio Web Audio API en tiempo real.
+- [`specs/05_live_engine_gestos_a_master.md`](reference/specs/05_live_engine_gestos_a_master.md): **histórico** — motor Web Audio en tiempo real, eliminado el 27-Sep (`ba3b4a6`).
 
 ---
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Download,
@@ -43,14 +43,25 @@ export default function ConsolidateMasterModal({
   const [successRecord, setSuccessRecord] = useState<MasterRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  /* Re-seed the form whenever the thing being consolidated changes (new track, new
+     preset, or the modal being reopened). The key covers exactly what the old effect
+     read — track identity + title, preset and open state — so a rename or a reopen
+     still resets the name, while typing in the field never does. Adjusting state
+     during render is React's sanctioned "derive from props" pattern: React re-renders
+     immediately without committing, so the DOM output is unchanged. */
+  const consolidationKey = track
+    ? `${track.id}|${track.title}|${activePresetId ?? ""}|${isOpen}`
+    : null;
+  const [seededKey, setSeededKey] = useState<string | null>(null);
+  if (consolidationKey !== seededKey) {
+    setSeededKey(consolidationKey);
     if (track) {
       const presetSuffix = activePresetId ? ` (${activePresetId})` : "";
       setMasterName(`${track.title} - Master Final${presetSuffix}`);
       setSuccessRecord(null);
       setErrorMessage(null);
     }
-  }, [track, activePresetId, isOpen]);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,7 +155,7 @@ export default function ConsolidateMasterModal({
             {/* Header */}
             <div className="relative z-10 flex items-center justify-between pb-4 border-b border-[var(--border-subtle)]">
               <div className="flex items-center gap-3">
-                {/* WaveIA Brand Mascot with Orbiting Notes */}
+                {/* Brik Brand Mascot with Orbiting Notes */}
                 <div className="relative size-11 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-[var(--accent-primary)]/15 to-transparent border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10 text-[var(--accent-primary)]">
                   <GhostIcon size={22} />
                   <span className="absolute -top-1 -right-1 animate-bounce">

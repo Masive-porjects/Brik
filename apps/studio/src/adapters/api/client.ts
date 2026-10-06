@@ -427,37 +427,6 @@ export async function downloadStem(
   return res.blob();
 }
 
-/* ── Vocal Chain ─────────────────────────────────────── */
-
-export interface VocalChainParams {
-  deesser_amount: number;
-  pitch_shift_semitones: number;
-  cohesion_amount: number;
-}
-
-export interface VocalChainResult {
-  session_id: string;
-  status: string;
-  gain_reduction_db: number;
-  output_path: string;
-}
-
-export async function processVocalChain(
-  sessionId: string,
-  params: VocalChainParams,
-): Promise<VocalChainResult> {
-  const res = await fetch(`${API_BASE}/session/${sessionId}/vocal`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...licenseHeaders() },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Vocal processing failed" }));
-    throw new Error(err.detail || "Vocal processing failed");
-  }
-  return res.json();
-}
-
 /* ── Mix Engine ─────────────────────────────────────── */
 
 /**
@@ -556,6 +525,108 @@ export async function mixTracks(
 /** Stable URL of the persisted mix WAV (survives session reload). */
 export function getMixAudioUrl(sessionId: string): string {
   return `${API_BASE}/session/${sessionId}/audio/mix`;
+}
+
+/* ── Async mix jobs ────────────────────────────────────────── */
+
+/** Job state of a submitted mix. Same vocabulary as the mastering jobs in
+ *  this file on purpose: one polling client and one UI state machine for
+ *  every job kind, instead of two incompatible job systems. */
+export type MixJobStatus = "processing" | "completed" | "error";
+
+export interface MixJobAccepted {
+  job_id: string;
+  session_id: string;
+  status: MixJobStatus;
+  poll_url: string;
+}
+
+export interface MixJobState {
+  job_id: string;
+  kind: string;
+  status: MixJobStatus;
+  /** 0..100 as reported by the backend. 0 until the mix is really in R2. */
+  progress: number;
+  stage: string | null;
+  session_id: string | null;
+  /** Present once completed: R2 key, presigned download URL and analysis. */
+  result?: {
+    r2_key?: string;
+    download_url?: string;
+    content_type?: string;
+    analysis?: MixResult | null;
+    mix_status?: string;
+  };
+  error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * Queue the Mix Engine for a session and return immediately.
+ *
+ * The blocking `mixTracks` holds the HTTP connection for the whole DSP chain,
+ * which is what an edge proxy answers with 502/504 once the mix outlasts the
+ * proxy timeout. This returns in milliseconds with a job id to poll.
+ *
+ * The options mirror the blocking endpoint exactly, so the same mix can be
+ * requested either way.
+ */
+export async function submitMixJob(
+  sessionId: string,
+  options?: {
+    dimensionEnabled?: boolean;
+    autoBalance?: boolean;
+    stemTrims?: Record<string, number>;
+  },
+  signal?: AbortSignal,
+): Promise<MixJobAccepted> {
+  const body: Record<string, unknown> = {
+    dimension_enabled: options?.dimensionEnabled ?? true,
+  };
+  if (options?.autoBalance) body.auto_balance = true;
+  const stemTrims = Object.fromEntries(
+    Object.entries(options?.stemTrims ?? {}).filter(([, db]) => db !== 0),
+  );
+  if (Object.keys(stemTrims).length > 0) body.stem_trims = stemTrims;
+
+  const res = await fetch(`${API_BASE}/jobs/mix/${sessionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Mix job could not be submitted" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail || "Mix job could not be submitted",
+      res.status,
+    );
+  }
+  return res.json();
+}
+
+/** Read the current state of a submitted mix job. */
+export async function getMixJobState(
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<MixJobState> {
+  const res = await fetch(`${API_BASE}/jobs/mix/${encodeURIComponent(jobId)}`, {
+    headers: { ...licenseHeaders() },
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Mix job status check failed" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail || "Mix job status check failed",
+      res.status,
+    );
+  }
+  return res.json();
 }
 
 /* ── SongStarter ──────────────────────────────────── */
@@ -719,6 +790,7 @@ export interface AsyncJobStatus {
   job_id: string;
   track_id: string;
   status: "processing" | "completed" | "error";
+  progress?: number;
   result?: MasterJobResult;
   error?: string;
   started_at?: string;

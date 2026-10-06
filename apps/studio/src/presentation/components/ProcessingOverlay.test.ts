@@ -11,9 +11,9 @@ import { getSubtext } from "./ProcessingOverlay";
 
 describe("getSubtext — fase upload", () => {
   it("sube hasta 99% sin cambiar el texto", () => {
-    expect(getSubtext(0, "upload")).toBe("Subiendo tu track a WaveIA...");
-    expect(getSubtext(50, "upload")).toBe("Subiendo tu track a WaveIA...");
-    expect(getSubtext(99, "upload")).toBe("Subiendo tu track a WaveIA...");
+    expect(getSubtext(0, "upload")).toBe("Subiendo tu track a Brik...");
+    expect(getSubtext(50, "upload")).toBe("Subiendo tu track a Brik...");
+    expect(getSubtext(99, "upload")).toBe("Subiendo tu track a Brik...");
   });
 
   it("100% confirma la subida y anuncia el análisis", () => {

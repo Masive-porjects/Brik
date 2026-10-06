@@ -29,14 +29,14 @@ docker compose down -v           # detiene y BORRA uploads/outputs persistidos
 
 | Servicio | URL | Qué es |
 |---|---|---|
-| `studio` | http://localhost:3000 | UI de mastering + pestaña Live (build de producción, `next start` standalone) |
+| `studio` | http://localhost:3000 | UI de mastering + mezcla (build de producción, `next start` standalone) |
 | `audiomind` | http://localhost:8000/health | DSP de mastering (`{"status":"ok","service":"AudioMind"}`) |
 
 ---
 
 ## 2. Decisiones de diseño (por qué es así)
 
-- **Bridge y simulator fueron removidos del producto.** `apps/bridge/` (MIDI → WS) y el módulo `simulator/` ya no existen — el Live Engine es standalone (knobs del navegador, sin WebSocket ni MIDI). El servicio `simulator` que quedaba en el compose (build desde el `simulator/Dockerfile` sobreviviente) apuntaba a un módulo Python inexistente → **se quitó de `docker-compose.yml`** (23-Sep, commit `093946c`). Ver `../ESTADO_PROYECTO.md` §5.
+- **Bridge, simulator y Live Engine fueron removidos del producto.** `apps/bridge/` (MIDI → WS) y el módulo `simulator/` ya no existen, y el Live Engine se retiró entero el 27-Sep (`ba3b4a6`). El servicio `simulator` que quedaba en el compose apuntaba a un módulo Python inexistente → se quitó de `docker-compose.yml` (23-Sep, `093946c`); el `simulator/Dockerfile` huérfano que sobraba (que `COPY`aba un `requirements.txt` inexistente) se eliminó el 27-Sep. El compose hoy solo levanta `audiomind` + `studio`. Ver `../ESTADO_PROYECTO.md` §3.3 y §5.
 - **`NEXT_PUBLIC_API_URL` es un build-arg.** Las `NEXT_PUBLIC_*` se inlinean en
   el bundle durante `next build` — cambiarla exige `docker compose build studio`.
   El default `http://localhost:8000/api` es correcto porque el browser corre en
@@ -72,8 +72,7 @@ docker compose down -v           # detiene y BORRA uploads/outputs persistidos
 docker compose ps                                   # 2 servicios healthy
 curl http://localhost:8000/health                   # {"status":"ok","service":"AudioMind"}
 curl -I http://localhost:3000                       # 200
-# Live Engine: pestaña "Live" del studio — los knobs se operan desde la UI
-# (standalone, sin websocket ni simulator).
+# Studio: pestañas Mastering y Mezcla. El Live Engine ya no existe.
 ```
 
 ---

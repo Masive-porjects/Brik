@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthContextType, UserProfile } from "../types";
@@ -207,9 +207,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user?.email?.split("@")[0] ||
     "Producer";
 
-  const lastDisplayNameRef = useRef(activeDisplayName);
-  if (activeDisplayName && activeDisplayName !== "Producer") {
-    lastDisplayNameRef.current = activeDisplayName;
+  // Keep the last meaningful display name so the sign-out modal can still greet the
+  // user by name after the session is cleared (which would fall back to "Producer").
+  //
+  // Adjusting state during render is React's sanctioned "derive from props" pattern,
+  // but ONLY with a guard that compares against the current state. The previous
+  // version guarded on `activeDisplayName !== "Producer"` instead, so it re-armed
+  // the setState on every render of any real user. React only tolerated that while
+  // its eager-bailout optimisation held, and that optimisation requires
+  // `fiber.lanes === NoLanes` — it switches off as soon as any update is pending
+  // (HMR, StrictMode's double render, an unsettled setUser), and then the tree
+  // spins until React throws "Too many re-renders".
+  //
+  // Comparing against `lastDisplayName` is what makes it terminate: it only sets
+  // when the value genuinely differs, so the second pass finds nothing to do.
+  // The `!== "Producer"` clause is kept so a cleared session cannot erase the
+  // name we wanted to greet the user with.
+  //
+  // A `useEffect` is not an option here: `react-hooks/set-state-in-effect` is an
+  // error in this codebase, which is presumably why this ended up unguarded.
+  const [lastDisplayName, setLastDisplayName] = useState(activeDisplayName);
+  if (activeDisplayName !== lastDisplayName && activeDisplayName !== "Producer") {
+    setLastDisplayName(activeDisplayName);
   }
 
   return (
@@ -228,7 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
       <SignOutModal
         isOpen={isSigningOut}
-        displayName={lastDisplayNameRef.current}
+        displayName={lastDisplayName}
       />
     </AuthContext.Provider>
   );

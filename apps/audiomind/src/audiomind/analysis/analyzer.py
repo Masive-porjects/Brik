@@ -7,7 +7,6 @@ from pathlib import Path
 import librosa
 import numpy as np
 
-from audiomind.analysis.register_detection import detect_vocal_register
 from audiomind.models.audio import AnalysisResult
 from audiomind.processing.loudness import measure_lufs
 
@@ -176,7 +175,9 @@ def _detect_already_mastered(
     return is_mastered, confidence
 
 
-def analyze_audio(file_path: str | Path) -> AnalysisResult:
+def analyze_audio(
+    file_path: str | Path,
+) -> AnalysisResult:
     """Analyze an audio file and extract key metrics."""
     file_path = Path(file_path)
 
@@ -243,12 +244,6 @@ def analyze_audio(file_path: str | Path) -> AnalysisResult:
         crest_factor_db=crest_factor_db,
     )
 
-    # Vocal register / f0 (Eje A): librosa.pyin over the signal — the vocal
-    # stem when the mix engine analyzes per-stem files. Measurement only:
-    # None register when no credible voice (silence/noise/instrumental);
-    # the master's neutral/bypass chain is untouched.
-    register = detect_vocal_register(y_mono, sr)
-
     return AnalysisResult(
         integrated_lufs=round(integrated_lufs, 1),
         true_peak_db=round(true_peak_db, 1),
@@ -263,10 +258,6 @@ def analyze_audio(file_path: str | Path) -> AnalysisResult:
         crest_factor_db=round(crest_factor_db, 1),
         is_already_mastered=is_mastered,
         mastering_confidence=round(mastering_conf, 2),
-        vocal_median_f0_hz=register.median_f0_hz,
-        vocal_register=register.register,
-        vocal_f0_voiced_ratio=round(register.voiced_ratio, 3),
-        vocal_phrase_count=len(register.phrase_medians_hz),
     )
 
 

@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Public routes: auth routes, APIs, voice stream
+  // Public routes: landing page ("/"), auth routes, APIs, voice stream
   const pathname = request.nextUrl.pathname;
   const isAuthRoute =
     pathname.startsWith("/login") ||
@@ -45,6 +45,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/callback");
 
   const isPublicRoute =
+    pathname === "/" ||
     isAuthRoute ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/voz");
@@ -61,7 +62,9 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     if (pathname !== "/") {
-      url.searchParams.set("redirect", pathname);
+      // Se incluye el query string: con `pathname` pelado se perdía `?track=<id>`
+      // y el login aterrizaba en /mezclas sin pista -> pantalla en blanco.
+      url.searchParams.set("redirect", `${pathname}${request.nextUrl.search}`);
     }
     return NextResponse.redirect(url);
   }

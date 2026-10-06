@@ -18,6 +18,7 @@ without touching any DSP code:
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -41,8 +42,15 @@ _gate = threading.BoundedSemaphore(max(1, settings.max_concurrent_dsp))
 # Dedicated pool for heavy DSP invocations (process_audio) that must be
 # concurrency-limited. Analysis/reference/album work keeps the historic
 # ``_dsp_executor`` in mastering.py.
+# Max workers may be overridden via DJ_LIMIT_WORKERS env var, capped at 4
+# to avoid overwhelming the single uvicorn worker on Railway free tier.
+_dj_limit = os.getenv("DJ_LIMIT_WORKERS")
+if _dj_limit is not None:
+    _limit_workers = min(int(_dj_limit), 4)
+else:
+    _limit_workers = settings.max_concurrent_dsp
 DSP_THREAD_POOL = ThreadPoolExecutor(
-    max_workers=max(1, settings.max_concurrent_dsp),
+    max_workers=max(1, _limit_workers),
     thread_name_prefix="dsp-gated",
 )
 

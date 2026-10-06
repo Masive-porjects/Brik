@@ -6,8 +6,12 @@ import { MasteringProvider } from "@/features/mastering";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WaveIA — AI Mastering Studio",
+  title: "Brik — AI Mastering Studio",
   description: "Professional audio mastering powered by AI",
+  icons: {
+    icon: "/brand/mascota-3d.png",
+    apple: "/brand/mascota-3d.png",
+  },
 };
 
 export const dynamic = "force-dynamic";

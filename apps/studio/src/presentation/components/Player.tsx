@@ -280,7 +280,9 @@ export default function Player({
         wsOrigRef.current?.pause();
         wsMastRef.current?.pause();
         wsRefPtr.current?.pause();
-        setIsPlaying(false);
+        // The WaveSurfer `pause` events already clear `isPlaying`; mirror it from a
+        // promise callback so this effect never writes state during its own body.
+        void Promise.resolve().then(() => setIsPlaying(false));
       }
     }
   }, [disabled, isPlaying]);

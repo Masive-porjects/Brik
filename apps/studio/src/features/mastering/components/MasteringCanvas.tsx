@@ -2,18 +2,15 @@
 
 import { RotateCcw } from "lucide-react";
 import ModulePanel from "@/presentation/components/ModulePanel";
-import GenreGuide from "@/presentation/components/GenreGuide";
 import StemSplitter, { type StemSplitterState } from "@/presentation/components/StemSplitter";
 import MixPanel from "@/presentation/components/MixPanel";
 import MixGateNotice, {
   type MixGateState,
 } from "@/presentation/components/MixGateNotice";
-import VocalChain from "@/presentation/components/VocalChain";
 import SongStarter from "@/presentation/components/SongStarter";
 import AlbumMastering from "@/presentation/components/AlbumMastering";
-import MasteringGuide from "@/presentation/components/MasteringGuide";
 import type { MasteringTab } from "@/presentation/components/dock/types";
-import type { MasteringParameters, SessionData, VocalChainParams, StemSplitResult } from "@/lib/api";
+import type { MasteringParameters, SessionData, StemSplitResult } from "@/lib/api";
 import { hasCompletedMix } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n/useTranslation";
 
@@ -30,9 +27,6 @@ interface MasteringCanvasProps {
   stemState: StemSplitterState;
   setStemState: React.Dispatch<React.SetStateAction<StemSplitterState>>;
   onStemSplit: () => Promise<StemSplitResult>;
-  vocalProcessing: boolean;
-  vocalProcessed: boolean;
-  onVocalProcess: (p: VocalChainParams) => Promise<void>;
   masteringMode: "manual" | "ai";
   onNavigateTab: (tab: MasteringTab) => void;
   /** El mix terminó (éxito o fallo): el padre relee la sesión para
@@ -56,9 +50,6 @@ export default function MasteringCanvas({
   stemState,
   setStemState,
   onStemSplit,
-  vocalProcessing,
-  vocalProcessed,
-  onVocalProcess,
   masteringMode,
   onNavigateTab,
   onMixSettled,
@@ -146,13 +137,6 @@ export default function MasteringCanvas({
         </div>
       );
 
-    case "genres":
-      return (
-        <div className="w-full">
-          <GenreGuide />
-        </div>
-      );
-
     case "splitter":
       if (!session) {
         return (
@@ -187,7 +171,6 @@ export default function MasteringCanvas({
             sessionId={session.session_id}
             sessionMixPath={session.mix_path ?? null}
             sessionMixAnalysis={session.mix_analysis ?? null}
-            audioDurationSeconds={session.analysis?.duration_seconds ?? null}
             genreHint={session.analysis?.detected_genre ?? null}
             disabled={processing}
             mode={masteringMode}
@@ -195,26 +178,6 @@ export default function MasteringCanvas({
             hasMix={hasCompletedMix(session)}
             onMixSettled={onMixSettled}
             onMasterize={() => onNavigateTab("modules")}
-          />
-        </div>
-      );
-
-    case "vocal":
-      if (!session) {
-        return (
-          <p className="text-[var(--text-muted)] text-sm">
-            {t("vocal.loadAudioPrompt", "Carga un audio para usar VoiceChain Pro.")}
-          </p>
-        );
-      }
-      return (
-        <div className="w-full">
-          <VocalChain
-            sessionId={session.session_id}
-            disabled={processing}
-            processing={vocalProcessing}
-            processed={vocalProcessed}
-            onProcess={onVocalProcess}
           />
         </div>
       );
@@ -233,13 +196,6 @@ export default function MasteringCanvas({
       return (
         <div className="w-full">
           <AlbumMastering />
-        </div>
-      );
-
-    case "pipeline":
-      return (
-        <div className="w-full">
-          <MasteringGuide />
         </div>
       );
 
