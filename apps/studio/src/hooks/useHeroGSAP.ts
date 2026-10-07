@@ -1,7 +1,7 @@
 "use client";
 
 import { useGSAP } from "@gsap/react";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -23,8 +23,16 @@ export function useHeroGSAP() {
   useGSAP(() => {
     const ctx = gsap.context(() => {
       // ---------- 1. SPLIT TEXT REVEAL (GSAP-style) ----------
-      const titleSplit = new SplitText(titleRef.current!, { type: "chars", mask: "chars" });
-      const subtitleSplit = new SplitText(subtitleRef.current!, { type: "words", mask: "words" });
+      // type: "words, chars" para control granular + word-break prevention
+      const titleSplit = new SplitText(titleRef.current!, { 
+        type: "words, chars", 
+        mask: "chars",
+        reduceWhiteSpace: false,
+      });
+      const subtitleSplit = new SplitText(subtitleRef.current!, { 
+        type: "words", 
+        mask: "words",
+      });
 
       const masterTL = gsap.timeline({ defaults: { ease: "power3.out" } });
 
@@ -36,7 +44,7 @@ export function useHeroGSAP() {
           duration: 0.6,
           ease: "power3.out",
         })
-        // Title chars - stagger 0.025, y: 30
+        // Title chars - stagger 0.025, y: 30, clearProps on complete
         .from(titleSplit.chars, {
           y: 30,
           opacity: 0,
@@ -63,7 +71,7 @@ export function useHeroGSAP() {
           ease: "power3.out",
         }, "-=0.3");
 
-      // Cleanup function for SplitText
+      // Cleanup function for SplitText - reverts DOM to original state
       const cleanup = () => {
         titleSplit.revert();
         subtitleSplit.revert();

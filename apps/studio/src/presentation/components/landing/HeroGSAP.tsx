@@ -45,10 +45,15 @@ export default function HeroGSAP() {
             {t("landing.hero.eyebrow", "Mastering Spectral DSP · 13 Etapas · 8× Oversampling")}
           </span>
 
-          {/* Title - SplitText clip reveal, GSAP-style typography */}
+          {/* Title - SplitText reveal, GSAP-style typography + word-break fix */}
           <h1
             ref={refs.titleRef}
-            className="font-sans text-4xl sm:text-5xl lg:text-[clamp(48px,6vw,72px)] leading-[0.95] tracking-[-0.04em] text-[#F4F4EB] max-w-[28ch]"
+            className="font-sans text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] tracking-tight text-[#F4F4EB] max-w-[28ch] break-keep"
+            style={{
+              wordBreak: "keep-all",
+              overflowWrap: "normal",
+              hyphens: "none",
+            }}
           >
             {t("landing.hero.title", "El master ya no es un problema.")}
             <span className="bg-gradient-to-r from-primary via-primary-container to-secondary bg-clip-text text-transparent ml-1">

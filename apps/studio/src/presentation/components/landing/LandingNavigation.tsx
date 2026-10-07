@@ -4,6 +4,9 @@ import { useState, useEffect, createContext, useContext } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "@/i18n";
+import LanguageSwitcher from "@/presentation/components/LanguageSwitcher";
+import ThemeToggle from "@/presentation/components/ThemeToggle";
+import { UserMenu, useAuth } from "@/features/auth";
 
 interface NavLink {
   id: string;
@@ -83,10 +86,25 @@ function MobileMenuButton() {
   );
 }
 
-// Mobile Drawer
+// Mobile Drawer - Fixed: z-[100], full backdrop, body scroll lock, all nav links + user controls
 function MobileDrawer() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { isOpen, setIsOpen, activeSection, onLinkClick } = useMobileMenu();
+
+  // Body scroll lock
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  const handleClose = () => setIsOpen(false);
 
   return (
     <AnimatePresence>
@@ -97,21 +115,21 @@ function MobileDrawer() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 lg:hidden"
-          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-[100] lg:hidden"
+          onClick={handleClose}
           role="dialog"
           aria-modal="true"
           aria-label="Menú de navegación"
         >
-          {/* Backdrop - full screen, dark with blur */}
+          {/* Backdrop - full screen, dark with heavy blur */}
           <motion.div
-            className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            className="absolute inset-0 bg-[#0B0D0E]/95 backdrop-blur-xl"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           />
 
-          {/* Slide Panel - from right */}
+          {/* Slide Panel - from right, full height */}
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -126,7 +144,7 @@ function MobileDrawer() {
               <button
                 type="button"
                 className="p-1 rounded-lg hover:bg-white/[0.05] transition-colors"
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 aria-label="Cerrar menú"
               >
                 <svg className="w-5 h-5 text-[#bcc9c7]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -159,10 +177,16 @@ function MobileDrawer() {
                 );
               })}
 
+              {/* User Controls / Language / Theme */}
+              <div className="pt-4 border-t border-white/5 space-y-3">
+                <LanguageSwitcher />
+                {user ? <UserMenu /> : <ThemeToggle />}
+              </div>
+
               {/* Mobile CTA */}
               <Link
                 href="/upload"
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[#003734] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
               >
                 {t("landing.nav.enterStudio", "Ingresar a Brik Studio")}
@@ -235,7 +259,7 @@ export default function LandingNavigation() {
   return (
     <MobileMenuContext.Provider value={contextValue}>
       <DesktopNav />
-      {/* Mobile Hamburger Button - now inside Provider */}
+      {/* Mobile Hamburger Button - inside Provider */}
       <MobileMenuButton />
       <MobileDrawer />
     </MobileMenuContext.Provider>
