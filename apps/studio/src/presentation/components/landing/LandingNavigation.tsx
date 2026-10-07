@@ -103,9 +103,9 @@ function MobileDrawer() {
           aria-modal="true"
           aria-label="Menú de navegación"
         >
-          {/* Backdrop */}
+          {/* Backdrop - full screen, dark with blur */}
           <motion.div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/90 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -122,7 +122,7 @@ function MobileDrawer() {
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-white/5">
-              <span className="font-display-xl text-xl text-primary font-bold">BRIK</span>
+              <span className="font-sans text-xl text-primary font-bold tracking-tight">BRIK</span>
               <button
                 type="button"
                 className="p-1 rounded-lg hover:bg-white/[0.05] transition-colors"
@@ -134,27 +134,28 @@ function MobileDrawer() {
             </div>
 
             {/* Nav Links */}
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto" aria-label="Navegación móvil">
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto" aria-label="Navegación móvil">
               {navLinks.map((link) => {
                 const isActive = activeSection === link.id;
                 return (
-                  <Link
+                  <button
                     key={link.id}
-                    href={`#${link.id}`}
+                    type="button"
                     onClick={() => onLinkClick(link.id)}
-                    className={`block px-4 py-3 rounded-xl font-body-sm transition-all duration-200 ${
+                    className={`w-full text-left px-4 py-4 rounded-xl font-sans text-lg font-medium transition-all duration-200 ${
                       isActive
-                        ? "bg-primary/15 text-primary border border-primary/30 font-semibold"
+                        ? "bg-primary/15 text-primary border border-primary/30"
                         : "text-[#bcc9c7] hover:text-white hover:bg-white/[0.03]"
                     }`}
+                    aria-current={isActive ? "page" : undefined}
                   >
                     <div className="flex items-center justify-between">
                       <span>{t(link.label)}</span>
                       {isActive && (
-                        <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg className="w-5 h-5 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       )}
                     </div>
-                  </Link>
+                  </button>
                 );
               })}
 
@@ -162,7 +163,7 @@ function MobileDrawer() {
               <Link
                 href="/upload"
                 onClick={() => setIsOpen(false)}
-                className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[#003734] font-body-sm font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
+                className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[#003734] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
               >
                 {t("landing.nav.enterStudio", "Ingresar a Brik Studio")}
               </Link>

@@ -45,10 +45,10 @@ export default function HeroGSAP() {
             {t("landing.hero.eyebrow", "Mastering Spectral DSP · 13 Etapas · 8× Oversampling")}
           </span>
 
-          {/* Title - SplitText clip reveal */}
+          {/* Title - SplitText clip reveal, GSAP-style typography */}
           <h1
             ref={refs.titleRef}
-            className="font-display-xl text-4xl sm:text-5xl lg:text-[clamp(48px,6vw,72px)] leading-[1.02] tracking-tight text-white max-w-[28ch]"
+            className="font-sans text-4xl sm:text-5xl lg:text-[clamp(48px,6vw,72px)] leading-[0.95] tracking-[-0.04em] text-[#F4F4EB] max-w-[28ch]"
           >
             {t("landing.hero.title", "El master ya no es un problema.")}
             <span className="bg-gradient-to-r from-primary via-primary-container to-secondary bg-clip-text text-transparent ml-1">
@@ -59,7 +59,7 @@ export default function HeroGSAP() {
           {/* Subtitle - Benefit-driven, 1 línea */}
           <p
             ref={refs.subtitleRef}
-            className="font-body-lg text-[#bcc9c7] text-base sm:text-lg leading-relaxed max-w-xl"
+            className="font-sans text-base sm:text-lg leading-relaxed text-[#bcc9c7] max-w-xl"
           >
             {t("landing.hero.subtitleClean", "Sube tu mezcla. Obtén un master listo para streaming en segundos.")}
           </p>
@@ -69,7 +69,7 @@ export default function HeroGSAP() {
             <motion.a
               ref={refs.ctaPrimaryRef}
               href="/upload"
-              className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-body-lg font-bold shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
+              className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-sans font-bold shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
               whileHover={{ y: -3, scale: 1.02, boxShadow: "0 0 48px rgba(110,233,224,0.6)" }}
               whileTap={{ scale: 0.97 }}
               transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -81,7 +81,7 @@ export default function HeroGSAP() {
             <motion.a
               ref={refs.ctaGhostRef}
               href="#demo"
-              className="w-full sm:w-auto px-7 py-4 rounded-full bg-[#1a1b20]/80 text-white font-body-md font-semibold border border-white/10 hover:bg-[#292a2e] flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-7 py-4 rounded-full bg-[#1a1b20]/80 text-white font-sans font-semibold border border-white/10 hover:bg-[#292a2e] flex items-center justify-center gap-2 cursor-pointer"
               whileHover={{ y: -2, borderColor: "rgba(110,233,224,0.4)" }}
               whileTap={{ scale: 0.98 }}
             >

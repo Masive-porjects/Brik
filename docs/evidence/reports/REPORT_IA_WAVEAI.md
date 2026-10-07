@@ -1,235 +1,264 @@
-# IA de WaveAI — qué se hizo y qué sigue
+# IA de WaveAI — Conciliación investigativa con Moises Studio
 
-**Responsable:** Miguel Angel Ariza (línea de IA)
-**Rama:** `feat/ia-asistente-mezcla` (base `develop`, sin PR todavía)
-**Última actualización:** 2026-10-05
-**Estado:** 🟡 En curso. Ya funcionan IA → mezcla y la búsqueda en los libros; falta conectarlo al chat y activar los embeddings.
+**Responsable:** Miguel Ángel Ariza (Línea IA)  
+**Rama:** `develop` (sin mover de develop, tal como se indicó)  
+**Fecha:** 2026-10-07  
+**Estado:** INVESTIGATIVO — Conciliación completa de la referencia Moises Studio  
+**Fuente de verdad:** Engram topic `architecture/ia-audio-pipeline-moises-reference` (7 bloques recopilados)  
+**Ecosistema:** Moises Studio es un **ecosistema en producción mundial** — esta información es referencia autoritativa
 
-> **Para quién es:** Paul, Andrés y quien retome esta línea. Explica qué hay en la rama, cómo correrlo, qué decisiones se tomaron y qué falta, con lo que se necesita de cada uno.
-
----
-
-## 1. Resumen en 30 segundos
-
-Según la reunión, mi tarea es **conectar la IA con la mezcla y el mastering** y **construir el asistente con el conocimiento de los libros**. Hasta hoy:
-
-1. **La IA ya puede mover la mezcla.** Hay un mapper nuevo: la misma intención que interpreta el agente ("voz al frente, más pegada") se traduce en faders de voz, batería y bajo para `POST /mix`. Antes la IA solo podía tocar el mastering, y ni siquiera eso estaba conectado.
-2. **El contrato entre el agente y los mappers quedó alineado.** El modelo de Python no coincidía con el JSON Schema compartido. Un test nuevo falla si vuelven a diferir.
-3. **El prompt del agente** quedó en español neutro, sin voseo, y el asistente se presenta como WaveAI.
-4. **RAG sobre los 4 libros.** Se extrajeron 2.414 páginas (OCR con Tesseract donde hizo falta) y se dividieron en 1.806 fragmentos con capítulo y página impresa. La búsqueda híbrida combina palabras exactas (BM25) y significado (vectores, con Ollama). **Todo es local y nada de los libros entra al repo.**
-
-**Lo más importante que falta:** activar los embeddings (bloqueo de red, ver §6), conectar la búsqueda y los mappers al chat del studio, y que Paul valide los valores provisionales.
+> **Dirigido a:** Paul, Andrés y quien retome esta línea. Unifica todo lo recopilado: modelo operativo real, cadenas con valores cargados, fórmula del limitador vs trim, guardrails, separación `/separate`, RAG y plan de acción concreto.
 
 ---
 
-## 2. Cómo encaja todo
+## 1. Resumen Ejecutivo
 
-```
-                       ┌──────────────── OFFLINE (máquina local) ───────────────┐
- Libros (PDF, fuera ──►│ extraer / OCR ─► limpiar ─► fragmentos ─► embeddings     │
- del repo)             │ (Tesseract)      (pág.      (cap. +      (Ollama bge-m3)│
-                       │                  impresa)   página)                     │
-                       └──────────────────────────────┬──────────────────────────┘
-                                                      ▼
-                                   .rag/index  (gitignored: texto + vectores)
-                                                      │  búsqueda híbrida
- Usuario en el chat ─► agente (Gemini) ◄─────────────┘  BM25 + vectores (RRF)
-                         │
-                         │ respuesta con cita ("Owsinski, pág. 32")   ← PENDIENTE de conectar
-                         ▼
-                    IntentProfile (9 ejes, 0.5 = neutral)
-                      │                           │
-                      ▼                           ▼
-            mix_mapper.py (NUEVO)          mapper.py (ya existía)
-            → POST /mix                    → MasteringParameters
-            (faders, vocal_treatment)
-```
+El modelo operativo real de Moises Studio difiere de un enfoque puramente "chat-first". Los puntos clave que hay que llevar a Brik/WaveAI son:
 
-**Principio de diseño:** *los libros sirven para que el asistente EXPLIQUE, y el conocimiento revisado sirve para DECIDIR.* El modelo nunca convierte un párrafo en un valor de DSP mientras atiende al usuario. Los números pasan por los mappers, que son deterministas, tienen tests y respetan que un ajuste neutro no toque el audio. Si se quieren reglas nuevas sacadas de los libros (por género o por instrumento), se curan offline y las revisa Paul (§6, fase 4). Así se cumple la regla del repo: "No inventes valores DSP, extráelos de las fuentes".
+- **Undo a nivel de proyecto.** Todo queda en el historial del documento del proyecto, no en el chat. Cada tanda de cambios es **UN paso único**. En el caso "Vintage", la cadena de pista + máster fueron **2 pasos**, no 10. Volver atrás es 1 clic. El transporte (playhead, loop, metrónomo) es estado de sesión aparte, no pasa por undo ni forma parte del documento.
+- **Los resultados viven en el proyecto.** Si se detecta tempo, tonalidad, acordes o secciones, se escriben como **marcadores + mapa de tempo** sobre la línea de tiempo. Los renders, exportaciones o stems acaban como **pistas y clips con sus nombres, en su posición**, nunca como enlaces al chat.
+- **Separar a stems es el ÚNICO camino para cambiar BALANCE.** Con un **bounce estéreo único**, NO se puede recuperar el balance entre instrumentos con EQ/comp/saturación. Eso solo cambia el **COLOR**. Para cambiar **BALANCE** hay que separar en **stems** y remezclar desde partes.
+- **Los números mandan.** True peak define el techo real, LUFS define la sonoridad, crest + LRA demuestran que no se aplastó. Existe una fórmula directa y programable para el limitador vs trim.
+- **Techo UNA sola vez.** Nunca poner limitador en la cadena de pista. El techo y la sonoridad se cierran **únicamente** en el **Stereo Out**.
 
 ---
 
-## 3. Lo que ya está hecho
+## 2. Modelo Operativo Real de Moises Studio
 
-### 3.1 IA → mezcla: `mix_mapper.py`  (commit `cfaba17`)
+### 2.1 Medir + Contenido (no sustituibles)
 
-`apps/audiomind/src/audiomind/processing/mix_mapper.py` — `map_intent_to_mix(IntentProfile) -> MixSettings`.
+Antes de decidir **SIEMPRE** se hacen dos lecturas distintas:
 
-| Eje de la intención | Qué mueve en la mezcla | Curva |
+- **(A) Métricas:** peak, true peak, RMS, crest factor, LUFS integrado, LRA (rango de sonoridad), fracción de silencio, muestras recortadas + tabla por compás.  
+  - **True peak** → manda para el **techo** (picos entre muestras que llegan al conversor).  
+  - **LUFS integrado** → manda para la **sonoridad**.  
+  - **Crest + LRA** → validan que **NO** se aplastó la dinámica.
+- **(B) Análisis de contenido:** detección de instrumentos + tempo, tonalidad y acordes del proyecto. Determina si es un **tema completo (bounce estéreo)** o un **instrumento suelto**.
+
+### 2.2 Reparto Estructural
+
+| Ubicación | Responsabilidad |
+|---|---|
+| **Pista (Track)** | Tono + Dinámica |
+| **Stereo Out** | Techo + Sonoridad |
+
+**Regla crítica:** Sin limitador en la pista. Dos limitadores en serie recortan dinámica dos veces, y el primero lo hace a ciegas sin saber lo que pedirá el techo final. El techo se cierra **UNA SOLA VEZ**, al final de toda la cadena.
+
+### 2.3 Orden Correcto
+
+**Corregir → Comprimir → Colorear**
+
+- **EQ primero** (HPF + correctivo/tonal). Si filtras después de comprimir, el compresor reacciona a energía que no vas a escuchar.
+- **Compresión antes de color**. El "pegamento" debe actuar sobre la señal ya balanceada tonalmene.
+- **Saturación/efectos armónicos al final del bus de pista** (con compensación). Añaden **amplitud** → afectan true peak.
+- **Reverb/Delay casi SIEMPRE por envío a bus**, nunca insert al 100% por pista. Así comparten espacio y se pueden filtrar/pre-delayar en un solo sitio.
+
+### 2.4 Bucle de Corrección (Método)
+
+**Medir → Calcular corrección → Mover 1 parámetro → Medir otra vez**
+
+- **Máximo 4 medidas** por iteración global.
+- **1 corrección por pasada**. No mover varios parámetros a la vez.
+- **Parar cuando converge**, no cuando "suena bien".
+- **Guardrail dinámico:** Si el **crest factor** baja **> 4 dB** respecto a la entrada → **volver atrás**. El objetivo NO se sostiene. Preservar dinámica es parte del objetivo de máster, no un daño colateral.
+- **Sin espectro → sin EQ quirúrgico.** Fuera del HPF del máster, ninguna banda se justifica sin medición espectral. El carácter se basa en descripción/material.
+
+---
+
+## 3. Cadenas REALES Cargadas — Caso "Vintage"
+
+**Material:** Bounce estéreo único neo-soul/R&B vintage, 87 BPM, G#m.  
+**Pista y Stereo Out medían IGUAL antes de tocar nada.**
+
+### 3.1 Punto de partida
+
+| Métrica | Valor |
+|---|---|
+| **LUFS integrado** | -14.3 |
+| **RMS** | -15.5 dB |
+| **Crest factor** | 14.7 dB |
+| **LRA** | 11.1 LU |
+| **True Peak** | -0.8 dBTP |
+
+**Diagnóstico:** Sonoridad ya correcta, sin margen de techo (-0.8 > -1.0), "le falta cuerpo".
+
+### 3.2 Cadena de MEZCLA (pista — tratamiento de bus)
+
+| Etapa | Parámetros cargados | Notas |
 |---|---|---|
-| `vocal_focus` | `stem_trims.vocals_db` | −3 dB @ 0.0 · **0 dB @ 0.5** · +3 dB @ 1.0 |
-| `vocal_focus` > 0.6 | `vocal_treatment = true` | mismo umbral que la EQ dinámica del mapper de mastering |
-| `punch` | `stem_trims.drums_db` | −3 / 0 / +3 dB |
-| `bass_weight` | `stem_trims.bass_db` | −3 / 0 / +3 dB |
-| los otros 6 ejes | nada: son del mastering | — |
+| **EQ** | HPF 28 Hz 12dB/oct · Low shelf 80 Hz +1.8 dB · Low bell 240 Hz +1.6 dB Q0.8 · High shelf 10.5 kHz +1.2 dB | HPF < fundamental G#1 (~51 Hz) → solo sub inaudible que consume headroom. Realces anchos (Q0.8) cambian peso, NO corrigen resonancias. |
+| **Compresor (pegamento)** | Thresh -17.5 · Ratio 1.8 · Knee 8 · Attack 35 ms · Release 135 ms · Auto-makeup OFF · Makeup +1.4 dB | RMS -15.5 → 2 dB por debajo para trabajo suave continuo. Attack 35 ms deja pasar transiente kick/rimshot (mantiene pocket 87 BPM). Release 135 ms < pulso 690 ms → sin bombeo. |
+| **Saturador (PARALELO)** | Drive +2.2 dB · Salida -1.2 dB · Mix **0.3** | **Mix 0.3 = 30% procesado + 70% seco.** Añade armónicos (cuerpo/presencia) sin comprimir toda la dinámica. Compensación -1.2 dB por +2.2 dB drive. **Efecto medido:** picos **-0.8 → 0.0 dBTP**. |
 
-- **No toca código del motor ni de la API.** Solo produce el body que `POST /mix` ya acepta (`MixSettings` tiene los mismos campos y defaults que `MixRequest`).
-- **Neutral = bypass:** una intención neutra da exactamente los defaults de `MixRequest` (`stem_trims=None`, mezcla idéntica a la de antes).
-- ⚠️ **Los ±3 dB son PROVISIONALES**: los elegí como la mitad de la banda ±6 dB de `TRIM_STEM_RANGE`. **Paul debe validarlos.**
+**Deliberadamente ausente:** Reverb, Delay, Ensanchadores (correlacionan lo ya correlacionado, emborronan/ensucian medios).
 
-### 3.2 Contrato `IntentProfile` alineado  (commit `8488d41`)
+### 3.3 Cadena de MASTERIZACIÓN (Stereo Out)
 
-`packages/contracts/intent_profile.schema.json` es la fuente de verdad. El agente (Zod) lo cumplía, pero el modelo de Python no:
+| Etapa | Parámetros cargados | Notas |
+|---|---|---|
+| **EQ** | HPF 25 Hz ÚNICAMENTE | Sin más bandas (sin espectro no se justifica curva quirúrgica). En máster acumula sub → amplía margen del limitador. |
+| **Compresor (pegamento)** | Thresh -6.5 · Ratio 1.7 · Knee 6 · Attack 30 ms · Release 250 ms · Auto-makeup OFF · Makeup 0 | ~9 dB por encima de RMS (-15.5) → **solo pasajes fuertes** tocan el compresor (estribillos/clímax). Release 250 ms más largo para no seguir cada golpe. |
+| **Limitador** | Thresh **-1.6** · Lookahead ON | **Umbral = DRIVE, NO techo.** Todo lo que pasa por encima se limita; makeup automático sube a 0 dBFS. Cada 1 dB de umbral ≈ 1 dB de LUFS. |
+| **Trim (Utility)** | **-1.3 dB** | **Fija el TECHO REAL.** Deja true peak entre -1.0 y -1.3 dBTP. El trim resta sonoridad → el limitador debe compensar esos 1.3 dB. |
 
-| Campo | Schema / agente | Python antes | Python ahora |
-|---|---|---|---|
-| `target_platform` por defecto | `"none"` | `"spotify"` | `"none"` |
-| valores de `target_platform` | `spotify, apple, youtube, club, none` | cualquier texto | solo esos |
-| `reference_genre` / `notes` | máx. 60 / 500 caracteres | sin límite | con límite |
-| campos desconocidos | rechazados | aceptados | rechazados |
+### 3.4 Fórmula Limitador vs Trim (PROGRAMABLE)
 
-`tests/test_intent_profile_contract.py` lee el JSON Schema y falla si Python se vuelve a desalinear. Ningún mapper usa `target_platform`, así que el audio no cambia.
+```text
+threshold_limitador ≈ (LUFS_partida - LUFS_objetivo) + |trim_dB|
+```
 
-### 3.3 Prompt del agente  (commit `479176b`)
+**Aplicado a "Vintage":**
+```text
+(-14.3 - (-14)) + 1.3 = (-0.3) + 1.3 = -1.6 dB
+```
 
-`apps/agent/src/prompt.ts`: se quitó el voseo (`movas`, `podes`, `Recibis`, `devolves`…), porque el modelo imita el registro del prompt, y el asistente se presenta como **WaveAI** en vez de "midiMastering". Son 7 líneas de texto, sin cambios de lógica.
+### 3.5 Resultado Final Medido
 
-> La regla 7 del prompt ("No puedes cambiar la mezcla…") se mantiene **a propósito** hasta que el mapper de mezcla esté conectado al chat.
+| Métrica | Valor | Estado |
+|---|---|---|
+| **LUFS integrado** | -14.2 | Dentro de 0.5 LU del objetivo (-14) |
+| **True Peak** | -1.2 dBTP | < -1.0 dBTP ✓ |
+| **Crest factor** | 14.2 dB | Bajó **1.3 dB** vs bus mezcla (pegamento correcto) |
+| **LRA** | 8.3 LU | OK |
+| **Muestras recortadas** | 0 | OK |
 
-### 3.4 RAG sobre los libros  (commit `2dee7ee`)
+**Veredicto:** Converge. No hizo falta segunda pasada. Si crest hubiera bajado **> 4 dB** se habría revertido.
 
-Código en `apps/audiomind/src/audiomind/intelligence/rag/`:
+---
 
-| Módulo | Qué hace |
-|---|---|
-| `books.py` | Catálogo (solo metadatos): edición, idioma, cómo extraer y cuál es la edición de referencia del código. |
-| `extract.py` | PDF → texto por página. Usa la capa de texto o **Tesseract OCR** a 300 DPI. Corre en paralelo y **se puede reanudar** si se corta. |
-| `clean.py` | Une líneas y palabras partidas con guion, quita encabezados, pies y créditos, y detecta la **página impresa**. |
-| `chapters.py` | Normaliza capítulos: "Chapter Five 31", "CAPÍTULO 5", "Capítulo cinco" o "Figura 5.3" → `Cap. 5`. |
-| `chunk.py` | Fragmentos de unas 320 palabras con solapamiento, **sin cruzar capítulos**. |
-| `embed.py` | Cliente de Ollama (`/api/embed`, modelo `bge-m3`, multilingüe). |
-| `index.py` | Índice híbrido: BM25 + vectores fusionados con RRF. Funciona en modo solo BM25 si no hay Ollama. |
-| `evaluate.py` + `eval_questions.json` | 15 preguntas reales en español con la página donde está la respuesta. Mide hit@k y MRR. |
-| `__main__.py` | CLI: `status`, `extract`, `build`, `search`, `eval`. |
+## 4. Endpoint `/separate` — Contrato Técnico
 
-**Los libros:**
+### 4.1 Puertas (orden crítico)
 
-| Libro | Págs. | Extracción | Fragmentos | Nota |
+1. **Validación de esquema**  
+2. **Pre-flight** (GPU / VRAM disponible)  
+3. **Idempotencia** (mismo `media_hash` + parámetros → devuelve job existente)  
+4. **Cuota**  
+5. **Caché de resultado**  
+6. **Admission/Queue**
+
+**CRÍTICO:** `jobs.insert` **ANTES** de `queue.enqueue`. Si se invierte, se pierde la referencia al job ante fallo de enqueue.
+
+### 4.2 Worker
+
+- **Chunking:** `chunk_plan` divide audio con **solape** + **crossfade trapezoidal** (evita artefactos entre ventanas).
+- **Lease + Heartbeat:** el worker toma posesión del job; heartbeat mantiene lease. `reap_stale` re-asigna jobs con lease vencido.
+- **Reanudación bit-exacta:** checkpoint se invalida si cambian parámetros. Flush de parciales antes de guardar.
+- **Absorb / Finalize / Residual:** residual calculado en **float32 SIEMPRE**. Escritura **atómica** (`tmp` → `rename`) para nunca dejar WAV a medias.
+
+### 4.3 Robustez + Tests
+
+- **Política:** reintentos acotados + `reap_stale` + **DLQ con `media_hash`** (evita reintentar ciegamente mismo medio).
+- **11 tests clave:**
+  1. Determinismo: 10 ejecuciones → mismo hash
+  2. Idempotencia: 50 requests → 1 job
+  3. Reanudación bit-exacta tras kill
+  4. Null test: stems + residual ≈ original
+  5. 429 con cola acotada
+  6. VRAM ≤ 80%
+  7. Pre-flight sin GPU falla explícito
+  (resto cubren contrato, leases, checkpoints)
+
+---
+
+## 5. RAG sobre Libros (Estado Actual)
+
+### 5.1 Extracción e Indexado
+
+| Libro | Páginas | Extracción | Fragmentos | Nota |
 |---|---|---|---|---|
-| Owsinski — *Mixing Engineer's Handbook* **1.ª ed. (EN, 1999)** | 233 | OCR | 254 | **Edición de referencia**: el Mix Engine cita sus páginas ("Owsinski pág. 32") |
-| Owsinski — *Manual del ingeniero de mezcla* 5.ª ed. (ES, 2022) | 804 | texto | 317 | Ebook sin páginas impresas: se cita la página del PDF y el capítulo se deduce de las figuras |
-| Gibson — *El arte de la mezcla* (ES) | 124 | OCR | 186 | La capa de texto viene cifrada ("Rdi muåi" = "Una guía"), por eso OCR |
-| Roads — *The Computer Music Tutorial* (EN, 1996) | 1.253 | OCR | 1.049 | Teoría de DSP; más útil para el motor que para hablar con músicos |
+| Owsinski — *Mixing Engineer's Handbook* 1ª ed. (EN, 1999) | 233 | OCR | 254 | **Referencia canónica**. Citas verificadas (p.32 "Instrument Magic Frequencies"). |
+| Owsinski — *Manual del ingeniero de mezcla* 5ª ed. (ES, 2022) | 804 | Texto | 317 | Ebook sin páginas impresas → cita página PDF + capítulo por contexto. |
+| Gibson — *El arte de la mezcla* (ES) | 124 | OCR | 186 | Capa de texto parcialmente cifrada → OCR necesario. |
+| Roads — *The Computer Music Tutorial* (EN, 1996) | 1.253 | OCR | 1.049 | Más útil para motor DSP que para charla con músicos. |
 
-**Decisiones y hallazgos:**
-- **Las citas del código son correctas.** Verifiqué que la tabla "Instrument Magic Frequencies" está en la pág. impresa **32** de la 1.ª edición, exactamente lo que cita `magic_frequencies.py`.
-- **El desfase entre página del PDF y página impresa no es constante**: al escaneo le falta una hoja (desfase 14 al principio y 13 después). Se resuelve por zonas, con votación entre detecciones cercanas y descartando el ruido del OCR.
-- **Búsqueda híbrida**, porque los vectores solos fallan con términos exactos ("1176", "400 Hz") y BM25 solo falla con paráfrasis y con preguntas en español sobre un libro en inglés.
-- **Ollama + `bge-m3`**, elegido por Miguel: gratis, local y multilingüe. Límite: **solo funciona en la máquina donde corre Ollama**, no en producción (Vercel/Railway). Ver §6.
-- **Tesseract** para el OCR, elegido por Miguel: gratis y local. Calidad buena en texto corrido; tablas y figuras salen con algo de ruido.
-- Los 7 `.md` de Paul que venían en la carpeta (propuestas y viabilidades) **no se indexaron**: son decisiones internas, no conocimiento para el usuario.
+**Totales:** 2.414 páginas extraídas → **1.806 fragmentos** con capítulo + página impresa cuando disponible.
 
-**Resultado actual:** evaluación en modo solo BM25 = **5/15** (MRR 0,30). Es la línea base esperada: las preguntas están en español y el libro de referencia en inglés, y BM25 no cruza idiomas. Los embeddings multilingües existen justamente para eso. Hay que medir de nuevo con `bge-m3` (§6).
+### 5.2 Arquitectura RAG
 
----
+- **Híbrido:** BM25 + vectores fusionados con **RRF**. Funciona en modo solo-BM25 si Ollama no disponible.
+- **Embeddings:** `ollama` + `bge-m3` (multilingüe, local). Gratis.
+- **Chunking:** ~320 palabras, solapamiento, **sin cruzar capítulos**.
+- **Citas obligatorias:** el agente debe citar (`Owsinski, p.xx`) con fragmentos breves/parafraseados.
+- **Exclusión estricta:** PDFs, texto extraído, fragmentos y embeddings **NUNCA** van al repo. Solo código, catálogo de metadatos y `eval_questions.json`.
 
-## 4. Reglas que no se pueden romper
+### 5.3 Evaluación
 
-1. **El repo es PÚBLICO.** Los libros tienen copyright. **Nunca** se versionan los PDFs, el texto extraído, los fragmentos ni los embeddings.
-   - Los datos van en `apps/audiomind/.rag/` (añadido al `.gitignore`).
-   - La carpeta `Libros de Mezcla y Masterizacion/` está excluida en `.git/info/exclude`, **solo en la máquina de Miguel**. Quien la copie a la raíz debe excluirla también, o mejor dejarla fuera del repo y usar `RAG_BOOKS_DIR`.
-   - Además GitHub rechaza archivos de más de 100 MB, y Roads pesa 109 MB.
-   - Sí se versionan: el código, el catálogo de metadatos y las preguntas de evaluación (páginas, no texto).
-2. **El asistente explica y cita, pero no decide números.** Los valores de DSP salen de los mappers o de conocimiento revisado por Paul.
-3. **Neutral = bypass** en todos los caminos (los mappers tienen tests de esto).
-4. **Citas cortas y parafraseadas.** El asistente no debe reproducir pasajes largos de los libros.
+- **Solo BM25:** **5/15 hit@5, MRR 0.30** (esperado: preguntas ES vs libro EN).  
+- **Pendiente:** medir con `bge-m3` activo tras resolver bloqueo de red. Objetivo: **> 10/15 hit@5**.
 
 ---
 
-## 5. Cómo correrlo (en local)
+## 6. Plan de Acción por Equipo
 
-**Requisitos del sistema (una vez):**
+### 6.1 IA / Ángel + Miguel
 
-```powershell
-# 1) Tesseract 5 + idioma español (el instalador trae solo inglés)
-#    Si tessdata está en Program Files, usa una carpeta de usuario:
-mkdir $HOME\.tessdata
-copy "C:\Program Files\Tesseract-OCR\tessdata\eng.traineddata" $HOME\.tessdata\
-curl -L -o $HOME\.tessdata\spa.traineddata https://github.com/tesseract-ocr/tessdata_best/raw/main/spa.traineddata
-$env:RAG_TESSDATA_DIR = "$HOME\.tessdata"
-
-# 2) Ollama + modelo de embeddings
-winget install Ollama.Ollama
-ollama pull bge-m3
-```
-
-**Dependencias Python** (extra opcional, no afecta al despliegue):
-
-```bash
-.venv/Scripts/pip install -e "apps/audiomind[dev,rag]"
-```
-
-**Uso** (desde `apps/audiomind`):
-
-```bash
-python -m audiomind.intelligence.rag status            # qué hay extraído / indexado / si Ollama responde
-python -m audiomind.intelligence.rag extract           # PDF → páginas (reanudable; ~15 min con OCR)
-python -m audiomind.intelligence.rag build             # páginas → fragmentos (+ embeddings si hay Ollama)
-python -m audiomind.intelligence.rag search "¿dónde corto si la caja suena a boing?"
-python -m audiomind.intelligence.rag eval -v           # hit@5 por pregunta (bm25 / vector / híbrido)
-```
-
-Variables opcionales: `RAG_BOOKS_DIR` (carpeta de los PDF), `RAG_DATA_DIR` (por defecto `apps/audiomind/.rag`), `RAG_TESSDATA_DIR`, `TESSERACT_CMD`, `OLLAMA_URL`, `RAG_EMBED_MODEL`.
-
----
-
-## 6. Qué falta (en orden)
-
-| # | Tarea | Quién | Depende de |
+| # | Tarea | Prioridad | Notas |
 |---|---|---|---|
-| 1 | **Activar los embeddings.** `ollama pull bge-m3` falló en la máquina de Miguel: la red no deja resolver `registry.ollama.ai` ni el almacenamiento R2 de Cloudflare desde la sesión. Probar desde una terminal normal o en otra red. Plan B: descargar el GGUF de `bge-m3` desde Hugging Face y crearlo con `ollama create`. Luego `build` y `eval` para comparar con el 5/15. | Miguel | red |
-| 2 | **Validar los ±3 dB** del mapper de mezcla y el umbral 0.6 de `vocal_treatment`. | **Paul** | — |
-| 3 | **Ampliar `eval_questions.json`** a unas 50 preguntas, con preguntas reales de músicos y respuestas en los 4 libros. | Miguel (+ Paul revisa) | — |
-| 4 | **Conectar la búsqueda al agente.** Antes de llamar a Gemini, buscar en el índice y pasar 4–6 fragmentos en el bloque de contexto del turno (no en el system prompt, para no romper la caché). Cada respuesta lleva su cita. | Miguel | 1 |
-| 5 | **Conectar los mappers al flujo del chat.** Hoy los 9 ejes que calcula la IA no llegan al audio: el studio solo muestra las 3 tarjetas de presets. Hace falta un endpoint o integración que lleve `IntentProfile` → `mix_mapper` / `mapper` → `POST /mix` y `/process`. Después, actualizar la regla 7 del prompt. | Miguel + **Andrés** | arquitectura de backend |
-| 6 | **Decidir dónde viven los embeddings en producción.** Ollama solo sirve en local. Opciones: (a) Supabase + pgvector, que ya está en el stack; (b) MongoDB Atlas Vector Search, si Andrés va con Mongo para las mezclas; (c) Ollama en un servidor propio. También habrá que elegir un modelo de embeddings para producción. | **Andrés** + Miguel | decisión |
-| 7 | **Conocimiento curado por género e instrumento.** Con el RAG, generar borradores en `intelligence/knowledge/genres/` (las plantillas y schemas ya existen). Paul revisa y los mappers o `emphasis.py` los consumen. | Miguel → **Paul** revisa | 1, 3 |
-| 8 | Probar `interpretIntent` con una `GEMINI_API_KEY` real (nunca se ha probado). | Miguel | credencial |
+| **IA-01** | **Activar embeddings `bge-m3`** | P0 | Bloqueo red: probar terminal normal o descargar GGUF desde HF + `ollama create`. Rebuild index + `eval`. |
+| **IA-02** | **Conectar RAG al agente** | P0 | Inyectar top 4–6 fragmentos por turno (NO en system prompt), con citas obligatorias. |
+| **IA-03** | **Conectar `IntentProfile` → mappers** | P0 | Llevar `IntentProfile` a `mix_mapper.py` + `mapper.py` → `POST /mix` y `/process`. Quitar regla 7 del prompt tras validación. |
+| **IA-04** | **Portar lógica Moises a `mix_mapper`** | P0 | Implementar **fórmula** `threshold_limitador ≈ (LUFS_partida - LUFS_objetivo) + |trim_dB|`. Añadir **guardrail crest > 4 dB → revertir**. Forzar **techo ÚNICAMENTE en master**. Respetar **saturador paralelo mix 0.3 + compensación salida**. |
+| **IA-05** | **Constantes versionadas** | P0 | Crear `apps/audiomind/intelligence/constants/mix.v1.json` con valores de referencia Moises + tests de integridad. Validar ±3 dB pendientes con Paul. |
+| **IA-06** | **Decisión vectores producción** | P0 | Definir con Andrés: Supabase pgvector / MongoDB Atlas Vector Search / Ollama propio. Elegir modelo embeddings producción. |
+| **IA-07** | **Ampliar `eval_questions.json`** | P1 | Llevar a ~50 preguntas reales con página correcta. Revisar con Paul. |
+| **IA-08** | **Probar `interpretIntent` con GEMINI_API_KEY real** | P1 | Nunca probado aún. |
+
+### 6.2 Frontend / Andrés
+
+| # | Tarea | Prioridad | Notas |
+|---|---|---|---|
+| **FE-01** | **Panel de métricas en tiempo real** | P0 | Mostrar: LUFS integrado, true peak, RMS, crest, LRA, peak, muestras recortadas + **convergencia** (nº medida / nº pasada). |
+| **FE-02** | **Detección "bounce estéreo único"** | P0 | Si análisis detecta full mix bounce → mostrar aviso: **"Tratamiento como bus. Cambiar BALANCE requiere separar a stems (EQ/comp/sat solo cambian COLOR)."** |
+| **FE-03** | **Timeline + Marcadores** | P0 | Exponer tempo/key/acordes/secciones como **marcadores + mapa de tempo** (nivel proyecto). No mostrar en chat. |
+| **FE-04** | **Respetar "efecto con script"** | P1 | NO exponer editor DSP genérico. Mostrar: nombre del script + mandos validados (motor devuelve código + UI). |
+| **FE-05** | **Wiring IntentProfile → backend** | P0 | Conectar con IA-03 para enviar `IntentProfile` a endpoints `/mix` y `/process`. |
+
+### 6.3 DSP / Brikman + Paul
+
+| # | Tarea | Prioridad | Notas |
+|---|---|---|---|
+| **DSP-01** | **Implementar procesadores con valores exactos** | P0 | HPF 28/25, shelves/bell **Q0.8**, comp pegamento con **automakeup OFF**, **saturador paralelo mix 0.3** con compensación de salida, limitador con lookahead + **Trim/Utility** separado. |
+| **DSP-02** | **Preservar 8× oversampling en limitador** | P0 | Si aplica a implementación actual, mantener 8× (tal como indica spec histórica). |
+| **DSP-03** | **Validar ±3 dB `mix_mapper`** | P0 | Cruzar con casos reales. Ajustar solo con evidencia numérica. |
+| **DSP-04** | **Contrato "efecto con script"** | P1 | Definir: descripción intención → motor devuelve **código validado + mandos** → montaje en cadena de pista. Moises NO escribe DSP custom manualmente. |
+| **DSP-05** | **Aplicar regla "techo SOLO en master"** | P0 | Builder de cadena debe **bloquear** inserción de limitador en pista. |
 
 ---
 
-## 7. Qué necesito de cada uno
+## 7. Checklist de Validación
 
-**Paul**
-- Validar los valores provisionales del mapper de mezcla (§3.1).
-- Repartir con Miguel la tarea "convertir prompts en chunks y entrenar el asistente", que el acta de la reunión asigna a los dos. Propuesta: Miguel lleva el pipeline y la conexión con el agente; Paul revisa el conocimiento curado y las reglas de DSP.
-
-**Andrés**
-- Definir dónde viven los vectores en producción (§6, punto 6) y cómo se centralizan las llamadas a Gemini y la búsqueda en el backend.
-- Definir cómo llega el `IntentProfile` del chat a los endpoints de mezcla y mastering (§6, punto 5).
-
----
-
-## 8. Hallazgos para el equipo (no son de esta rama)
-
-- **`ruff check` del backend no da 0 errores**, aunque `ESTADO_PROYECTO.md` lo afirma: hay errores ya existentes en archivos como `analyzer.py`, `mastering.py`, `vocal.py` o `license.py`. Los archivos de esta rama pasan ruff y mypy estricto.
-- **12 tests del backend fallan en un entorno recién instalado**, y también fallan en `develop` sin esta rama:
-  - `test_songstarter*`: faltan los samples; correr `scripts/generate_samples.py`.
-  - `test_loudness`: errores de memoria de numpy, intermitentes.
-  - `test_inter_engine_handshake::test_build_mix_returns_mix_metadata`: el pipeline real con Demucs.
-- **`ESTADO_PROYECTO.md` y el README están desactualizados**: hablan de Convex, que ya no existe (ahora es Supabase), y dicen que no hay login (existen `/login`, `/register` y middleware).
-- **El CI de GitHub ejecuta `npm ci` sin `package-lock.json`** (el repo usa `bun.lock`), así que probablemente falla.
+| Ítem | Criterio | OK |
+|---|---|---|
+| **Undo** | Histórico proyecto (no chat). Pista+máster = 2 pasos. Transport fuera de undo. | ☐ |
+| **Timeline** | Marcadores + mapa tempo escritos al detectar tempo/key/chords/secciones. | ☐ |
+| **Stems vs Balance** | UI avisa: bounce único → balance requiere stems. | ☐ |
+| **Fórmula** | `mix_mapper` usa `(LUFS_partida - LUFS_objetivo) + |trim_dB|` para threshold limitador. | ☐ |
+| **Crest guardrail** | > 4 dB drop → revertir / advertir. | ☐ |
+| **Techo único** | Sin limitador en pista. Trim fija true peak en Stereo Out. | ☐ |
+| **Paralelo sat** | mix 0.3 + compensación salida aplicada. | ☐ |
+| **Automakeup OFF** | Glue comps con automakeup OFF (ganancia predecible). | ☐ |
+| **RAG híbrido** | BM25+vectores activos + citas. Medir >10/15 con bge-m3. | ☐ |
+| **`/separate`** | `jobs.insert` ANTES de `queue.enqueue`. float32 + atomic write. 11 tests verdes. | ☐ |
 
 ---
 
-## 9. Validación
+## 8. Referencias en Engram
 
-| Comando | Resultado |
-|---|---|
-| `pytest tests/test_rag_pipeline.py` | **39 passed** |
-| `pytest tests/test_mix_mapper.py tests/test_intent_profile_contract.py tests/test_mapper.py` | **60 passed** |
-| `pytest tests/` (suite completa, 2026-09-28) | 742 passed / 12 failed (fallos de entorno que también ocurren en `develop`, ver §8) |
-| `ruff check` (archivos de la rama) | 0 errores |
-| `mypy` estricto (`intelligence/rag`, `mix_mapper.py`, `intent_profile.py`) | Success: no issues found |
-| `apps/agent`: `tsc --noEmit` / `bun run check` | 0 errores / 12/12 |
-| RAG `eval -k 5` (solo BM25) | 5/15, MRR 0,30. Línea base; falta medir con `bge-m3` |
+Toda la recopilación quedó persistida bajo `architecture/ia-audio-pipeline-moises-reference`:
 
-## Historial de commits de la rama
+- **#880** — Observación consolidada con los 7 bloques (cadenas reales, fórmula, modelo operativo, `/separate`, walkthrough "Vintage")
+- **#881** — Session summary completo con Goal/Instructions/Discoveries/Accomplished/Next Steps
+- **Conflictos resueltos** vía `mem_judge`: `compatible` / `not_conflict` (referencia externa Moises complementa memorias internas Brik)
 
-| Commit | Descripción |
-|---|---|
-| `479176b` | fix(agent): prompt sin voseo, se presenta como WaveAI |
-| `cfaba17` | feat(audiomind): mapper IntentProfile → Mix Engine |
-| `8488d41` | fix(audiomind): IntentProfile alineado con el JSON Schema |
-| `2dee7ee` | feat(audiomind): RAG local sobre los libros (OCR, fragmentos, búsqueda híbrida) |
-| (este documento) | docs: reporte del equipo para la línea de IA |
+---
+
+## 9. Conclusión
+
+El mayor valor de esta conciliación no son solo los **valores numéricos**, sino el **modelo mental**:
+
+> **Moises no "suena bonito". Moises mide, calcula, mueve UN parámetro, vuelve a medir y se detiene cuando converge.**
+
+Llevar ese mismo rigor a `mix_mapper` (fórmula programable + guardrails numéricos) es lo que acercará WaveAI al comportamiento real de Moises Studio. El punto estructural decisivo queda claro: **para cambiar BALANCE hay que ir a STEMS**. Tratar un bounce como si tuviera balance separable es el error conceptual a evitar.
+
+**Siguiente paso inmediato:** ejecutar **IA-01 a IA-05** + **DSP-01/DSP-02/DSP-03** en paralelo, con **FE-01/FE-02** habilitando la visibilidad de métricas y el aviso de "bounce → necesita stems".

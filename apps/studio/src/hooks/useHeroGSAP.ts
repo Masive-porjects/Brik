@@ -1,7 +1,7 @@
 "use client";
 
 import { useGSAP } from "@gsap/react";
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -22,34 +22,38 @@ export function useHeroGSAP() {
 
   useGSAP(() => {
     const ctx = gsap.context(() => {
-      // ---------- 1. SPLIT TEXT REVEAL ----------
-      const titleSplit = new SplitText(titleRef.current!, { type: "words,chars", mask: "chars" });
+      // ---------- 1. SPLIT TEXT REVEAL (GSAP-style) ----------
+      const titleSplit = new SplitText(titleRef.current!, { type: "chars", mask: "chars" });
       const subtitleSplit = new SplitText(subtitleRef.current!, { type: "words", mask: "words" });
 
-      const masterTL = gsap.timeline({ defaults: { ease: "expo.out" } });
+      const masterTL = gsap.timeline({ defaults: { ease: "power3.out" } });
 
       masterTL
         // Eyebrow
         .from(eyebrowRef.current!, {
-          y: 16,
+          y: 20,
           opacity: 0,
           duration: 0.6,
           ease: "power3.out",
         })
-        // Title chars - clip reveal from center
+        // Title chars - stagger 0.025, y: 30
         .from(titleSplit.chars, {
-          yPercent: 110,
+          y: 30,
           opacity: 0,
-          duration: 0.055,
-          stagger: 0.018,
+          duration: 0.5,
+          stagger: 0.025,
+          ease: "power3.out",
+          clearProps: "all",
         }, "-=0.3")
         // Subtitle words
         .from(subtitleSplit.words, {
-          yPercent: 100,
+          y: 20,
           opacity: 0,
-          duration: 0.45,
-          stagger: 0.035,
-        }, "-=0.45")
+          duration: 0.5,
+          stagger: 0.03,
+          ease: "power3.out",
+          clearProps: "all",
+        }, "-=0.35")
         // CTAs
         .from([ctaPrimaryRef.current!, ctaGhostRef.current!], {
           y: 24,
@@ -57,7 +61,13 @@ export function useHeroGSAP() {
           duration: 0.6,
           stagger: 0.08,
           ease: "power3.out",
-        }, "-=0.35");
+        }, "-=0.3");
+
+      // Cleanup function for SplitText
+      const cleanup = () => {
+        titleSplit.revert();
+        subtitleSplit.revert();
+      };
 
       // ---------- 2. PARALLAX MOUSE ----------
       const container = titleRef.current!.closest("section") as HTMLElement;
@@ -136,18 +146,14 @@ export function useHeroGSAP() {
         card.addEventListener("mouseleave", handleLeave);
 
         return () => {
-          titleSplit.revert();
-          subtitleSplit.revert();
+          cleanup();
           card.removeEventListener("mouseenter", handleEnter);
           card.removeEventListener("mouseleave", handleLeave);
           glowTL.kill();
         };
       }
 
-      return () => {
-        titleSplit.revert();
-        subtitleSplit.revert();
-      };
+      return cleanup;
     }, titleRef);
 
     return () => ctx.revert();
