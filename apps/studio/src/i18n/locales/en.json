@@ -760,6 +760,46 @@
         "instantWs": "Instant WebSocket"
       }
     },
+    "specs": {
+      "badge": "DSP Engine Specifications",
+      "title": "Detailed Technical Architecture",
+      "subtitle": "All parameters, metrics, and capabilities of the 13-stage engine in one place.",
+      "liveBadge": "Engine v3.4 Active",
+      "categoryLabel": "MODULE",
+      "viewSpecs": "View full specifications",
+      "hideSpecs": "Hide details",
+      "showMore": "+{count} more",
+      "viewDocs": "View full technical documentation",
+      "dspCore": {
+        "title": "DSP Core",
+        "spec1": { "label": "Architecture", "value": "13 Linear Stages", "desc": "Sequential feed-forward chain without destructive feedback loops" },
+        "spec2": { "label": "Internal Precision", "value": "64-bit Float (FP64)", "desc": "Rounding error accumulation < 1e-15 per sample" },
+        "spec3": { "label": "Oversampling", "value": "8× Linear (FIR)", "desc": "Linear-phase anti-aliasing filters with 8× oversampling in limiter and saturation" },
+        "spec4": { "label": "Total Latency", "value": "< 420 ms", "desc": "Rust SIMD pipeline optimized AVX-512 / NEON" },
+        "spec5": { "label": "Sample Rate", "value": "96 kHz / 64-bit FP", "desc": "Native processing without internal rate conversion" }
+      },
+      "loudness": {
+        "title": "Target Loudness & True Peak",
+        "spec1": { "label": "Integrated Target", "value": "-14.0 LUFS", "desc": "EBU R128 / ITU-R BS.1770-4 compliant for streaming" },
+        "spec2": { "label": "True Peak Ceiling", "value": "-1.0 dBTP", "desc": "8× oversampling limiter — zero intersample peaks" },
+        "spec3": { "label": "Platforms", "value": "Spotify -14 / Apple -16 / YT -14", "desc": "Platform-calibrated presets with codec compensation" },
+        "spec4": { "label": "Dynamic Range", "value": "Preserved > 11 dB PLR", "desc": "Proportional compression — no over-compression" }
+      },
+      "spatial": {
+        "title": "Haas Spatial Block",
+        "spec1": { "label": "Haas Delay", "value": "4–16 ms (configurable)", "desc": "Psychoacoustic decorrelation without mono phase cancellation" },
+        "spec2": { "label": "Side High-Pass", "value": "120 Hz / 24 dB/oct", "desc": "Sub-bass cleanup in side channel — 100% mono compatibility" },
+        "spec3": { "label": "Stereo Width", "value": "Up to 160% decorrelated", "desc": "M/S matrix with real-time phase correlation control" },
+        "spec4": { "label": "Phase Correlation", "value": "> +0.94", "desc": "Continuous monitoring — auto-lock if < +0.8" }
+      },
+      "pipeline": {
+        "title": "Pipeline Quality & QC",
+        "spec1": { "label": "THD+N", "value": "< 0.001% (@ 1 kHz)", "desc": "Total harmonic distortion + noise — transparent" },
+        "spec2": { "label": "Dithering", "value": "Lipshitz 2nd Order (NS)", "desc": "Noise-shaped dithering — noise floor > 15 kHz" },
+        "spec3": { "label": "Multi-Device Validation", "value": "14 IR Profiles", "desc": "Environment simulation: studio, club, car, mobile, festival" },
+        "spec4": { "label": "Spectral Tolerance", "value": "±0.4 dB", "desc": "Automated QC — rejection if exceeds tolerance vs reference" }
+      }
+    },
     "footer": {
       "brand": "BRIK AUDIO",
       "engineOnline": "DSP ENGINE v3.4 ONLINE",

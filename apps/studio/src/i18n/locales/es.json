@@ -760,6 +760,46 @@
         "instantWs": "WebSocket Instantáneo"
       }
     },
+    "specs": {
+      "badge": "Especificaciones del Motor DSP",
+      "title": "Arquitectura Técnica Detallada",
+      "subtitle": "Todos los parámetros, métricas y capacidades del motor de 13 etapas en un solo lugar.",
+      "liveBadge": "Motor v3.4 Activo",
+      "categoryLabel": "MÓDULO",
+      "viewSpecs": "Ver especificaciones completas",
+      "hideSpecs": "Ocultar detalles",
+      "showMore": "+{count} más",
+      "viewDocs": "Ver documentación técnica completa",
+      "dspCore": {
+        "title": "Núcleo DSP",
+        "spec1": { "label": "Arquitectura", "value": "13 Etapas Lineales", "desc": "Cadena secuencial feed-forward sin bucles de retroalimentación destructiva" },
+        "spec2": { "label": "Precisión Interna", "value": "64-bit Float (FP64)", "desc": "Acumulación de errores de redondeo < 1e-15 por muestra" },
+        "spec3": { "label": "Oversampling", "value": "8× Lineal (FIR)", "desc": "Filtros anti-aliasing de fase lineal con 8× oversampling en limiter y saturación" },
+        "spec4": { "label": "Latencia Total", "value": "< 420 ms", "desc": "Pipeline Rust SIMD optimizado AVX-512 / NEON" },
+        "spec5": { "label": "Sample Rate", "value": "96 kHz / 64-bit FP", "desc": "Procesamiento nativo sin conversión de rate interna" }
+      },
+      "loudness": {
+        "title": "Target Loudness & True Peak",
+        "spec1": { "label": "Target Integrado", "value": "-14.0 LUFS", "desc": "Cumple EBU R128 / ITU-R BS.1770-4 para streaming" },
+        "spec2": { "label": "True Peak Ceiling", "value": "-1.0 dBTP", "desc": "Limiter 8× oversampling — cero intersample peaks" },
+        "spec3": { "label": "Plataformas", "value": "Spotify -14 / Apple -16 / YT -14", "desc": "Presets calibrados por plataforma con compensación de codec" },
+        "spec4": { "label": "Rango Dinámico", "value": "Preservado > 11 dB PLR", "desc": "Compresión proporcional — sin over-compression" }
+      },
+      "spatial": {
+        "title": "Bloque Espacial Haas",
+        "spec1": { "label": "Haas Delay", "value": "4–16 ms (configurable)", "desc": "Decorrelación psicoacústica sin cancelación de fase en mono" },
+        "spec2": { "label": "Side High-Pass", "value": "120 Hz / 24 dB/oct", "desc": "Limpieza subgrave en canal lateral — mono compatibility 100%" },
+        "spec3": { "label": "Ancho Estéreo", "value": "Hasta 160% decorrelacionado", "desc": "Matriz M/S con control de correlación de fase en tiempo real" },
+        "spec4": { "label": "Correlación de Fase", "value": "> +0.94", "desc": "Monitoreo continuo — bloqueo automático si < +0.8" }
+      },
+      "pipeline": {
+        "title": "Calidad de Pipeline & QC",
+        "spec1": { "label": "THD+N", "value": "< 0.001% (@ 1 kHz)", "desc": "Distorsión armónica total + ruido — transparente" },
+        "spec2": { "label": "Dithering", "value": "Lipshitz 2º Orden (NS)", "desc": "Noise-shaped dithering — piso de ruido > 15 kHz" },
+        "spec3": { "label": "Validación Multi-Dispositivo", "value": "14 Perfiles IR", "desc": "Simulación de entornos: estudio, club, coche, móvil, festival" },
+        "spec4": { "label": "Tolerancia Espectral", "value": "±0.4 dB", "desc": "QC automático — rechazo si excede tolerancia vs referencia" }
+      }
+    },
     "footer": {
       "brand": "BRIK AUDIO",
       "engineOnline": "MOTOR DSP v3.4 EN LÍNEA",

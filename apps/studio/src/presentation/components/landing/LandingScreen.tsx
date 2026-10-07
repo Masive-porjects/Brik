@@ -3,10 +3,11 @@
 import FloatingGhosts from "@/presentation/components/FloatingGhosts";
 import LandingScrollToTop from "./LandingScrollToTop";
 import LandingHeader from "./LandingHeader";
-import LandingHero from "./LandingHero";
+import HeroGSAP from "./HeroGSAP";
 import LandingPhilosophy from "./LandingPhilosophy";
 import LandingABPlayer from "./LandingABPlayer";
 import LandingDSPChain from "./LandingDSPChain";
+import LandingEngineSpecs from "./LandingEngineSpecs";
 import LandingPresets from "./LandingPresets";
 import LandingFounders from "./LandingFounders";
 import LandingCTA from "./LandingCTA";
@@ -23,10 +24,11 @@ export default function LandingScreen() {
 
       {/* Main Landing Sections Flow */}
       <main className="flex-1 flex flex-col w-full relative z-10">
-        <LandingHero />
+        <HeroGSAP />
         <LandingPhilosophy />
         <LandingABPlayer />
         <LandingDSPChain />
+        <LandingEngineSpecs />
         <LandingPresets />
         <LandingFounders />
         <LandingCTA />
