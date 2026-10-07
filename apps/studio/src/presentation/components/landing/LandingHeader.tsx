@@ -6,7 +6,7 @@ import LanguageSwitcher from "@/presentation/components/LanguageSwitcher";
 import ThemeToggle from "@/presentation/components/ThemeToggle";
 import { UserMenu, useAuth } from "@/features/auth";
 import { useTranslation } from "@/i18n";
-import LandingNavigation, { MobileMenuButton } from "./LandingNavigation";
+import LandingNavigation from "./LandingNavigation";
 
 export default function LandingHeader() {
   const { t } = useTranslation();
@@ -28,10 +28,10 @@ export default function LandingHeader() {
           </span>
         </Link>
 
-        {/* Center: Desktop Navigation */}
+        {/* Center: Desktop Navigation + Mobile Button (inside Provider) */}
         <LandingNavigation />
 
-        {/* Right Actions - CTA + Language + User + Mobile Menu Button */}
+        {/* Right Actions - CTA + Language + User */}
         <div className="flex items-center gap-3">
           <Link
             href="/upload"
@@ -44,7 +44,6 @@ export default function LandingHeader() {
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             {user ? <UserMenu /> : <ThemeToggle />}
-            <MobileMenuButton />
           </div>
         </div>
       </div>

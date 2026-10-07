@@ -62,7 +62,7 @@ function DesktopNav() {
 }
 
 // Mobile Hamburger Button (for right side of header)
-export function MobileMenuButton() {
+function MobileMenuButton() {
   const { isOpen, setIsOpen } = useMobileMenu();
 
   return (
@@ -234,6 +234,8 @@ export default function LandingNavigation() {
   return (
     <MobileMenuContext.Provider value={contextValue}>
       <DesktopNav />
+      {/* Mobile Hamburger Button - now inside Provider */}
+      <MobileMenuButton />
       <MobileDrawer />
     </MobileMenuContext.Provider>
   );
