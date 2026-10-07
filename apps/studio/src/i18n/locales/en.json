@@ -590,46 +590,27 @@
     "scrollToTop": "Back to top",
     "nav": {
       "brand": "BRIK",
-      "dspCore": "DSP Core",
       "stage13": "13-Stage Architecture",
       "presets": "Phantasmal Presets",
       "abCompare": "A/B Comparison",
       "founders": "Founding Team",
-      "docs": "Documentation",
       "enterStudio": "Enter Brik Studio",
       "studioBadge": "(/studio)"
     },
     "hero": {
-      "badgeDsp": "DSP Core v2.4 Active",
-      "badgeNeural": "AudioMind Neural Engine",
-      "badgeFormat": "96kHz / 64-bit FP Ready",
+      "eyebrow": "Spectral Mastering DSP · 13 Stages · 8× Oversampling",
       "title": "Mastering is no longer an obstacle.",
       "titleGradient": "Let sound awaken from the great beyond.",
-      "description": "13-stage real-time spectral processing architecture. We eliminate dimensional flatness from your mixes through timbral intelligence, Haas psychoacoustic balance, and quantum fidelity.",
+      "subtitleClean": "Upload your mix. Get a streaming-ready master in seconds.",
       "hud": {
         "loudness": "Target Loudness",
         "loudnessVal": "-14.0",
-        "loudnessSub": "EBU R128 Compliant",
-        "truePeak": "True-Peak Ceiling",
-        "truePeakVal": "-1.0",
-        "truePeakSub": "Zero Intersample Peaks",
-        "throughput": "DSP Throughput",
-        "throughputVal": "<420",
-        "throughputSub": "Rust SIMD Pipeline",
-        "quantum": "Quantum Depth",
-        "quantumVal": "48",
-        "quantumSub": "24-bit PCM Flawless"
+        "loudnessSub": "EBU R128 Compliant"
       },
-      "ctaEnter": "Enter Brik Studio",
-      "ctaListenDemo": "Listen to A/B Demo",
-      "ocularMonitor": "SPECTRAL OCULAR MONITOR",
-      "dualPrecision": "64-BIT DUAL PRECISION",
-      "telemetryCorrelation": "CORRELATION",
-      "telemetryCorrelationVal": "+0.94 STEREO",
-      "telemetryDynamicCrest": "DYNAMIC CREST",
-      "telemetryDynamicCrestVal": "11.8 dB PLR",
-      "telemetryHaasPhase": "HAAS PHASE",
-      "telemetryHaasPhaseVal": "IN-PHASE LOCK"
+      "ctaEnter": "Try Brik Studio",
+      "ctaListenDemo": "View A/B Demo",
+      "monitorMetric": "TARGET LOUDNESS",
+      "monitorValue": "-14.0 LUFS"
     },
     "philosophy": {
       "badge": "Ontological Triad",

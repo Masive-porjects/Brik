@@ -590,46 +590,27 @@
     "scrollToTop": "Volver al inicio",
     "nav": {
       "brand": "BRIK",
-      "dspCore": "DSP Core",
       "stage13": "Arquitectura 13 Etapas",
       "presets": "Presets Fantasmagóricos",
       "abCompare": "Comparador A/B",
       "founders": "Equipo Fundador",
-      "docs": "Documentación",
       "enterStudio": "Ingresar a Brik Studio",
       "studioBadge": "(/studio)"
     },
     "hero": {
-      "badgeDsp": "DSP Core v2.4 Activo",
-      "badgeNeural": "Motor Neuronal AudioMind",
-      "badgeFormat": "96kHz / 64-bit FP Listo",
+      "eyebrow": "Mastering Spectral DSP · 13 Etapas · 8× Oversampling",
       "title": "El master ya no es un problema.",
       "titleGradient": "Deja que el sonido cobre vida del más allá.",
-      "description": "Arquitectura de 13 etapas de procesamiento espectral en tiempo real. Eliminamos la planicie dimensional de tus mezclas mediante inteligencia tímbrica, balance psicoacústico Haas y fidelidad cuántica.",
+      "subtitleClean": "Sube tu mezcla. Obtén un master listo para streaming en segundos.",
       "hud": {
         "loudness": "Target Loudness",
         "loudnessVal": "-14.0",
-        "loudnessSub": "Cumple EBU R128",
-        "truePeak": "True-Peak Ceiling",
-        "truePeakVal": "-1.0",
-        "truePeakSub": "Cero Intersample Peaks",
-        "throughput": "DSP Throughput",
-        "throughputVal": "<420",
-        "throughputSub": "Pipeline Rust SIMD",
-        "quantum": "Profundidad Cuántica",
-        "quantumVal": "48",
-        "quantumSub": "24-bit PCM Impecable"
+        "loudnessSub": "Cumple EBU R128"
       },
-      "ctaEnter": "Ingresar a Brik Studio",
-      "ctaListenDemo": "Escuchar Demostración A/B",
-      "ocularMonitor": "SPECTRAL OCULAR MONITOR",
-      "dualPrecision": "64-BIT DUAL PRECISION",
-      "telemetryCorrelation": "CORRELACIÓN",
-      "telemetryCorrelationVal": "+0.94 ESTÉREO",
-      "telemetryDynamicCrest": "CRESTA DINÁMICA",
-      "telemetryDynamicCrestVal": "11.8 dB PLR",
-      "telemetryHaasPhase": "FASE HAAS",
-      "telemetryHaasPhaseVal": "BLOQUEO EN FASE"
+      "ctaEnter": "Probar Brik Studio",
+      "ctaListenDemo": "Ver demo A/B",
+      "monitorMetric": "TARGET LOUDNESS",
+      "monitorValue": "-14.0 LUFS"
     },
     "philosophy": {
       "badge": "Tríada Ontológica",
