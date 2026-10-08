@@ -33,11 +33,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from audiomind.api.auth import UserContext, get_user_context
 from audiomind.services import storage, supabase_client
+from audiomind.services.separate_jobs import submit_separate_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -174,6 +175,28 @@ class StateOut(BaseModel):
     updated_at: str | None = None
 
 
+class SeparateRequest(BaseModel):
+    """Body of ``POST /projects/{id}/separate``."""
+
+    asset_id: str = Field(..., max_length=64)
+    model: str = Field(default="htdemucs", max_length=40)
+
+
+class SeparateSubmitOut(BaseModel):
+    """Answer to a separation submit.
+
+    ``reused`` is true when a finished separation of these exact bytes already
+    existed and its stems were handed straight back (no new job was queued).
+    """
+
+    job_id: str
+    project_id: str
+    asset_id: str
+    status: str
+    reused: bool = False
+    result: dict[str, Any] | None = None
+
+
 def _project_out(row: dict[str, Any]) -> ProjectOut:
     return ProjectOut(
         id=str(row.get("id", "")),
@@ -227,6 +250,32 @@ def _get_owned_project(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Proyecto no encontrado.",
+        )
+    return rows[0]
+
+
+def _get_owned_asset(
+    client: Any, project_id: str, asset_id: str, user_id: str
+) -> dict[str, Any]:
+    """Fetch an asset that lives in a project the caller owns, or 404.
+
+    Same "not yours" == "does not exist" contract as the project lookup, so an
+    endpoint never confirms another user's asset id.
+    """
+    resp = (
+        client.table("audio_assets")
+        .select("*")
+        .eq("id", asset_id)
+        .eq("project_id", project_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    rows = _data(resp)
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Archivo no encontrado.",
         )
     return rows[0]
 
@@ -427,6 +476,59 @@ async def list_assets(
     rows = _data(resp)
     rows.sort(key=lambda r: str(r.get("created_at") or ""))
     return [_asset_out(row) for row in rows]
+
+
+# ── Stem separation (async, idempotent) ────────────────────────────────────
+
+
+@router.post(
+    "/{project_id}/separate",
+    response_model=SeparateSubmitOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def separate_stems(
+    project_id: str,
+    payload: SeparateRequest,
+    background_tasks: BackgroundTasks,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+) -> SeparateSubmitOut:
+    """Kick off (or reuse) an async Demucs separation of an original asset.
+
+    Returns immediately with a job id; the client polls
+    ``GET /api/jobs/separate/{job_id}``. Separating the same audio twice is
+    idempotent: when a finished separation of these exact bytes already exists
+    for this project, its stems are handed straight back (``reused: true``)
+    without running Demucs again.
+
+    The original asset's ``media_hash`` (reported by the browser at upload) is
+    the idempotency key. When it is missing the worker computes it from the
+    bytes, so a first separation still dedupes correctly on the next submit.
+    """
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+    asset = _get_owned_asset(client, project_id, payload.asset_id, ctx.user_id)
+    if asset.get("kind") != "original":
+        raise HTTPException(
+            status_code=422,
+            detail="Solo se pueden separar archivos de tipo original.",
+        )
+
+    outcome = submit_separate_job(
+        user_id=ctx.user_id,
+        project_id=project_id,
+        asset_id=payload.asset_id,
+        media_hash=asset.get("media_hash"),
+        model=payload.model,
+        background_tasks=background_tasks,
+    )
+    return SeparateSubmitOut(
+        job_id=outcome.job_id,
+        project_id=project_id,
+        asset_id=payload.asset_id,
+        status=outcome.status,
+        reused=outcome.reused,
+        result=outcome.result,
+    )
 
 
 # ── Mix state ──────────────────────────────────────────────────────────────
