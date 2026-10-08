@@ -51,7 +51,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from audiomind.api.auth import UserContext, get_user_context
 from audiomind.models.project_document import ProjectDocument, default_document
-from audiomind.services import storage, supabase_client
+from audiomind.services.compile_project import compile, load_inputs
+from audiomind.models.project_document import ProjectDocument
 from audiomind.services.separate_jobs import submit_separate_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -829,3 +830,44 @@ async def delete_document(
         .execute()
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.post(
+    "/{project_id}/jobs/mix",
+    response_model=dict[str, Any],
+)
+async def project_mix_job(
+    project_id: str,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Submit a mix job for a project.
+    Placeholder: compiles document + state to MixPlan and enqueues a DSP job.
+    Returns job_id and poll URL.
+    """
+    return {
+        "job_id": f"mix_{project_id}_{uuid.uuid4().hex[:8]}",
+        "project_id": project_id,
+        "status": "processing",
+        "poll_url": f"/api/jobs/mix/{{job_id}}",
+    }
+
+
+@router.post(
+    "/{project_id}/jobs/master",
+    response_model=dict[str, Any],
+)
+async def project_master_job(
+    project_id: str,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Submit a mastering job for a project.
+    Placeholder: compiles document + state to MixPlan and enqueues a mastering job.
+    Returns job_id and poll URL.
+    """
+    return {
+        "job_id": f"master_{project_id}_{uuid.uuid4().hex[:8]}",
+        "project_id": project_id,
+        "status": "processing",
+        "poll_url": f"/api/jobs/master/{{job_id}}",
+    }
