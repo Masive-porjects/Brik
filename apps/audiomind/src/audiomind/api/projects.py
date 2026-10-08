@@ -12,6 +12,9 @@ document store:
 * ``GET    /projects/{id}/assets``              list a project's files.
 * ``GET    /projects/{id}/state``               read the live mix state.
 * ``PATCH  /projects/{id}/state``               upsert the live mix state.
+* ``GET    /projects/{id}/document``            read the V1 project document.
+* ``PUT    /projects/{id}/document``            write it (optimistic locking).
+* ``DELETE /projects/{id}/document``            reset it to the bootstrap.
 
 Ownership model
 ---------------
@@ -25,6 +28,16 @@ a fake client, and it fails closed if a policy were ever misconfigured.
 Mix state is stored as JSONB (``project_states.state``) rather than a column
 per fader: the shape is owned by the Studio and will evolve, and a
 column-per-field upsert would silently drop keys Postgres does not know about.
+
+Document vs. live state
+-----------------------
+The two documents do not overlap. ``project_states`` holds the LIVE mix
+(faders, toggles, undo/redo); ``project_documents`` holds intention and
+structure (stem identity, pending AI proposals, master intent). The frontend
+autosave store is the single writer of ``project_states`` (ownership invariant
+I1), and nothing in this module's document endpoints writes that table — a
+proposal becomes audible only when the user applies it through the normal
+autosave path.
 """
 
 from __future__ import annotations
@@ -33,10 +46,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from audiomind.api.auth import UserContext, get_user_context
+from audiomind.models.project_document import ProjectDocument, default_document
 from audiomind.services import storage, supabase_client
 from audiomind.services.separate_jobs import submit_separate_job
 
@@ -175,6 +189,30 @@ class StateOut(BaseModel):
     updated_at: str | None = None
 
 
+class DocumentPut(BaseModel):
+    """Body of ``PUT /projects/{id}/document``.
+
+    ``expected_version`` is the row version the client last read (0 when it is
+    creating the document for the first time). The server refuses the write
+    with 409 when the row has moved past it, which is what keeps a stale tab
+    from silently overwriting a newer document.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    document: ProjectDocument
+    expected_version: int = 0
+
+
+class DocumentOut(BaseModel):
+    """A project document plus the row version it was read from or written as."""
+
+    project_id: str
+    version: int
+    document: ProjectDocument
+    updated_at: str | None = None
+
+
 class SeparateRequest(BaseModel):
     """Body of ``POST /projects/{id}/separate``."""
 
@@ -278,6 +316,28 @@ def _get_owned_asset(
             detail="Archivo no encontrado.",
         )
     return rows[0]
+
+
+def _get_document_row(
+    client: Any, project_id: str, user_id: str
+) -> dict[str, Any] | None:
+    """Fetch the caller's document row for a project, or ``None``.
+
+    ``None`` is not an error: it is the bootstrap case (no row yet), which
+    ``GET`` answers with the default document at version 0. Filtering by
+    ``user_id`` keeps the same "not yours" == "does not exist" answer as the
+    rest of the module.
+    """
+    resp = (
+        client.table("project_documents")
+        .select("*")
+        .eq("project_id", project_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    rows = _data(resp)
+    return rows[0] if rows else None
 
 
 # ── Projects ───────────────────────────────────────────────────────────────
@@ -601,3 +661,171 @@ async def upsert_state(
         undo_stack=stored.get("undo_stack") or payload.undo_stack,
         updated_at=stored.get("updated_at"),
     )
+
+
+# ── Project document (intention + structure) ───────────────────────────────
+
+
+@router.get("/{project_id}/document", response_model=DocumentOut)
+async def get_document(
+    project_id: str,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+) -> DocumentOut:
+    """Read the V1 project document for a project the caller owns.
+
+    No row answers with the bootstrap document at ``version: 0`` WITHOUT
+    persisting anything, so reading a fresh project never creates state. A row
+    whose ``document_json`` no longer satisfies schema V1 is a server-side
+    defect, not a client error, and answers 500.
+    """
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+    row = _get_document_row(client, project_id, ctx.user_id)
+    if row is None:
+        return DocumentOut(
+            project_id=project_id,
+            version=0,
+            document=default_document(),
+            updated_at=None,
+        )
+    try:
+        document = ProjectDocument.model_validate(row.get("document_json"))
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="El documento almacenado no cumple el esquema V1.",
+        ) from exc
+    return DocumentOut(
+        project_id=project_id,
+        version=int(row.get("version") or 0),
+        document=document,
+        updated_at=row.get("updated_at"),
+    )
+
+
+@router.put("/{project_id}/document", response_model=DocumentOut)
+async def put_document(
+    project_id: str,
+    payload: DocumentPut,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+) -> DocumentOut:
+    """Write the V1 project document with optimistic concurrency.
+
+    The client sends the ``expected_version`` it last read and the row's
+    ``version`` must match it, else 409: a stale writer loses instead of
+    overwriting. ``version`` lives only in the row, never inside the JSON,
+    which is what makes that comparison single-sourced and drift-free.
+
+    Server-stamped fields: ``updated_at`` always comes from the server clock
+    (a client value is ignored), ``schema_version`` is pinned to 1 by the
+    model's ``Literal``, and ``updated_by`` comes from the validated payload
+    (default ``user``). This endpoint never writes ``project_states``
+    (ownership invariant I1: the frontend store is that table's only writer).
+    """
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+
+    document = payload.document
+    stamped = _now_iso()
+    document.updated_at = stamped
+    document_json = document.model_dump(mode="json")
+
+    conflict = HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "El documento fue modificado en otro lugar; recarga y vuelve a "
+            "intentarlo."
+        ),
+    )
+
+    row = _get_document_row(client, project_id, ctx.user_id)
+    if row is not None:
+        current = int(row.get("version") or 0)
+        if current != payload.expected_version:
+            raise conflict
+        new_version = current + 1
+        resp = (
+            client.table("project_documents")
+            .update(
+                {
+                    "version": new_version,
+                    "document_json": document_json,
+                    "updated_at": stamped,
+                }
+            )
+            .eq("project_id", project_id)
+            .eq("user_id", ctx.user_id)
+            # Conditional write: the WHERE repeats the version we read, so a
+            # racing writer that bumped it in between makes this match 0 rows.
+            .eq("version", current)
+            .execute()
+        )
+        if not _data(resp):
+            # Lost the race between the read above and this write.
+            raise conflict
+    else:
+        if payload.expected_version != 0:
+            raise conflict
+        new_version = 1
+        insert_row = {
+            "project_id": project_id,
+            "user_id": ctx.user_id,
+            "version": new_version,
+            "document_json": document_json,
+            "updated_at": stamped,
+        }
+        # The UNIQUE constraint on project_id is the first-write race guard:
+        # two clients both PUTting version 0 cannot both insert, so the loser
+        # violates the constraint. Translate that into the same 409 a stale
+        # expected_version gets rather than surfacing a 500.
+        try:
+            client.table("project_documents").insert(insert_row).execute()
+        except Exception as exc:
+            raise conflict from exc
+
+    return DocumentOut(
+        project_id=project_id,
+        version=new_version,
+        document=document,
+        updated_at=stamped,
+    )
+
+
+@router.delete(
+    "/{project_id}/document",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_document(
+    project_id: str,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+) -> Response:
+    """Delete the project document, resetting intent to the bootstrap default.
+
+    After this, ``GET`` answers ``version: 0`` with ``default_document()``
+    again — nothing is seeded back, and the row is recreated only by a later
+    PUT. Ownership follows the module's rule: the statement runs through the
+    token-scoped client (so RLS enforces ``auth.uid() = user_id``) AND filters
+    ``user_id`` explicitly, which fails closed even if a policy were
+    misconfigured. ``project_states`` is deliberately untouched: the live mix
+    belongs to the frontend store (ownership invariant I1).
+    """
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+    if _get_document_row(client, project_id, ctx.user_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Documento no encontrado.",
+        )
+    # Delete filtered by project_id AND user_id: RLS already fences the row,
+    # the explicit predicate makes ownership visible and fails closed. The
+    # existence check above is what turns "no row" into a 404; the delete
+    # itself is not inspected because PostgREST may answer DELETE with an
+    # empty representation.
+    (
+        client.table("project_documents")
+        .delete()
+        .eq("project_id", project_id)
+        .eq("user_id", ctx.user_id)
+        .execute()
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
