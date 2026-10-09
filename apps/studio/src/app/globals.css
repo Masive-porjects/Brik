@@ -432,6 +432,19 @@ select:disabled,
   cursor: not-allowed !important;
 }
 
+/* ── Focus visibility ───────────────────────────────────
+   One keyboard-focus baseline for the whole app. Drawn with `outline`
+   (not a box-shadow ring) so it survives regardless of per-element
+   Tailwind classes, and wrapped in `:where()` for zero specificity so a
+   deliberate override can still opt out. The color is the theme-aware
+   accent token, so it stays legible on both dark and light backgrounds.
+   The global reduced-motion block below only rewrites animation and
+   transition durations — it never touches `outline`. */
+:where(a, button, input, select, textarea, summary, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 /* ── Range inputs (legacy) ──────────────────────────── */
 
 input[type="range"] {
@@ -440,10 +453,16 @@ input[type="range"] {
   height: 4px;
   background: var(--knob-track);
   border-radius: 2px;
-  outline: none;
   transition: background 200ms;
   cursor: pointer;
   position: relative;
+}
+
+/* Keep the custom thumb clean on pointer focus, but let the global
+   `:focus-visible` outline above show for keyboard users. The previous
+   blanket `outline: none` outranked that rule on specificity. */
+input[type="range"]:not(:focus-visible) {
+  outline: none;
 }
 
 input[type="range"]:hover {

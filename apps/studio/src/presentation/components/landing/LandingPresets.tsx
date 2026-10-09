@@ -169,7 +169,7 @@ export default function LandingPresets() {
                     whileHover={{ backgroundColor: "#292a2e" }}
                     whileTap={{ scale: 0.99 }}
                     transition={transitions.cardHover}
-                    className="w-full py-1.5 px-2.5 rounded-lg bg-[#292a2e]/60 border border-white/5 hover:border-white/10 text-[#bcc9c7] hover:text-[#e3e2e8] font-label-technical text-[10px] flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full min-h-[44px] py-1.5 px-2.5 rounded-lg bg-[#292a2e]/60 border border-white/5 hover:border-white/10 text-[#bcc9c7] hover:text-[#e3e2e8] font-label-technical text-[10px] flex items-center justify-between transition-colors cursor-pointer"
                   >
                     <span>
                       {isExpanded
@@ -206,7 +206,7 @@ export default function LandingPresets() {
 
                         <Link
                           href="/upload"
-                          className="py-2 px-3 rounded-lg bg-primary text-[#003734] font-label-technical text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                          className="min-h-[44px] py-2 px-3 rounded-lg bg-primary text-[#003734] font-label-technical text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                         >
                           <span>{t("landing.presets.loadPreset", "Usar preset en Studio")}</span>
                           <ArrowRight className="w-3.5 h-3.5" />

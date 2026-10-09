@@ -65,7 +65,7 @@ export default function LandingFAQ() {
                     aria-expanded={isOpen}
                     aria-controls={panelId}
                     onClick={() => setOpenId(isOpen ? null : item.id)}
-                    className="w-full min-h-[44px] flex items-center justify-between gap-4 px-5 sm:px-6 py-5 text-left font-headline-sm text-base sm:text-lg text-[#e3e2e8] hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                    className="w-full min-h-[44px] flex items-center justify-between gap-4 px-5 sm:px-6 py-5 text-left font-headline-sm text-base sm:text-lg text-[#e3e2e8] hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-primary/70"
                   >
                     <span>{t(item.questionKey)}</span>
                     <motion.span

@@ -217,7 +217,7 @@ function MobileDrawer() {
                     key={link.id}
                     type="button"
                     onClick={() => onLinkClick(link.id)}
-                    className={`w-full text-left px-4 py-4 rounded-xl font-sans text-lg font-medium transition-all duration-200 ${
+                    className={`w-full text-left px-4 py-4 rounded-xl font-sans text-lg font-medium transition-all duration-200 active:scale-[0.98] ${
                       isActive
                         ? "bg-primary/15 text-primary border border-primary/30"
                         : "text-[#bcc9c7] hover:text-white hover:bg-white/[0.03]"

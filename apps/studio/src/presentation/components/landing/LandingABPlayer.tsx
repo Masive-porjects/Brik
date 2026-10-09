@@ -140,7 +140,7 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
       aria-valuemax={100}
       aria-valuenow={value}
       aria-valuetext={`${value}%`}
-      className="relative flex h-11 w-28 sm:w-40 touch-none select-none items-center rounded-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+      className="relative flex h-11 w-28 sm:w-40 touch-none select-none items-center rounded-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary/70"
       onPointerDown={(event) => {
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -494,7 +494,7 @@ export default function LandingABPlayer() {
               <button
                 type="button"
                 onClick={togglePlay}
-                className="shrink-0 w-12 h-12 min-h-[44px] rounded-full bg-primary text-[#003734] flex items-center justify-center hover:bg-primary-container transition-all shadow-[0_0_18px_rgba(110,233,224,0.35)] hover:scale-105 active:scale-95 cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                className="shrink-0 w-12 h-12 min-h-[44px] rounded-full bg-primary text-[#003734] flex items-center justify-center hover:bg-primary-container transition-all shadow-[0_0_18px_rgba(110,233,224,0.35)] hover:scale-105 active:scale-[0.98] cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-primary/70"
                 aria-label={isPlaying ? t("landing.abPlayer.pauseAria") : t("landing.abPlayer.playAria")}
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
@@ -537,7 +537,7 @@ export default function LandingABPlayer() {
                   onClick={() => setIsBrik(false)}
                   aria-pressed={!isBrik}
                   aria-keyshortcuts="a"
-                  className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+                  className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70 ${
                     !isBrik
                       ? "bg-[#38393e] text-[#e3e2e8] shadow-md border border-white/10"
                       : "text-[#869391] hover:text-[#e3e2e8]"
@@ -550,7 +550,7 @@ export default function LandingABPlayer() {
                   onClick={() => setIsBrik(true)}
                   aria-pressed={isBrik}
                   aria-keyshortcuts="b"
-                  className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+                  className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70 ${
                     isBrik
                       ? "bg-primary text-[#003734] shadow-[0_0_12px_rgba(110,233,224,0.35)]"
                       : "text-[#869391] hover:text-[#e3e2e8]"

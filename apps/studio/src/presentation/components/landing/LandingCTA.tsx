@@ -74,7 +74,7 @@ export default function LandingCTA() {
           <span ref={primaryCtaRef} className="flex w-full sm:w-auto will-change-transform">
             <Link
               href="/upload"
-              className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-body-lg font-bold hover:bg-primary-container transition-all transform hover:scale-105 shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
+              className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-body-lg font-bold hover:bg-primary-container transition-all transform hover:scale-105 active:scale-[0.98] shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
             >
               <span>{t("landing.cta.btnStudio", "Ingresar a Brik Studio")}</span>
               <span className="font-label-technical text-xs opacity-75">
@@ -86,7 +86,7 @@ export default function LandingCTA() {
 
           <a
             href="#arquitectura-dsp"
-            className="w-full sm:w-auto px-6 py-4 rounded-full bg-[#292a2e]/90 text-[#e3e2e8] font-body-md font-semibold hover:bg-[#38393e] transition-all flex items-center justify-center gap-2 shadow-md border border-primary/20 cursor-pointer"
+            className="w-full sm:w-auto px-6 py-4 rounded-full bg-[#292a2e]/90 text-[#e3e2e8] font-body-md font-semibold hover:bg-[#38393e] transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-md border border-primary/20 cursor-pointer"
           >
             <Terminal className="w-4 h-4 text-primary" />
             <span>{t("landing.cta.btnSpecs", "Ver Especificación DSP (13 Etapas)")}</span>

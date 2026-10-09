@@ -166,11 +166,13 @@ export default function LanguageSwitcher({
     : "Language: English (Click for Español)";
 
   return (
+    // Área táctil: el ::after transparente expande el objetivo a 44px sin agrandar el círculo visible de 36px.
     <button
       type="button"
       onClick={toggleLanguage}
       suppressHydrationWarning
       className={`relative w-9 h-9 rounded-full flex items-center justify-center shrink-0
+        after:absolute after:-inset-1 after:rounded-full after:content-['']
         bg-[var(--bg-glass)] backdrop-blur-xl
         border border-[var(--border-subtle)] hover:border-[var(--border-strong)]
         text-[var(--accent-primary)]
