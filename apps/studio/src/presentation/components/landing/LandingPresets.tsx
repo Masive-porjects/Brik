@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Zap, Maximize2, Radio, ChevronDown, ArrowRight } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { PRESETS_LIST } from "./data";
+import { InteractiveCard } from "./InteractiveCard";
+import { transitions, easings } from "@/shared/lib/animations";
 
 const PRESET_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Sparkles,
@@ -30,6 +32,7 @@ export default function LandingPresets() {
       metric: t("landing.presets.preset1.metric", "CLARIDAD +4.5 dB"),
       dotColor: "bg-primary shadow-[0_0_10px_#6ee9e0]",
       textColor: "text-primary",
+      glowColor: "primary" as const,
       specs: [
         { label: "TARGET LUFS", value: "-14.0 LUFS" },
         { label: "CORTE BAJOS", value: "28 Hz 24dB/oct" },
@@ -48,6 +51,7 @@ export default function LandingPresets() {
       metric: t("landing.presets.preset2.metric", "DENSIDAD MÁXIMA"),
       dotColor: "bg-secondary shadow-[0_0_10px_#ecb2ff]",
       textColor: "text-secondary",
+      glowColor: "secondary" as const,
       specs: [
         { label: "TARGET LUFS", value: "-9.0 LUFS" },
         { label: "RATIO COMP", value: "5:1 Ataque Rápido" },
@@ -66,6 +70,7 @@ export default function LandingPresets() {
       metric: t("landing.presets.preset3.metric", "ANCHO HAAS 160%"),
       dotColor: "bg-tertiary-container shadow-[0_0_10px_#ffa654]",
       textColor: "text-tertiary-container",
+      glowColor: "tertiary" as const,
       specs: [
         { label: "HAAS DELAY", value: "14.2 ms Lateral" },
         { label: "APERTURA", value: "160% Decorrelada" },
@@ -84,6 +89,7 @@ export default function LandingPresets() {
       metric: t("landing.presets.preset4.metric", "CALIDEZ VÁLVULA"),
       dotColor: "bg-primary shadow-[0_0_10px_#6ee9e0]",
       textColor: "text-primary",
+      glowColor: "primary" as const,
       specs: [
         { label: "VÁLVULA SIM", value: "Triodo Clase A" },
         { label: "WARMTH", value: "+3.2 dB Calidez" },
@@ -94,10 +100,16 @@ export default function LandingPresets() {
   ];
 
   return (
-    <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative" id="presets-fantasmagoricos">
+    <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative overflow-x-hidden" id="presets-fantasmagoricos">
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
-        {/* Section Header */}
-        <div className="flex flex-col gap-2 max-w-2xl">
+        {/* Section Header - Stagger */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.15 }}
+          transition={transitions.scrollReveal}
+          className="flex flex-col gap-2 max-w-2xl"
+        >
           <span className="font-label-technical text-secondary text-[10px] uppercase tracking-widest">
             {t("landing.presets.badge", "Invocaciones Sónicas")}
           </span>
@@ -110,7 +122,7 @@ export default function LandingPresets() {
               "Perfiles tímbricos calibrados para canalizar estéticas sonoras precisas con un solo clic en la consola."
             )}
           </p>
-        </div>
+        </motion.div>
 
         {/* Presets Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
@@ -119,15 +131,12 @@ export default function LandingPresets() {
             const isExpanded = expandedPresetId === preset.id;
 
             return (
-              <motion.div
+              <InteractiveCard
                 key={preset.id}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: idx * 0.08 }}
-                className={`p-6 rounded-2xl bg-[#1a1b20] hover:bg-[#1f1f24] border transition-all duration-300 h-full flex flex-col justify-between shadow-xl ${
-                  isExpanded ? "border-primary/40 bg-[#1f1f24] shadow-[0_0_25px_rgba(110,233,224,0.12)]" : "border-white/5 hover:border-white/15"
-                }`}
+                index={idx}
+                isExpanded={isExpanded}
+                glowColor={preset.glowColor}
+                disableHoverOnMobile
               >
                 <div className="flex flex-col gap-4 flex-1">
                   <div className="flex items-center justify-between">
@@ -138,9 +147,7 @@ export default function LandingPresets() {
                   </div>
 
                   <div className="flex flex-col gap-1.5 flex-1">
-                    <h3
-                      className={`font-headline-sm text-lg font-bold text-[#e3e2e8] transition-colors`}
-                    >
+                    <h3 className="font-headline-sm text-lg font-bold text-[#e3e2e8]">
                       {preset.title}
                     </h3>
                     <p className="font-body-sm text-xs text-[#bcc9c7] leading-relaxed flex-1">
@@ -156,20 +163,23 @@ export default function LandingPresets() {
                   </div>
 
                   {/* Open / Close Transition Toggle Button */}
-                  <button
+                  <motion.button
                     type="button"
                     onClick={() => setExpandedPresetId(isExpanded ? null : preset.id)}
-                    className="w-full py-1.5 px-2.5 rounded-lg bg-[#292a2e]/60 hover:bg-[#292a2e] border border-white/5 hover:border-white/10 text-[#bcc9c7] hover:text-[#e3e2e8] font-label-technical text-[10px] flex items-center justify-between transition-colors cursor-pointer"
+                    whileHover={{ backgroundColor: "#292a2e" }}
+                    whileTap={{ scale: 0.99 }}
+                    transition={transitions.cardHover}
+                    className="w-full min-h-[44px] py-1.5 px-2.5 rounded-lg bg-[#292a2e]/60 border border-white/5 hover:border-white/10 text-[#bcc9c7] hover:text-[#e3e2e8] font-label-technical text-[10px] flex items-center justify-between transition-colors cursor-pointer"
                   >
                     <span>
                       {isExpanded
                         ? t("landing.presets.hideDetails", "Ocultar calibración")
                         : t("landing.presets.viewDetails", "Ver calibración")}
                     </span>
-                    <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.25 }}>
+                    <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.25, ease: easings.power2Out }}>
                       <ChevronDown className="w-3.5 h-3.5" />
                     </motion.div>
-                  </button>
+                  </motion.button>
 
                   {/* Expandable Calibration Specs with AnimatePresence */}
                   <AnimatePresence>
@@ -178,7 +188,7 @@ export default function LandingPresets() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                        transition={transitions.presence}
                         className="overflow-hidden flex flex-col gap-3 pt-2"
                       >
                         <div className="grid grid-cols-2 gap-2 text-left">
@@ -196,7 +206,7 @@ export default function LandingPresets() {
 
                         <Link
                           href="/upload"
-                          className="py-2 px-3 rounded-lg bg-primary text-[#003734] font-label-technical text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                          className="min-h-[44px] py-2 px-3 rounded-lg bg-primary text-[#003734] font-label-technical text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                         >
                           <span>{t("landing.presets.loadPreset", "Usar preset en Studio")}</span>
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -205,7 +215,7 @@ export default function LandingPresets() {
                     )}
                   </AnimatePresence>
                 </div>
-              </motion.div>
+              </InteractiveCard>
             );
           })}
         </div>
@@ -213,4 +223,3 @@ export default function LandingPresets() {
     </section>
   );
 }
-

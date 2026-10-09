@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { DSP_STAGES } from "./data";
+import Reveal from "./Reveal";
 import { DSPStage } from "./types";
 
 const ICONS_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -68,8 +69,9 @@ export default function LandingDSPChain() {
   }, [isAutoCycle, isHovered]);
 
   return (
-    <section
-      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#0d0e12] border-b border-white/[0.04] relative"
+    <Reveal
+      as="section"
+      className="w-full py-16 sm:py-20 px-4 sm:px-8 lg:px-12 bg-[#0d0e12] border-b border-white/[0.04] relative"
       id="arquitectura-dsp"
     >
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
@@ -107,8 +109,8 @@ export default function LandingDSPChain() {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          {/* Left Column: Scrollable List of 13 Stages */}
-          <div className="lg:col-span-5 flex flex-col gap-2 max-h-[720px] overflow-y-auto pr-1 custom-scroll">
+          {/* Left Column: Stage list — vertical scroll on desktop, snap strip on mobile */}
+          <div className="lg:col-span-5 flex flex-col gap-2 min-w-0 lg:max-h-[720px] lg:overflow-y-auto pr-0 lg:pr-1 custom-scroll">
             <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10 sticky top-0 bg-[#0d0e12] z-10">
               <span className="font-label-technical text-[10px] text-[#869391] uppercase tracking-wider">
                 {t("landing.chain.chainHeader", "CADENA SECUENCIAL (13 MÓDULOS)")}
@@ -147,7 +149,7 @@ export default function LandingDSPChain() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 pt-1">
+            <div className="flex flex-row gap-2 pt-1 pb-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory lg:grid lg:grid-cols-1 lg:gap-2 lg:overflow-visible lg:pb-0">
               {DSP_STAGES.map((stage) => {
                 const isSelected = stage.id === selectedStageId;
                 const IconComponent = ICONS_MAP[stage.icon] || Box;
@@ -163,7 +165,7 @@ export default function LandingDSPChain() {
                       setIsHovered(true);
                       setTimeout(() => setIsHovered(false), 8000);
                     }}
-                    className={`p-3.5 rounded-xl text-left transition-all duration-300 flex items-center justify-between group cursor-pointer relative overflow-hidden ${
+                    className={`p-3.5 rounded-xl text-left transition-all duration-300 flex items-center justify-between gap-3 group cursor-pointer relative overflow-hidden shrink-0 snap-start w-[82%] sm:w-[60%] lg:w-auto min-h-[44px] ${
                       isSelected
                         ? "bg-[#1f1f24] border-2 border-primary shadow-[0_0_24px_rgba(110,233,224,0.22)] scale-[1.01]"
                         : "bg-[#1a1b20] hover:bg-[#1f1f24] border border-white/5 hover:border-primary/20"
@@ -178,9 +180,9 @@ export default function LandingDSPChain() {
                       />
                     )}
 
-                    <div className="flex items-center gap-3 relative z-10">
+                    <div className="flex items-center gap-3 relative z-10 min-w-0">
                       <span
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-label-technical text-xs font-bold transition-all ${
+                        className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center font-label-technical text-xs font-bold transition-all ${
                           isSelected
                             ? "bg-primary text-[#003734] shadow-sm"
                             : "bg-[#292a2e] text-primary"
@@ -188,8 +190,8 @@ export default function LandingDSPChain() {
                       >
                         {stage.number}
                       </span>
-                      <div>
-                        <div className="flex items-center gap-1.5">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <h4
                             className={`font-headline-sm text-xs font-semibold transition-colors ${
                               isSelected
@@ -216,7 +218,7 @@ export default function LandingDSPChain() {
                       </div>
                     </div>
                     <IconComponent
-                      className={`w-4 h-4 transition-colors relative z-10 ${
+                      className={`w-4 h-4 shrink-0 transition-colors relative z-10 ${
                         isSelected
                           ? "text-primary"
                           : "text-[#869391] group-hover:text-primary"
@@ -229,7 +231,7 @@ export default function LandingDSPChain() {
           </div>
 
           {/* Right Column: Stage Detail Inspector with AnimatePresence */}
-          <div className="lg:col-span-7 bg-[#1a1b20] rounded-2xl p-6 lg:p-8 border border-white/10 shadow-2xl flex flex-col gap-6 sticky top-24 min-h-[580px]">
+          <div className="lg:col-span-7 min-w-0 bg-[#1a1b20] rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10 shadow-2xl flex flex-col gap-6 lg:sticky lg:top-24 min-h-0 lg:min-h-[580px]">
             <AnimatePresence mode="wait">
               <motion.div
                 key={selectedStage.id}
@@ -283,7 +285,7 @@ export default function LandingDSPChain() {
               </p>
 
               {/* Sub-tabs Selector */}
-              <div className="flex items-center gap-2 pt-1 border-b border-white/5 pb-2">
+              <div className="flex flex-wrap items-center gap-2 gap-y-2 pt-1 border-b border-white/5 pb-2">
                 <button
                   type="button"
                   onClick={() => setActiveTab("substages")}
@@ -465,13 +467,13 @@ export default function LandingDSPChain() {
               </div>
 
               {/* Bottom Actions */}
-              <div className="flex items-center justify-between pt-2">
-                <span className="font-label-technical text-[10px] text-[#869391]">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <span className="font-label-technical text-[10px] text-[#869391] min-w-0">
                   {t("landing.chain.tensorsComputed", "Tensores calculados en SSE/AVX-512 nativo")}
                 </span>
                 <Link
                   href="/upload"
-                  className="px-4 py-2 rounded-lg bg-primary text-[#003734] font-body-sm text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-[0_0_14px_rgba(110,233,224,0.3)] hover:scale-105 active:scale-95 cursor-pointer"
+                  className="shrink-0 px-4 py-2 rounded-lg bg-primary text-[#003734] font-body-sm text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-[0_0_14px_rgba(110,233,224,0.3)] hover:scale-105 active:scale-95 cursor-pointer"
                 >
                   <span>{t("landing.chain.loadInStudio", "Cargar en Brik Studio")}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -483,6 +485,6 @@ export default function LandingDSPChain() {
       </div>
     </div>
   </div>
-</section>
+</Reveal>
   );
 }

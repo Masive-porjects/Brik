@@ -1,117 +1,89 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import gsap from "gsap";
 import { ArrowRight } from "lucide-react";
 import LanguageSwitcher from "@/presentation/components/LanguageSwitcher";
 import ThemeToggle from "@/presentation/components/ThemeToggle";
 import { UserMenu, useAuth } from "@/features/auth";
 import { useTranslation } from "@/i18n";
+import { BASE_PATH } from "@/lib/basePath";
+import LandingNavigation from "./LandingNavigation";
 
 export default function LandingHeader() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<string>("arquitectura-dsp");
-  const [isScrolled, setIsScrolled] = useState<boolean>(false);
+  // Magnetic hover on the primary CTA. The wrapper owns the GSAP translate so
+  // it never fights the button's CSS scale transition. Desktop only.
+  const ctaRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+    const el = ctaRef.current;
+    if (!el) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-      const sections = [
-        "arquitectura-dsp",
-        "presets-fantasmagoricos",
-        "comparador",
-        "equipo-fundador",
-      ];
+    const xTo = gsap.quickTo(el, "x", { duration: 0.5, ease: "power3.out" });
+    const yTo = gsap.quickTo(el, "y", { duration: 0.5, ease: "power3.out" });
 
-      for (const sectionId of sections) {
-        const el = document.getElementById(sectionId);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top <= 200 && rect.bottom >= 200) {
-            setActiveSection(sectionId);
-            break;
-          }
-        }
-      }
+    const onMove = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      xTo(((e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2)) * 8);
+      yTo(((e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2)) * 6);
+    };
+    const onLeave = () => {
+      xTo(0);
+      yTo(0);
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+      gsap.set(el, { x: 0, y: 0 });
+    };
   }, []);
 
-  const navLinks = [
-    { id: "arquitectura-dsp", label: t("landing.nav.stage13", "Arquitectura 13 Etapas") },
-    { id: "presets-fantasmagoricos", label: t("landing.nav.presets", "Presets Fantasmagóricos") },
-    { id: "comparador", label: t("landing.nav.abCompare", "Comparador A/B") },
-    { id: "equipo-fundador", label: t("landing.nav.founders", "Equipo Fundador") },
-  ];
-
   return (
-    <header
-      className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        isScrolled
-          ? "bg-[#121317]/85 backdrop-blur-2xl border-b border-white/5 shadow-2xl"
-          : "bg-[#121317]/60 backdrop-blur-xl border-b border-white/[0.03]"
-      }`}
-    >
-      <div className="h-20 w-full px-4 sm:px-8 lg:px-12 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/mascota-3d.png"
-              alt="Brik Logo"
-              className="w-8 h-8 rounded-lg object-contain transition-transform group-hover:scale-110 shadow-sm"
-            />
-            <span className="font-display-xl text-2xl lg:text-3xl text-primary font-bold tracking-tight transition-transform group-hover:scale-105">
-              {t("landing.nav.brand", "BRIK")}
-            </span>
-            <span className="font-label-technical text-[10px] text-secondary uppercase bg-[#1a1b20] border border-secondary/30 px-2.5 py-0.5 rounded-full shadow-[0_0_10px_rgba(236,178,255,0.15)]">
-              {t("landing.nav.dspCore", "DSP Core")}
-            </span>
-          </Link>
+    <header className="fixed top-0 w-full z-50 bg-[#121317]/85 backdrop-blur-2xl border-b border-white/[0.08]">
+      <div className="h-18 w-full px-4 sm:px-8 lg:px-12 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
+        {/* Brand Logo - Clean, no pulse, no badge */}
+        <Link href="/" className="flex items-center gap-2.5 min-h-[44px] group" aria-label={t("landing.nav.brand", "BRIK")}>
+          <Image
+            src={`${BASE_PATH}/brand/mascota-3d.png`}
+            alt=""
+            width={28}
+            height={28}
+            priority
+            className="w-7 h-7 rounded-lg object-contain transition-transform group-hover:scale-110"
+            aria-hidden="true"
+          />
+          <span className="font-display-xl text-2xl text-primary font-bold tracking-tight">
+            {t("landing.nav.brand", "BRIK")}
+          </span>
+        </Link>
 
-          {/* Center Navigation */}
-          <nav className="hidden xl:flex items-center gap-1.5" aria-label="Navegación principal">
-            {navLinks.map((link) => {
-              const isActive = activeSection === link.id;
-              return (
-                <a
-                  key={link.id}
-                  href={`#${link.id}`}
-                  className={`px-3.5 py-1.5 rounded-lg font-body-sm text-xs transition-all duration-200 ${
-                    isActive
-                      ? "bg-[#292a2e] text-primary font-semibold shadow-sm"
-                      : "text-[#bcc9c7] hover:text-[#e3e2e8] hover:bg-white/[0.03]"
-                  }`}
-                >
-                  {link.label}
-                </a>
-              );
-            })}
-          </nav>
-        </div>
+        {/* Center: Desktop Navigation + Mobile Button (inside Provider) */}
+        <LandingNavigation />
 
-        {/* Right Actions */}
+        {/* Right Actions - CTA + Language + User */}
         <div className="flex items-center gap-3">
-          <Link
-            href="/upload"
-            className="px-4 lg:px-5 py-2 rounded-lg bg-primary text-[#003734] font-body-sm text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 shadow-[0_0_20px_rgba(110,233,224,0.3)] hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <span>{t("landing.nav.enterStudio", "Ingresar a Brik Studio")}</span>
-            <span className="font-label-technical text-[10px] opacity-75 hidden sm:inline">
-              {t("landing.nav.studioBadge", "(/studio)")}
-            </span>
-            <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-          </Link>
+          <span ref={ctaRef} className="hidden sm:flex will-change-transform">
+            <Link
+              href="/upload"
+              className="flex min-h-[44px] px-4 py-2 rounded-lg bg-primary text-[#003734] font-body-sm font-bold hover:bg-primary-container transition-all items-center gap-1.5 shadow-[0_0_20px_rgba(110,233,224,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <span>{t("landing.nav.enterStudio", "Ingresar a Brik Studio")}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </span>
 
-          <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+          <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <ThemeToggle />
-            {user && <UserMenu />}
+            {user ? <UserMenu /> : <ThemeToggle />}
           </div>
         </div>
       </div>

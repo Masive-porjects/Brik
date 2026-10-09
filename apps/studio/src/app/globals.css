@@ -1,6 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -29,9 +26,15 @@
   --color-outline: #869391;
   --color-outline-variant: #3d4948;
 
-  --font-syne: 'Syne', sans-serif;
-  --font-jakarta: 'Plus Jakarta Sans', sans-serif;
-  --font-mono-tech: 'JetBrains Mono', monospace;
+  /* Font tokens wired to next/font/google loaders (layout.tsx). The loader
+     variables `--font-*-loaded` are set on <body> via the font `.variable`
+     classes; the literal stacks below keep font-syne/font-jakarta/font-mono-tech
+     working before the webfonts resolve (no circular var() references). */
+  --font-syne: var(--font-syne-loaded), 'Syne', sans-serif;
+  --font-jakarta: var(--font-jakarta-loaded), 'Plus Jakarta Sans', sans-serif;
+  --font-mono-tech: var(--font-mono-loaded), 'JetBrains Mono', monospace;
+  --font-mono: var(--font-mono-loaded), 'JetBrains Mono', monospace;
+  --font-serif-instrument: var(--font-instrument-serif-loaded), 'Instrument Serif', Georgia, 'Times New Roman', serif;
 }
 
 :root {
@@ -164,7 +167,9 @@ body {
       transparent
     );
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Inter's Google @import was removed; body copy now uses the design-system
+     Jakarta token (wired to the next/font loader in layout.tsx). */
+  font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
   min-height: 100vh;
 }
 
@@ -235,7 +240,7 @@ body {
   /* Serif italic accent — Mindloop style ("Inspired", "changed.")
      Use for a single emphasized word inside headings. */
   .serif-accent {
-    font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    font-family: var(--font-serif-instrument);
     font-style: italic;
     font-weight: 400;
     letter-spacing: -0.02em;
@@ -427,6 +432,19 @@ select:disabled,
   cursor: not-allowed !important;
 }
 
+/* ── Focus visibility ───────────────────────────────────
+   One keyboard-focus baseline for the whole app. Drawn with `outline`
+   (not a box-shadow ring) so it survives regardless of per-element
+   Tailwind classes, and wrapped in `:where()` for zero specificity so a
+   deliberate override can still opt out. The color is the theme-aware
+   accent token, so it stays legible on both dark and light backgrounds.
+   The global reduced-motion block below only rewrites animation and
+   transition durations — it never touches `outline`. */
+:where(a, button, input, select, textarea, summary, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 /* ── Range inputs (legacy) ──────────────────────────── */
 
 input[type="range"] {
@@ -435,10 +453,16 @@ input[type="range"] {
   height: 4px;
   background: var(--knob-track);
   border-radius: 2px;
-  outline: none;
   transition: background 200ms;
   cursor: pointer;
   position: relative;
+}
+
+/* Keep the custom thumb clean on pointer focus, but let the global
+   `:focus-visible` outline above show for keyboard users. The previous
+   blanket `outline: none` outranked that rule on specificity. */
+input[type="range"]:not(:focus-visible) {
+  outline: none;
 }
 
 input[type="range"]:hover {
@@ -573,8 +597,37 @@ input[type="range"]::-moz-range-thumb {
   to { opacity: 1; filter: blur(0); transform: translateY(0); }
 }
 .animate-blur-fade-up {
-  animation: blurFadeUp 1s ease-out forwards;
+  animation: blurFadeUp 1s cubic-bezier(0.32, 0.72, 0, 1) forwards;
   opacity: 0;
+}
+/* B7 — hidden-until-revealed state for the viewport-triggered Reveal wrapper.
+   The element is hidden until `.animate-blur-fade-up` lands on it via
+   IntersectionObserver. Under reduced motion the attribute is lifted on mount
+   and overridden below, so this rule can never leave content hidden. */
+[data-reveal]:not(.animate-blur-fade-up) {
+  opacity: 0;
+}
+/* Reduced motion: never let the hidden reveal state stick. The content is
+   visible from first paint, even before hydration lifts `data-reveal`. */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1 !important;
+  }
+}
+
+/* B7 — global reduced-motion guard.
+   Neutralizes every CSS animation and transition (and smooth scroll) for
+   users who ask for less motion. Animations still settle on their final
+   frame because `animation-fill-mode: forwards` completes within 0.01ms. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Knockout text utility ──────────────────────────── */

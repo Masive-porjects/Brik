@@ -1,4 +1,47 @@
-import { DSPStage, PresetItem, FounderItem } from "./types";
+import { DSPStage, PresetItem, FounderItem, ABMetricDefinition, PricingPlan, FaqItem } from "./types";
+
+/**
+ * Illustrative A/B metrics for the landing demo.
+ *
+ * These are educational product-demo values, not measurements of any real
+ * file. Mastered targets the streaming sweet spot (-14 LUFS, -1.0 dBTP, tight
+ * LRA); Original is quieter on average, peakier and wider in dynamic range.
+ */
+export const AB_METRICS: ABMetricDefinition[] = [
+  {
+    id: "lufs",
+    labelKey: "meterLufs",
+    unitKey: "unitLufs",
+    original: -18.6,
+    mastered: -14.0,
+    min: -24,
+    max: -8,
+    decimals: 1,
+    accent: "primary",
+  },
+  {
+    id: "tp",
+    labelKey: "meterTp",
+    unitKey: "unitTp",
+    original: -0.3,
+    mastered: -1.0,
+    min: -6,
+    max: 0,
+    decimals: 2,
+    accent: "secondary",
+  },
+  {
+    id: "lra",
+    labelKey: "meterLra",
+    unitKey: "unitLra",
+    original: 11.4,
+    mastered: 6.5,
+    min: 3,
+    max: 15,
+    decimals: 1,
+    accent: "tertiary",
+  },
+];
 
 export const DSP_STAGES: DSPStage[] = [
   {
@@ -676,5 +719,88 @@ export const FOUNDERS_LIST: FounderItem[] = [
       linkedin: "https://www.linkedin.com/in/ingvillanuevat1/",
       github: "https://github.com/drakkomaximo",
     },
+  },
+];
+
+/**
+ * Landing pricing offers (commercial structure only).
+ *
+ * ⚠️ TODO(owner): placeholder pricing — replace with the real commercial numbers
+ * on the `price` fields below. These are deliberately obvious demo amounts and
+ * live ONLY here so the owner can swap them in one place; the `unit` suffix is
+ * translated so a "per song" / "per pack" label follows the number. Names,
+ * features and CTA labels are all resolved from i18n (`landing.pricing.*`).
+ */
+export const PRICING_PLANS: PricingPlan[] = [
+  {
+    id: "pay-per-song",
+    nameKey: "landing.pricing.payPerSong.name",
+    taglineKey: "landing.pricing.payPerSong.tagline",
+    // TODO(owner): placeholder pricing — replace with the real commercial numbers
+    price: 9,
+    currency: "USD",
+    unitKey: "landing.pricing.payPerSong.unit",
+    highlighted: false,
+    accent: "primary",
+    featureKeys: [
+      "landing.pricing.payPerSong.feature1",
+      "landing.pricing.payPerSong.feature2",
+      "landing.pricing.payPerSong.feature3",
+      "landing.pricing.payPerSong.feature4",
+    ],
+    ctaHref: "/upload",
+    ctaKey: "landing.pricing.payPerSong.cta",
+  },
+  {
+    id: "credits",
+    nameKey: "landing.pricing.credits.name",
+    taglineKey: "landing.pricing.credits.tagline",
+    // TODO(owner): placeholder pricing — replace with the real commercial numbers
+    price: 49,
+    currency: "USD",
+    unitKey: "landing.pricing.credits.unit",
+    highlighted: true,
+    accent: "secondary",
+    featureKeys: [
+      "landing.pricing.credits.feature1",
+      "landing.pricing.credits.feature2",
+      "landing.pricing.credits.feature3",
+      "landing.pricing.credits.feature4",
+    ],
+    ctaHref: "/register",
+    ctaKey: "landing.pricing.credits.cta",
+  },
+];
+
+/**
+ * Landing FAQ entries. The three mandatory topics (intellectual property,
+ * delivered formats, deterministic DSP without hallucinations) come first,
+ * followed by privacy and skill-level questions.
+ */
+export const FAQ_ITEMS: FaqItem[] = [
+  {
+    id: "ip",
+    questionKey: "landing.faq.ip.question",
+    answerKey: "landing.faq.ip.answer",
+  },
+  {
+    id: "formats",
+    questionKey: "landing.faq.formats.question",
+    answerKey: "landing.faq.formats.answer",
+  },
+  {
+    id: "deterministic",
+    questionKey: "landing.faq.deterministic.question",
+    answerKey: "landing.faq.deterministic.answer",
+  },
+  {
+    id: "privacy",
+    questionKey: "landing.faq.privacy.question",
+    answerKey: "landing.faq.privacy.answer",
+  },
+  {
+    id: "skill",
+    questionKey: "landing.faq.skill.question",
+    answerKey: "landing.faq.skill.answer",
   },
 ];
