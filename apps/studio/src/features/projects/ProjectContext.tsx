@@ -9,12 +9,12 @@ import {
   approveProposal as approveProposalApi,
   rejectProposal as rejectProposalApi,
   updateMasterIntent as updateMasterIntentApi,
-  updateStemIdentity as updateStemIdentityApi,
+  updateStemNode as updateStemNodeApi,
   type ProjectDocumentV1,
   type MasterIntent,
-  type StemIdentity,
+  type StemName,
+  type StemNode,
 } from "@/features/projects/store/projectDocumentStore";
-import { getProjectMixState } from "@/adapters/api/client";
 
 interface ProjectContextValue {
   projectId: string | null;
@@ -26,9 +26,9 @@ interface ProjectContextValue {
   updateMasterIntent: (intent: Partial<MasterIntent>) => Promise<void>;
   approveProposal: (proposalId: string) => Promise<void>;
   rejectProposal: (proposalId: string) => Promise<void>;
-  updateStemIdentity: (
-    stem: keyof ProjectDocumentV1["stems"],
-    identity: StemIdentity
+  updateStemNode: (
+    stem: StemName,
+    patch: Partial<StemNode>
   ) => Promise<void>;
   deleteDocument: () => Promise<void>;
   refreshDocument: () => Promise<void>;
@@ -77,12 +77,12 @@ export function ProjectProvider({ children, initialProjectId }: ProjectProviderP
 
   const updateDocument = async (payload: {
     document: ProjectDocumentV1;
-    expectedVersion: number;
+    expected_version: number;
   }) => {
     if (!projectId) throw new Error("No project loaded");
     const res = await putProjectDocument(projectId, {
       document: payload.document,
-      expectedVersion: payload.expectedVersion,
+      expected_version: payload.expected_version,
     });
     setDocument(res.document);
     setVersion(res.version);
@@ -118,13 +118,10 @@ export function ProjectProvider({ children, initialProjectId }: ProjectProviderP
     [projectId, document, version]
   );
 
-  const updateStemIdentity = useCallback(
-    async (
-      stem: keyof ProjectDocumentV1["stems"],
-      identity: StemIdentity
-    ) => {
+  const updateStemNode = useCallback(
+    async (stem: StemName, patch: Partial<StemNode>) => {
       if (!projectId || !document) throw new Error("No project loaded");
-      const res = await updateStemIdentityApi(projectId, stem, identity, document, version);
+      const res = await updateStemNodeApi(projectId, stem, patch, document, version);
       setDocument(res.document);
       setVersion(res.version);
     },
@@ -153,7 +150,7 @@ export function ProjectProvider({ children, initialProjectId }: ProjectProviderP
         updateMasterIntent,
         approveProposal,
         rejectProposal,
-        updateStemIdentity,
+        updateStemNode,
         deleteDocument,
         refreshDocument,
         canSave,
@@ -173,4 +170,4 @@ export function useProject() {
 }
 
 // Re-export types
-export type { ProjectDocumentV1, MasterIntent, StemIdentity };
+export type { ProjectDocumentV1, MasterIntent, StemName, StemNode };

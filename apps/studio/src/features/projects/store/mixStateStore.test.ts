@@ -208,7 +208,7 @@ describe("mixStateStore - hydration", () => {
           auto_balance: true,
         },
       },
-      undo_stack: [
+      undoStack: [
         {
           faders: { drums_db: 0, bass_db: 0, other_db: 0, vocals_db: 0 },
           toggles: {},

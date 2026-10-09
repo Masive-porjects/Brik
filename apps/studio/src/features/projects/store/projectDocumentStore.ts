@@ -2,83 +2,89 @@ import {
   getProjectDocument as getProjectDocumentApi,
   putProjectDocument as putProjectDocumentApi,
   deleteProjectDocument as deleteProjectDocumentApi,
+  type Group,
+  type MasterIntent,
+  type MixIntent,
+  type Proposal,
+  type ProjectDocumentResponse,
+  type ProjectDocumentV1,
+  type PutDocumentPayload,
+  type StemName,
+  type StemNode,
 } from "@/adapters/api/client";
 
-/** Project Document V1 types matching backend schema. */
-export interface StemIdentity {
-  name: string;
-  storagePath: string;
-  confirmed: boolean;
-}
+// The document contract lives in the API adapter (single source of truth,
+// mirroring the backend `ProjectDocument`); re-export it so feature consumers
+// keep importing it from the store.
+export type {
+  Group,
+  MasterIntent,
+  MixIntent,
+  Proposal,
+  ProjectDocumentResponse,
+  ProjectDocumentV1,
+  PutDocumentPayload,
+  StemName,
+  StemNode,
+};
 
-export interface PendingProposal {
-  id: string;
-  type: "fader" | "trim" | "balance" | "dimension" | "master_intent";
-  payload: unknown;
-  createdAt: string;
-  status: "pending" | "accepted" | "rejected";
-}
-
-export interface MasterIntent {
-  presetId: "universal" | "streaming" | "club" | "cd" | "custom";
-  platformTarget: "spotify" | "apple_music" | "youtube" | "tidal" | "club" | "cd" | "custom";
-  format: "wav" | "mp3";
-  outputBitDepth: 16 | 24 | 32;
-  masterName?: string;
-  parameters?: Record<string, number | boolean>;
-}
-
-export interface ProjectDocumentV1 {
-  schemaVersion: 1;
-  stems: Record<string, StemIdentity>;
-  pendingProposals: PendingProposal[];
-  masterIntent: MasterIntent;
-  updatedAt: string;
-  updatedBy: "user" | "ai";
-}
-
-/** Payload for PUT /projects/{id}/document with OCC. */
-export interface PutDocumentPayload {
-  document: ProjectDocumentV1;
-  expectedVersion: number;
-}
-
-/** Response from GET/PUT /projects/{id}/document. */
-export interface DocumentResponse {
-  projectId: string;
-  version: number;
-  document: ProjectDocumentV1;
-  updatedAt: string | null;
-}
-
-/** Default bootstrap document (version 0). */
+/** Default bootstrap document (version 0). Mirrors the backend
+ *  `default_document()`: same field names and defaults, so a document built
+ *  here validates against `ProjectDocument` unchanged. */
 export function defaultDocument(): ProjectDocumentV1 {
   return {
-    schemaVersion: 1,
-    stems: {
-      drums: { name: "drums", storagePath: "", confirmed: false },
-      bass: { name: "bass", storagePath: "", confirmed: false },
-      other: { name: "other", storagePath: "", confirmed: false },
-      vocals: { name: "vocals", storagePath: "", confirmed: false },
+    schema_version: 1,
+    structure: {
+      stems: {
+        drums: {
+          display_name: "Drums",
+          order: 0,
+          group_id: null,
+          color_token: null,
+          hidden: false,
+        },
+        bass: {
+          display_name: "Bass",
+          order: 1,
+          group_id: null,
+          color_token: null,
+          hidden: false,
+        },
+        other: {
+          display_name: "Other",
+          order: 2,
+          group_id: null,
+          color_token: null,
+          hidden: false,
+        },
+        vocals: {
+          display_name: "Vocals",
+          order: 3,
+          group_id: null,
+          color_token: null,
+          hidden: false,
+        },
+      },
+      groups: [],
     },
-    pendingProposals: [],
-    masterIntent: {
-      presetId: "universal",
-      platformTarget: "spotify",
+    mix_intent: { genre: null, character: null, proposals: [] },
+    master_intent: {
+      preset_id: null,
+      platform_target: null,
       format: "wav",
-      outputBitDepth: 24,
-      masterName: "",
-      parameters: {},
+      output_bit_depth: 24,
+      master_name: null,
+      parameters: null,
     },
-    updatedAt: new Date().toISOString(),
-    updatedBy: "user",
+    updated_by: "user",
+    updated_at: null,
   };
 }
 
 /** Fetches the project document (version 0 if none). */
 export async function getProjectDocument(
   projectId: string
-): Promise<DocumentResponse> {
+): Promise<ProjectDocumentResponse> {
   return getProjectDocumentApi(projectId);
 }
 
@@ -86,7 +92,7 @@ export async function getProjectDocument(
 export async function putProjectDocument(
   projectId: string,
   payload: PutDocumentPayload
-): Promise<DocumentResponse> {
+): Promise<ProjectDocumentResponse> {
   return putProjectDocumentApi(projectId, payload);
 }
 
@@ -95,44 +101,47 @@ export async function deleteProjectDocument(projectId: string): Promise<void> {
   await deleteProjectDocumentApi(projectId);
 }
 
-/** Approves a pending AI proposal and applies it to the document. */
+/** Approves a pending AI proposal and records the decision in the document.
+ *
+ *  A `master` proposal carries a partial `MasterIntent`; applying it merges
+ *  into `master_intent`. Mix-side proposals (`fader`/`toggle`) are applied to
+ *  the live mix state by the autosave path (spec §6.2, invariant I1), so
+ *  approving only records the decision here — it is never audible by itself. */
 export async function approveProposal(
   projectId: string,
   proposalId: string,
   currentDoc: ProjectDocumentV1,
   currentVersion: number
-): Promise<DocumentResponse> {
-  const proposal = currentDoc.pendingProposals.find((p) => p.id === proposalId);
+): Promise<ProjectDocumentResponse> {
+  const proposal = currentDoc.mix_intent.proposals.find(
+    (p) => p.id === proposalId
+  );
   if (!proposal) throw new Error("Proposal not found");
 
-  // Apply the proposal based on type
-  const updatedDoc: ProjectDocumentV1 = { ...currentDoc };
-  updatedDoc.pendingProposals = updatedDoc.pendingProposals.map((p) =>
-    p.id === proposalId ? { ...p, status: "accepted" as const } : p
-  );
-
-  switch (proposal.type) {
-    case "fader":
-    case "trim":
-    case "balance":
-    case "dimension":
-      // Mix-side proposals (faders/toggles) are applied to the live mix
-      // state by the store's autosave path (spec §6.2, invariant I1).
-      // Approving only records the decision in the document.
-      break;
-    case "master_intent": {
-      const payload = proposal.payload as Partial<MasterIntent>;
-      updatedDoc.masterIntent = { ...updatedDoc.masterIntent, ...payload };
-      break;
-    }
-  }
-
-  updatedDoc.updatedAt = new Date().toISOString();
-  updatedDoc.updatedBy = "user";
+  const decidedAt = new Date().toISOString();
+  const updatedDoc: ProjectDocumentV1 = {
+    ...currentDoc,
+    mix_intent: {
+      ...currentDoc.mix_intent,
+      proposals: currentDoc.mix_intent.proposals.map((p) =>
+        p.id === proposalId
+          ? { ...p, status: "accepted" as const, decided_at: decidedAt }
+          : p
+      ),
+    },
+    master_intent:
+      proposal.kind === "master"
+        ? {
+            ...currentDoc.master_intent,
+            ...(proposal.payload as Partial<MasterIntent>),
+          }
+        : currentDoc.master_intent,
+    updated_by: "user",
+  };
 
   return putProjectDocument(projectId, {
     document: updatedDoc,
-    expectedVersion: currentVersion,
+    expected_version: currentVersion,
   });
 }
 
@@ -142,19 +151,24 @@ export async function rejectProposal(
   proposalId: string,
   currentDoc: ProjectDocumentV1,
   currentVersion: number
-): Promise<DocumentResponse> {
+): Promise<ProjectDocumentResponse> {
+  const decidedAt = new Date().toISOString();
   const updatedDoc: ProjectDocumentV1 = {
     ...currentDoc,
-    pendingProposals: currentDoc.pendingProposals.map((p) =>
-      p.id === proposalId ? { ...p, status: "rejected" as const } : p
-    ),
-    updatedAt: new Date().toISOString(),
-    updatedBy: "user",
+    mix_intent: {
+      ...currentDoc.mix_intent,
+      proposals: currentDoc.mix_intent.proposals.map((p) =>
+        p.id === proposalId
+          ? { ...p, status: "rejected" as const, decided_at: decidedAt }
+          : p
+      ),
+    },
+    updated_by: "user",
   };
 
   return putProjectDocument(projectId, {
     document: updatedDoc,
-    expectedVersion: currentVersion,
+    expected_version: currentVersion,
   });
 }
 
@@ -164,37 +178,45 @@ export async function updateMasterIntent(
   intent: Partial<MasterIntent>,
   currentDoc: ProjectDocumentV1,
   currentVersion: number
-): Promise<DocumentResponse> {
+): Promise<ProjectDocumentResponse> {
   const updatedDoc: ProjectDocumentV1 = {
     ...currentDoc,
-    masterIntent: { ...currentDoc.masterIntent, ...intent },
-    updatedAt: new Date().toISOString(),
-    updatedBy: "user",
+    master_intent: { ...currentDoc.master_intent, ...intent },
+    updated_by: "user",
   };
 
   return putProjectDocument(projectId, {
     document: updatedDoc,
-    expectedVersion: currentVersion,
+    expected_version: currentVersion,
   });
 }
 
-/** Updates stem identity (e.g., after separation confirmation). */
-export async function updateStemIdentity(
+/** Patches one stem's identity/presentation in `structure.stems`.
+ *
+ *  The document has no audio path or confirmation flag — those live in
+ *  `audio_assets`, not in the document — so this only touches `StemNode`
+ *  fields (`display_name`, `order`, `group_id`, `color_token`, `hidden`). */
+export async function updateStemNode(
   projectId: string,
-  stem: keyof ProjectDocumentV1["stems"],
-  identity: { name: string; storagePath: string; confirmed: boolean },
+  stem: StemName,
+  patch: Partial<StemNode>,
   currentDoc: ProjectDocumentV1,
   currentVersion: number
-): Promise<DocumentResponse> {
+): Promise<ProjectDocumentResponse> {
   const updatedDoc: ProjectDocumentV1 = {
     ...currentDoc,
-    stems: { ...currentDoc.stems, [stem]: identity },
-    updatedAt: new Date().toISOString(),
-    updatedBy: "user",
+    structure: {
+      ...currentDoc.structure,
+      stems: {
+        ...currentDoc.structure.stems,
+        [stem]: { ...currentDoc.structure.stems[stem], ...patch },
+      },
+    },
+    updated_by: "user",
   };
 
   return putProjectDocument(projectId, {
     document: updatedDoc,
-    expectedVersion: currentVersion,
+    expected_version: currentVersion,
   });
 }

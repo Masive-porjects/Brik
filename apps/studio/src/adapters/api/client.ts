@@ -1,4 +1,5 @@
 import { API_BASE } from "./config";
+import { createClient } from "@/lib/supabase/client";
 
 /** Thrown when an API call fails. Carries the HTTP status code. */
 export class ApiError extends Error {
@@ -349,6 +350,34 @@ export function getStoredLicenseKey(): string | null {
 export function licenseHeaders(): Record<string, string> {
   const key = getStoredLicenseKey();
   return key ? { "X-License-Key": key } : {};
+}
+
+/**
+ * Headers for the authenticated `/projects/*` endpoints.
+ *
+ * Extends {@link licenseHeaders} with the Supabase bearer token the backend
+ * requires (`api/auth.py` `get_user_context`); in production the token is what
+ * resolves the caller to a user, and without it every `/projects/*` call is a
+ * 401. `getSession()` reads the stored session and works outside React.
+ *
+ * Never throws: when Supabase is not configured (local dev) or there is no
+ * session, it returns only the license headers so the call still reaches the
+ * backend and the dev fallback applies.
+ */
+export async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { ...licenseHeaders() };
+  try {
+    const {
+      data: { session },
+    } = await createClient().auth.getSession();
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+  } catch {
+    // No browser client (env missing) or getSession failed: proceed without
+    // auth rather than breaking the call, matching the dev/no-session path.
+  }
+  return headers;
 }
 
 export interface LicenseStatus {
@@ -839,34 +868,100 @@ export async function getMasterJobStatus(jobId: string): Promise<AsyncJobStatus>
 
 /* ── Project Document & State (WU3) ───────────────────────────────── */
 
-/** V1 Project Document structure. */
-export interface ProjectDocumentV1 {
-  schemaVersion: 1;
-  stems: Record<string, {
-    name: string;
-    storagePath: string;
-    confirmed: boolean;
-  }>;
-  pendingProposals: Array<{
-    id: string;
-    type: "fader" | "trim" | "balance" | "dimension" | "master_intent";
-    payload: unknown;
-    createdAt: string;
-    status: "pending" | "accepted" | "rejected";
-  }>;
-  masterIntent: {
-    presetId: "universal" | "streaming" | "club" | "cd" | "custom";
-    platformTarget: "spotify" | "apple_music" | "youtube" | "tidal" | "club" | "cd" | "custom";
-    format: "wav" | "mp3";
-    outputBitDepth: 16 | 24 | 32;
-    masterName?: string;
-    parameters?: Record<string, number | boolean>;
-  };
-  updatedAt: string;
-  updatedBy: "user" | "ai";
+/**
+ * The four Demucs stems, in the engine's order. Mirrors the backend
+ * `StemName` literal (`models/project_document.py`).
+ */
+export type StemName = "drums" | "bass" | "other" | "vocals";
+
+/** Identity/presentation of one stem (no audio, no gain). Mirrors backend `StemNode`. */
+export interface StemNode {
+  display_name: string;
+  /** 0..3, mirrors the engine order. */
+  order: number;
+  group_id?: string | null;
+  color_token?: string | null;
+  hidden: boolean;
 }
 
-/** GET /projects/{id}/document response. */
+/** A UI grouping of stems. Mirrors backend `Group`. */
+export interface Group {
+  id: string;
+  display_name: string;
+  order: number;
+  color_token?: string | null;
+}
+
+/**
+ * A pending intent change proposed by the Intelligence. Never audible on its
+ * own: it becomes sound only when applied to `project_states` by the user.
+ * Mirrors backend `Proposal`.
+ */
+export interface Proposal {
+  /** UUID. */
+  id: string;
+  kind: "fader" | "toggle" | "master";
+  payload: Record<string, unknown>;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+  rationale?: string | null;
+  decided_at?: string | null;
+}
+
+/** The musical intent of the mix. Mirrors backend `MixIntent`. */
+export interface MixIntent {
+  genre?: string | null;
+  character?: string | null;
+  proposals: Proposal[];
+}
+
+/** Delivery intent for the master job. Mirrors backend `MasterIntent`. */
+export interface MasterIntent {
+  preset_id:
+    | "universal"
+    | "fuego"
+    | "claridad"
+    | "cinta"
+    | "natural"
+    | "espacial"
+    | "cinematico"
+    | "empuje"
+    | null;
+  /** 7-value payload set (NOT the 5-value `MasteringParameters.platform_target`). */
+  platform_target:
+    | "spotify"
+    | "apple_music"
+    | "youtube"
+    | "tidal"
+    | "club"
+    | "cd"
+    | "custom"
+    | null;
+  format: "wav" | "mp3";
+  /** 16..32. */
+  output_bit_depth: number;
+  master_name?: string | null;
+  parameters?: Record<string, unknown> | null;
+}
+
+/**
+ * V1 project document: intention + structure of one project. Mirrors the
+ * backend `ProjectDocument` and the JSON Schema in
+ * `docs/reference/specs/project_document_v1_spec.md` §3, field for field.
+ */
+export interface ProjectDocumentV1 {
+  schema_version: 1;
+  structure: {
+    stems: Record<StemName, StemNode>;
+    groups: Group[];
+  };
+  mix_intent: MixIntent;
+  master_intent: MasterIntent;
+  updated_by: "user" | "intelligence" | "system";
+  updated_at: string | null;
+}
+
+/** GET/PUT /projects/{id}/document response, normalized to camelCase. */
 export interface ProjectDocumentResponse {
   projectId: string;
   version: number;
@@ -874,80 +969,120 @@ export interface ProjectDocumentResponse {
   updatedAt: string | null;
 }
 
-/** PUT /projects/{id}/document payload. */
+/** PUT /projects/{id}/document payload. `expected_version` is snake_case
+ *  because the backend `DocumentPut` model has `extra="forbid"`. */
 export interface PutDocumentPayload {
   document: ProjectDocumentV1;
-  expectedVersion: number;
+  expected_version: number;
 }
 
-/** Mix state payload for PATCH /projects/{id}/state. */
+/** A single snapshot of the live mix for undo/redo. */
+export interface MixSnapshot {
+  faders: Record<string, number>;
+  toggles: Record<string, unknown>;
+  timestamp: number;
+}
+
+/** PATCH /projects/{id}/state request body (snake_case, backend contract). */
 export interface MixStatePayload {
   state: {
     faders: Record<string, number>;
     toggles: Record<string, unknown>;
   };
-  undo_stack: Array<{
-    faders: Record<string, number>;
-    toggles: Record<string, unknown>;
-    timestamp: number;
-  }>;
+  undo_stack: MixSnapshot[];
 }
 
-/** GET /projects/{id}/state response. */
+/** GET/PATCH /projects/{id}/state response, normalized to camelCase. */
 export interface MixStateResponse {
   projectId: string;
   state: {
     faders: Record<string, number>;
     toggles: Record<string, unknown>;
   };
-  undo_stack: Array<{
-    faders: Record<string, number>;
-    toggles: Record<string, unknown>;
-    timestamp: number;
-  }>;
+  undoStack: MixSnapshot[];
   updatedAt: string | null;
+}
+
+/** POST /projects/{id}/jobs/{mix,master} response, normalized to camelCase. */
+export interface ProjectJobAccepted {
+  jobId: string;
+  pollUrl: string;
+}
+
+/** Raw wire shape of a project document row (snake_case from the backend). */
+interface RawProjectDocumentResponse {
+  project_id: string;
+  version: number;
+  document: ProjectDocumentV1;
+  updated_at: string | null;
+}
+
+/** Raw wire shape of the mix state (snake_case from the backend). */
+interface RawMixStateResponse {
+  project_id: string;
+  state: MixStateResponse["state"];
+  undo_stack: MixSnapshot[];
+  updated_at: string | null;
+}
+
+/** Raw wire shape of a project job submit (snake_case from the backend). */
+interface RawProjectJobResponse {
+  job_id: string;
+  poll_url: string;
+}
+
+/** Normalizes a raw project document row to camelCase (B2). */
+function toProjectDocumentResponse(
+  raw: RawProjectDocumentResponse,
+): ProjectDocumentResponse {
+  return {
+    projectId: raw.project_id,
+    version: raw.version,
+    document: raw.document,
+    updatedAt: raw.updated_at,
+  };
+}
+
+/** Normalizes a raw mix state row to camelCase (B2). */
+function toMixStateResponse(raw: RawMixStateResponse): MixStateResponse {
+  return {
+    projectId: raw.project_id,
+    state: raw.state,
+    undoStack: raw.undo_stack ?? [],
+    updatedAt: raw.updated_at,
+  };
 }
 
 /** Fetches the V1 project document (bootstrap if none). */
 export async function getProjectDocument(
   projectId: string
-): Promise<{
-  projectId: string;
-  version: number;
-  document: ProjectDocumentV1;
-  updatedAt: string | null;
-}> {
+): Promise<ProjectDocumentResponse> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
-    headers: { ...licenseHeaders() },
+    headers: { ...(await authHeaders()) },
   });
   if (!res.ok) throw new ApiError("Failed to fetch project document", res.status);
-  return res.json();
+  return toProjectDocumentResponse(await res.json());
 }
 
 /** Writes the V1 project document with OCC. */
 export async function putProjectDocument(
   projectId: string,
-  payload: { document: ProjectDocumentV1; expectedVersion: number }
-): Promise<{
-  projectId: string;
-  version: number;
-  document: ProjectDocumentV1;
-  updatedAt: string | null;
-}> {
+  payload: PutDocumentPayload
+): Promise<ProjectDocumentResponse> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new ApiError("Failed to write project document", res.status);
-  return res.json();
+  return toProjectDocumentResponse(await res.json());
 }
 
 /** Deletes the project document (resets to bootstrap). */
 export async function deleteProjectDocument(projectId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
     method: "DELETE",
-    headers: { ...licenseHeaders() },
+    headers: { ...(await authHeaders()) },
   });
   if (!res.ok) throw new ApiError("Failed to delete project document", res.status);
 }
@@ -955,78 +1090,56 @@ export async function deleteProjectDocument(projectId: string): Promise<void> {
 /** Fetches the live mix state. */
 export async function getProjectMixState(
   projectId: string
-): Promise<{
-  projectId: string;
-  state: { faders: Record<string, number>; toggles: Record<string, unknown> };
-  undo_stack: Array<{
-    faders: Record<string, number>;
-    toggles: Record<string, unknown>;
-    timestamp: number;
-  }>;
-  updatedAt: string | null;
-}> {
+): Promise<MixStateResponse> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
-    headers: { ...licenseHeaders() },
+    headers: { ...(await authHeaders()) },
   });
   if (!res.ok) throw new ApiError("Failed to fetch mix state", res.status);
-  return res.json();
+  return toMixStateResponse(await res.json());
 }
 
-/** Updates the live mix state (debounced by caller). */
+/** Updates the live mix state (debounced by caller). The request body stays
+ *  snake_case (`{ state, undo_stack }`) because the backend requires it. */
 export async function patchProjectMixState(
   projectId: string,
-  payload: {
-    state: { faders: Record<string, number>; toggles: Record<string, unknown> };
-    undo_stack: Array<{
-      faders: Record<string, number>;
-      toggles: Record<string, unknown>;
-      timestamp: number;
-    }>;
-  }
-): Promise<{
-  projectId: string;
-  state: { faders: Record<string, number>; toggles: Record<string, unknown> };
-  undo_stack: Array<{
-    faders: Record<string, number>;
-    toggles: Record<string, unknown>;
-    timestamp: number;
-  }>;
-  updatedAt: string | null;
-}> {
+  payload: MixStatePayload
+): Promise<MixStateResponse> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new ApiError("Failed to update mix state", res.status);
-  return res.json();
+  return toMixStateResponse(await res.json());
 }
 
-/** Submits a mix job for a project (returns job_id + poll_url). */
+/** Submits a mix job for a project (returns job id + poll URL). */
 export async function submitProjectMixJob(
   projectId: string,
   signal?: AbortSignal
-): Promise<{ job_id: string; poll_url: string }> {
+): Promise<ProjectJobAccepted> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/mix`, {
     method: "POST",
-    headers: { ...licenseHeaders() },
+    headers: { ...(await authHeaders()) },
     signal,
   });
   if (!res.ok) throw new ApiError("Failed to submit mix job", res.status);
-  return res.json();
+  const raw = (await res.json()) as RawProjectJobResponse;
+  return { jobId: raw.job_id, pollUrl: raw.poll_url };
 }
 
-/** Submits a mastering job for a project (returns job_id + poll_url). */
+/** Submits a mastering job for a project (returns job id + poll URL). */
 export async function submitProjectMasterJob(
   projectId: string,
   signal?: AbortSignal
-): Promise<{ job_id: string; poll_url: string }> {
+): Promise<ProjectJobAccepted> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/master`, {
     method: "POST",
-    headers: { ...licenseHeaders() },
+    headers: { ...(await authHeaders()) },
     signal,
   });
   if (!res.ok) throw new ApiError("Failed to submit mastering job", res.status);
-  return res.json();
+  const raw = (await res.json()) as RawProjectJobResponse;
+  return { jobId: raw.job_id, pollUrl: raw.poll_url };
 }
 

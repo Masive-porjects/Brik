@@ -106,7 +106,7 @@ export function createMixStateStore(projectId: string) {
           ...res.state,
           faders: { ...DEFAULT_MIX_STATE.faders, ...res.state.faders },
           toggles: { ...DEFAULT_MIX_STATE.toggles, ...res.state.toggles },
-          undoStack: (res.undo_stack as unknown as MixSnapshot[]) ?? [],
+          undoStack: (res.undoStack as unknown as MixSnapshot[]) ?? [],
           redoStack: [],
           updatedAt: res.updatedAt ?? null,
         };
