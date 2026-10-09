@@ -1,15 +1,48 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import gsap from "gsap";
 import { ArrowRight, Terminal, ShieldCheck, Cpu, Sliders, Wifi } from "lucide-react";
 import { useTranslation } from "@/i18n";
 
 export default function LandingCTA() {
   const { t } = useTranslation();
+  // Magnetic hover lives on a wrapper so GSAP's translate never fights the
+  // button's own CSS scale transition. Desktop / fine-pointer only.
+  const primaryCtaRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const el = primaryCtaRef.current;
+    if (!el) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const xTo = gsap.quickTo(el, "x", { duration: 0.5, ease: "power3.out" });
+    const yTo = gsap.quickTo(el, "y", { duration: 0.5, ease: "power3.out" });
+
+    const onMove = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      xTo(((e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2)) * 10);
+      yTo(((e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2)) * 8);
+    };
+    const onLeave = () => {
+      xTo(0);
+      yTo(0);
+    };
+
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+      gsap.set(el, { x: 0, y: 0 });
+    };
+  }, []);
 
   return (
     <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative overflow-hidden">
-      <div className="max-w-[1440px] mx-auto relative rounded-3xl bg-gradient-to-b from-[#1f1f24] to-[#1a1b20] p-8 sm:p-12 lg:p-20 shadow-2xl border border-white/5 flex flex-col items-center text-center gap-8 overflow-hidden">
+      <div className="max-w-[1440px] mx-auto relative rounded-3xl bg-gradient-to-b from-[#1f1f24] to-[#1a1b20] p-8 sm:p-12 lg:p-20 shadow-2xl border border-white/[0.08] flex flex-col items-center text-center gap-8 overflow-hidden">
         {/* Glow flares inside card */}
         <div
           className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/15 rounded-full blur-[120px] pointer-events-none"
@@ -37,16 +70,18 @@ export default function LandingCTA() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center gap-4 z-10 pt-2">
-          <Link
-            href="/upload"
-            className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-body-lg font-bold hover:bg-primary-container transition-all transform hover:scale-105 shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
-          >
-            <span>{t("landing.cta.btnStudio", "Ingresar a Brik Studio")}</span>
-            <span className="font-label-technical text-xs opacity-75">
-              {t("landing.cta.btnStudioTag", "(/studio)")}
-            </span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </Link>
+          <span ref={primaryCtaRef} className="flex w-full sm:w-auto will-change-transform">
+            <Link
+              href="/upload"
+              className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-body-lg font-bold hover:bg-primary-container transition-all transform hover:scale-105 shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
+            >
+              <span>{t("landing.cta.btnStudio", "Ingresar a Brik Studio")}</span>
+              <span className="font-label-technical text-xs opacity-75">
+                {t("landing.cta.btnStudioTag", "(/studio)")}
+              </span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </span>
 
           <a
             href="#arquitectura-dsp"

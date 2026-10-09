@@ -58,14 +58,16 @@ export function InteractiveCard({
       }
     : undefined;
 
+  // Accessible glassmorphism: solid high-contrast base (#121317) + subtle
+  // 1px border + light blur. Body copy stays fully legible (no heavy blur).
   const baseClass = `
-    group flex flex-col justify-between h-full p-6 sm:p-8 rounded-2xl bg-[#1a1b20]
+    group flex flex-col justify-between h-full p-6 sm:p-8 rounded-2xl bg-[#121317]/95 backdrop-blur-md
     border transition-all duration-300 shadow-xl relative overflow-hidden
     ${isExpanded
-      ? "border-primary/40 bg-[#1f1f24] shadow-[0_0_30px_rgba(110,233,224,0.1)]"
-      : "border-white/[0.05] hover:border-white/10"
+      ? "border-primary/40 bg-[#16181d]/95 shadow-[0_0_30px_rgba(110,233,224,0.1)]"
+      : "border-white/[0.08] hover:border-white/[0.16]"
     }
-    ${disableHoverOnMobile ? "" : "hover:bg-[#1f1f24]"}
+    ${disableHoverOnMobile ? "" : "hover:bg-[#17191f]/95"}
     ${className}
   `.trim();
 
