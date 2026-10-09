@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "@/i18n";
@@ -42,7 +42,7 @@ function DesktopNav() {
   const { activeSection, onLinkClick } = useMobileMenu();
 
   return (
-    <nav className="hidden lg:flex items-center gap-1" aria-label="Navegación principal">
+    <nav className="hidden lg:flex items-center gap-1" aria-label={t("landing.nav.mainNav", "Navegación principal")}>
       {navLinks.map((link) => {
         const isActive = activeSection === link.id;
         return (
@@ -66,43 +66,96 @@ function DesktopNav() {
 
 // Mobile Hamburger Button (for right side of header)
 function MobileMenuButton() {
+  const { t } = useTranslation();
   const { isOpen, setIsOpen } = useMobileMenu();
 
   return (
     <button
       type="button"
-      className="lg:hidden p-2 rounded-lg text-[#bcc9c7] hover:text-white hover:bg-white/[0.05] transition-colors"
+      className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg text-[#bcc9c7] hover:text-white hover:bg-white/[0.05] transition-colors"
       onClick={() => setIsOpen(!isOpen)}
       aria-expanded={isOpen}
       aria-controls="mobile-menu"
-      aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
+      aria-label={isOpen ? t("landing.nav.closeMenu", "Cerrar menú") : t("landing.nav.openMenu", "Abrir menú")}
     >
       {isOpen ? (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
       ) : (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
       )}
     </button>
   );
 }
 
-// Mobile Drawer - Fixed: z-[100], full backdrop, body scroll lock, all nav links + user controls
+// Mobile Drawer - z-[100], full backdrop, body scroll lock, focus trap, Esc + all nav links
 function MobileDrawer() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isOpen, setIsOpen, activeSection, onLinkClick } = useMobileMenu();
 
-  // Body scroll lock
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  // Body scroll lock (restore the previous value on close)
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
+
+  // Escape to close + focus management (move in on open, trap Tab, restore on close)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previouslyFocused.current = (document.activeElement as HTMLElement | null) ?? null;
+    const focusTimer = window.setTimeout(
+      () => closeButtonRef.current?.focus({ preventScroll: true }),
+      60,
+    );
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (!panel.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused.current?.focus?.({ preventScroll: true });
+    };
+  }, [isOpen, setIsOpen]);
 
   const handleClose = () => setIsOpen(false);
 
@@ -119,7 +172,7 @@ function MobileDrawer() {
           onClick={handleClose}
           role="dialog"
           aria-modal="true"
-          aria-label="Menú de navegación"
+          aria-label={t("landing.nav.menuLabel", "Menú de navegación")}
         >
           {/* Backdrop - full screen, dark with heavy blur */}
           <motion.div
@@ -131,6 +184,7 @@ function MobileDrawer() {
 
           {/* Slide Panel - from right, full height */}
           <motion.div
+            ref={panelRef}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -142,17 +196,18 @@ function MobileDrawer() {
             <div className="flex items-center justify-between p-4 border-b border-white/5">
               <span className="font-sans text-xl text-primary font-bold tracking-tight">BRIK</span>
               <button
+                ref={closeButtonRef}
                 type="button"
-                className="p-1 rounded-lg hover:bg-white/[0.05] transition-colors"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-white/[0.05] transition-colors"
                 onClick={handleClose}
-                aria-label="Cerrar menú"
+                aria-label={t("landing.nav.closeMenu", "Cerrar menú")}
               >
-                <svg className="w-5 h-5 text-[#bcc9c7]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg className="w-5 h-5 text-[#bcc9c7]" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
             {/* Nav Links */}
-            <nav className="flex-1 p-4 space-y-2 overflow-y-auto" aria-label="Navegación móvil">
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto" aria-label={t("landing.nav.mobileNav", "Navegación móvil")}>
               {navLinks.map((link) => {
                 const isActive = activeSection === link.id;
                 return (

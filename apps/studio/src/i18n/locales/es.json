@@ -595,7 +595,12 @@
       "abCompare": "Comparador A/B",
       "founders": "Equipo Fundador",
       "enterStudio": "Ingresar a Brik Studio",
-      "studioBadge": "(/studio)"
+      "studioBadge": "(/studio)",
+      "openMenu": "Abrir menú",
+      "closeMenu": "Cerrar menú",
+      "menuLabel": "Menú de navegación",
+      "mainNav": "Navegación principal",
+      "mobileNav": "Navegación móvil"
     },
     "hero": {
       "eyebrow": "Mastering Spectral DSP · 13 Etapas · 8× Oversampling",

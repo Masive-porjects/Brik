@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import LanguageSwitcher from "@/presentation/components/LanguageSwitcher";
 import ThemeToggle from "@/presentation/components/ThemeToggle";
 import { UserMenu, useAuth } from "@/features/auth";
 import { useTranslation } from "@/i18n";
+import { BASE_PATH } from "@/lib/basePath";
 import LandingNavigation from "./LandingNavigation";
 
 export default function LandingHeader() {
@@ -17,9 +19,12 @@ export default function LandingHeader() {
       <div className="h-18 w-full px-4 sm:px-8 lg:px-12 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
         {/* Brand Logo - Clean, no pulse, no badge */}
         <Link href="/" className="flex items-center gap-2.5 group" aria-label={t("landing.nav.brand", "BRIK")}>
-          <img
-            src="/brand/mascota-3d.png"
+          <Image
+            src={`${BASE_PATH}/brand/mascota-3d.png`}
             alt=""
+            width={28}
+            height={28}
+            priority
             className="w-7 h-7 rounded-lg object-contain transition-transform group-hover:scale-110"
             aria-hidden="true"
           />

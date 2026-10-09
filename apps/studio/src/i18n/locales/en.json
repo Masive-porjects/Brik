@@ -595,7 +595,12 @@
       "abCompare": "A/B Comparison",
       "founders": "Founding Team",
       "enterStudio": "Enter Brik Studio",
-      "studioBadge": "(/studio)"
+      "studioBadge": "(/studio)",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "menuLabel": "Navigation menu",
+      "mainNav": "Main navigation",
+      "mobileNav": "Mobile navigation"
     },
     "hero": {
       "eyebrow": "Spectral Mastering DSP · 13 Stages · 8× Oversampling",
