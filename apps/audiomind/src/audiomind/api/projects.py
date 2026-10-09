@@ -51,11 +51,19 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from audiomind.api.auth import UserContext, get_user_context
 from audiomind.models.project_document import ProjectDocument, default_document
-from audiomind.services.compile_project import compile, load_inputs
-from audiomind.models.project_document import ProjectDocument
+from audiomind.services import storage, supabase_client
+from audiomind.services.compile_project import (
+    ProjectNotFoundError,
+    compile,
+    load_inputs,
+)
+from audiomind.services.project_jobs import (
+    run_project_master_job,
+    run_project_mix_job,
+    submit_project_master_job,
+    submit_project_mix_job,
+)
 from audiomind.services.separate_jobs import submit_separate_job
-from audiomind.services import storage
-from audiomind.services import supabase_client
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -236,6 +244,31 @@ class SeparateSubmitOut(BaseModel):
     status: str
     reused: bool = False
     result: dict[str, Any] | None = None
+
+
+class ProjectJobRequest(BaseModel):
+    """Optional body of ``POST /projects/{id}/jobs/{mix,master}``.
+
+    ``asset_id`` pins the source original; when omitted (or absent, i.e. an
+    empty body) the endpoint resolves the project's most recent
+    ``kind='original'`` asset.
+    """
+
+    asset_id: str | None = Field(default=None, max_length=64)
+
+
+class ProjectJobSubmitOut(BaseModel):
+    """Answer to a project mix/master submit.
+
+    The client polls ``poll_url`` until the job reaches a terminal state; the
+    poll endpoints are shared with the anonymous mix/master jobs.
+    """
+
+    job_id: str
+    project_id: str
+    asset_id: str
+    status: str = "processing"
+    poll_url: str
 
 
 def _project_out(row: dict[str, Any]) -> ProjectOut:
@@ -835,41 +868,108 @@ async def delete_document(
 
 @router.post(
     "/{project_id}/jobs/mix",
-    response_model=dict[str, Any],
+    response_model=ProjectJobSubmitOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def project_mix_job(
     project_id: str,
     ctx: Annotated[UserContext, Depends(get_user_context)],
     background_tasks: BackgroundTasks,
-) -> dict[str, Any]:
-    """Submit a mix job for a project.
-    Placeholder: compiles document + state to MixPlan and enqueues a DSP job.
-    Returns job_id and poll URL.
+    payload: ProjectJobRequest | None = None,
+) -> ProjectJobSubmitOut:
+    """Submit an async mix job for a project.
+
+    Compiles the project document + live state into a MixPlan, registers the
+    job in the durable job store and enqueues the project-native mix worker
+    as a background task. Answers 202 with the job id and the shared poll
+    URL (``GET /api/jobs/mix/{job_id}``); the worker uploads the mix to R2
+    and registers it as a ``kind='master'`` asset.
+
+    ``asset_id`` in the body pins the source original (the project's most
+    recent original is used when omitted). Ownership follows the module's
+    rule: the token-scoped client enforces RLS, and every query filters
+    ``user_id`` explicitly.
     """
-    return {
-        "job_id": f"mix_{project_id}_{uuid.uuid4().hex[:8]}",
-        "project_id": project_id,
-        "status": "processing",
-        "poll_url": f"/api/jobs/mix/{{job_id}}",
-    }
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+    try:
+        doc, state = load_inputs(project_id, ctx.user_id, client=client)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proyecto no encontrado.",
+        ) from exc
+    plan = compile(doc, state)
+    asset_id = payload.asset_id if payload else None
+    try:
+        record = submit_project_mix_job(
+            project_id, ctx.user_id, asset_id, client, plan
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    resolved_asset = (
+        record.meta.get("asset_id") if isinstance(record.meta, dict) else None
+    )
+    background_tasks.add_task(run_project_mix_job, record.job_id)
+    return ProjectJobSubmitOut(
+        job_id=record.job_id,
+        project_id=project_id,
+        asset_id=str(resolved_asset or ""),
+        status="processing",
+        poll_url=f"/api/jobs/mix/{record.job_id}",
+    )
 
 
 @router.post(
     "/{project_id}/jobs/master",
-    response_model=dict[str, Any],
+    response_model=ProjectJobSubmitOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def project_master_job(
     project_id: str,
     ctx: Annotated[UserContext, Depends(get_user_context)],
     background_tasks: BackgroundTasks,
-) -> dict[str, Any]:
-    """Submit a mastering job for a project.
-    Placeholder: compiles document + state to MixPlan and enqueues a mastering job.
-    Returns job_id and poll URL.
+    payload: ProjectJobRequest | None = None,
+) -> ProjectJobSubmitOut:
+    """Submit an async mastering job for a project.
+
+    Compiles the project document + live state into a MixPlan, registers the
+    job in the durable job store and enqueues the project-native mastering
+    worker as a background task. Answers 202 with the job id and the shared
+    poll URL (``GET /api/jobs/master/{job_id}``); the worker uploads the
+    master to R2 and registers it as a ``kind='master'`` asset.
     """
-    return {
-        "job_id": f"master_{project_id}_{uuid.uuid4().hex[:8]}",
-        "project_id": project_id,
-        "status": "processing",
-        "poll_url": f"/api/jobs/master/{{job_id}}",
-    }
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+    try:
+        doc, state = load_inputs(project_id, ctx.user_id, client=client)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proyecto no encontrado.",
+        ) from exc
+    plan = compile(doc, state)
+    asset_id = payload.asset_id if payload else None
+    try:
+        record = submit_project_master_job(
+            project_id, ctx.user_id, asset_id, client, plan
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    resolved_asset = (
+        record.meta.get("asset_id") if isinstance(record.meta, dict) else None
+    )
+    background_tasks.add_task(run_project_master_job, record.job_id)
+    return ProjectJobSubmitOut(
+        job_id=record.job_id,
+        project_id=project_id,
+        asset_id=str(resolved_asset or ""),
+        status="processing",
+        poll_url=f"/api/jobs/master/{record.job_id}",
+    )
