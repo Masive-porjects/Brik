@@ -98,6 +98,8 @@ export function useMasteringJob(
   // Sync callbacks from options — in an effect, never during render
   // (react-hooks/refs). The refs are only read from intervals/event handlers,
   // so effect timing keeps them fresh without a render-phase write.
+  const onCompleteRef = useRef(options.onComplete);
+  const onErrorRef = useRef(options.onError);
   useEffect(() => {
     onCompleteRef.current = options.onComplete;
     onErrorRef.current = options.onError;
