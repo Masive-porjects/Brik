@@ -16,8 +16,10 @@ interface NavLink {
 const navLinks: NavLink[] = [
   { id: "arquitectura-dsp", label: "landing.nav.stage13" },
   { id: "presets-fantasmagoricos", label: "landing.nav.presets" },
+  { id: "precios", label: "landing.nav.pricing" },
   { id: "comparador", label: "landing.nav.abCompare" },
   { id: "equipo-fundador", label: "landing.nav.founders" },
+  { id: "faq", label: "landing.nav.faq" },
 ];
 
 // Context for shared mobile menu state
@@ -272,8 +274,10 @@ export default function LandingNavigation() {
       const sections = [
         "arquitectura-dsp",
         "presets-fantasmagoricos",
+        "precios",
         "comparador",
         "equipo-fundador",
+        "faq",
       ];
 
       for (const sectionId of sections) {

@@ -592,15 +592,18 @@
       "brand": "BRIK",
       "stage13": "13-Stage Architecture",
       "presets": "Phantasmal Presets",
+      "pricing": "Pricing",
       "abCompare": "A/B Comparison",
       "founders": "Founding Team",
+      "faq": "FAQ",
       "enterStudio": "Enter Brik Studio",
       "studioBadge": "(/studio)",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
       "menuLabel": "Navigation menu",
       "mainNav": "Main navigation",
-      "mobileNav": "Mobile navigation"
+      "mobileNav": "Mobile navigation",
+      "dspCore": "DSP Core"
     },
     "hero": {
       "eyebrow": "Spectral Mastering DSP · 13 Stages · 8× Oversampling",
@@ -812,6 +815,58 @@
         "spec2": { "label": "Dithering", "value": "Lipshitz 2nd Order (NS)", "desc": "Noise-shaped dithering — noise floor > 15 kHz" },
         "spec3": { "label": "Multi-Device Validation", "value": "14 IR Profiles", "desc": "Environment simulation: studio, club, car, mobile, festival" },
         "spec4": { "label": "Spectral Tolerance", "value": "±0.4 dB", "desc": "Automated QC — rejection if exceeds tolerance vs reference" }
+      }
+    },
+    "pricing": {
+      "badge": "Commercial Structure",
+      "title": "Clear pricing, no surprises",
+      "subtitle": "Pay per song whenever you need it, or buy credits for your studio or label. No mandatory subscriptions and no hidden fees.",
+      "featuredBadge": "Most chosen",
+      "disclaimer": "Reference prices: final numbers will be confirmed when payments go live.",
+      "payPerSong": {
+        "name": "Pay per song",
+        "tagline": "For independent artists",
+        "unit": "per song",
+        "feature1": "1 streaming-ready 24-bit master",
+        "feature2": "Delivery in WAV and MP3",
+        "feature3": "Deterministic 13-stage DSP chain",
+        "feature4": "100% of the intellectual property stays yours",
+        "cta": "Master a song"
+      },
+      "credits": {
+        "name": "Credits and plans",
+        "tagline": "For studios and labels",
+        "unit": "per pack",
+        "feature1": "Volume discounts on packs",
+        "feature2": "Invoicing and team management",
+        "feature3": "Batch catalog processing",
+        "feature4": "Priority support",
+        "cta": "Request B2B access"
+      }
+    },
+    "faq": {
+      "badge": "Frequently Asked Questions",
+      "title": "Everything you should know",
+      "subtitle": "Straight answers about ownership, delivery formats, and how the engine processes your audio.",
+      "ip": {
+        "question": "Who owns the intellectual property of my music?",
+        "answer": "You do, 100%. BrikMaster claims no rights over your mix, your master, or any file you upload. You keep full ownership of your work and can distribute it freely."
+      },
+      "formats": {
+        "question": "In what formats do I receive my master?",
+        "answer": "You receive your master as 16- or 24-bit WAV for maximum fidelity, and you can also export an MP3 to share it quickly. Download everything from your library whenever you want."
+      },
+      "deterministic": {
+        "question": "Does the AI invent or hallucinate things while processing my audio?",
+        "answer": "No. The BrikMaster chain is a deterministic 13-stage DSP engine: the same input audio and the same settings always produce the same result. Nothing is generated at random; processing is reproducible and verifiable."
+      },
+      "privacy": {
+        "question": "Is my audio shared or exposed?",
+        "answer": "Your audio is used only to generate your master and stays in your private library. We do not publish it or share it with third parties, and you can delete your files whenever you want."
+      },
+      "skill": {
+        "question": "Do I need audio engineering knowledge?",
+        "answer": "No. Upload your mix, pick a preset, and BrikMaster applies the full chain. If you want to fine-tune, every stage has manual control; if you do not, the automatic setting already delivers a streaming-ready master."
       }
     },
     "footer": {

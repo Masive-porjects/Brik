@@ -592,15 +592,18 @@
       "brand": "BRIK",
       "stage13": "Arquitectura 13 Etapas",
       "presets": "Presets Fantasmagóricos",
+      "pricing": "Precios",
       "abCompare": "Comparador A/B",
       "founders": "Equipo Fundador",
+      "faq": "Preguntas Frecuentes",
       "enterStudio": "Ingresar a Brik Studio",
       "studioBadge": "(/studio)",
       "openMenu": "Abrir menú",
       "closeMenu": "Cerrar menú",
       "menuLabel": "Menú de navegación",
       "mainNav": "Navegación principal",
-      "mobileNav": "Navegación móvil"
+      "mobileNav": "Navegación móvil",
+      "dspCore": "DSP Core"
     },
     "hero": {
       "eyebrow": "Mastering Spectral DSP · 13 Etapas · 8× Oversampling",
@@ -812,6 +815,58 @@
         "spec2": { "label": "Dithering", "value": "Lipshitz 2º Orden (NS)", "desc": "Noise-shaped dithering — piso de ruido > 15 kHz" },
         "spec3": { "label": "Validación Multi-Dispositivo", "value": "14 Perfiles IR", "desc": "Simulación de entornos: estudio, club, coche, móvil, festival" },
         "spec4": { "label": "Tolerancia Espectral", "value": "±0.4 dB", "desc": "QC automático — rechazo si excede tolerancia vs referencia" }
+      }
+    },
+    "pricing": {
+      "badge": "Estructura Comercial",
+      "title": "Precios claros, sin sorpresas",
+      "subtitle": "Paga por canción cuando lo necesites o compra créditos para tu estudio o sello. Sin suscripciones obligatorias ni cargos ocultos.",
+      "featuredBadge": "Más elegido",
+      "disclaimer": "Precios de referencia: se confirmarán al habilitar el pago.",
+      "payPerSong": {
+        "name": "Pago por canción",
+        "tagline": "Para artistas independientes",
+        "unit": "por canción",
+        "feature1": "1 master 24-bit listo para streaming",
+        "feature2": "Entrega en WAV y MP3",
+        "feature3": "Cadena DSP determinista de 13 etapas",
+        "feature4": "Propiedad intelectual 100% tuya",
+        "cta": "Masterizar una canción"
+      },
+      "credits": {
+        "name": "Créditos y planes",
+        "tagline": "Para estudios y sellos",
+        "unit": "por pack",
+        "feature1": "Descuento por volumen en packs",
+        "feature2": "Facturación y gestión de equipo",
+        "feature3": "Procesamiento por lotes de catálogo",
+        "feature4": "Soporte prioritario",
+        "cta": "Solicitar acceso B2B"
+      }
+    },
+    "faq": {
+      "badge": "Preguntas Frecuentes",
+      "title": "Todo lo que debes saber",
+      "subtitle": "Respuestas directas sobre propiedad, formatos de entrega y cómo procesa el motor.",
+      "ip": {
+        "question": "¿De quién es la propiedad intelectual de mi música?",
+        "answer": "Al 100% tuya. BrikMaster no reclama ningún derecho sobre tu mezcla, tu master ni los archivos que cargas. Conservas la titularidad total de tu obra y puedes distribuirla libremente."
+      },
+      "formats": {
+        "question": "¿En qué formatos recibo mi master?",
+        "answer": "Recibes tu master en WAV de 16 o 24 bits para máxima fidelidad, y también puedes exportarlo en MP3 para compartirlo rápido. Descargas todo desde tu biblioteca cuando quieras."
+      },
+      "deterministic": {
+        "question": "¿La IA inventa o alucina cosas al procesar mi audio?",
+        "answer": "No. La cadena de BrikMaster es un motor DSP determinista de 13 etapas: el mismo audio de entrada y los mismos ajustes producen siempre el mismo resultado. No hay contenido generado al azar; el procesamiento es reproducible y verificable."
+      },
+      "privacy": {
+        "question": "¿Mi audio se comparte o queda expuesto?",
+        "answer": "Tu audio se usa únicamente para generar tu master y queda en tu biblioteca privada. No lo publicamos ni lo compartimos con terceros, y puedes eliminar tus archivos cuando quieras."
+      },
+      "skill": {
+        "question": "¿Necesito conocimientos de ingeniería de audio?",
+        "answer": "No. Cargas tu mezcla, eliges un preset y BrikMaster aplica la cadena completa. Si quieres afinar, tienes control manual de cada etapa; si no, el ajuste automático ya entrega un master listo para streaming."
       }
     },
     "footer": {
