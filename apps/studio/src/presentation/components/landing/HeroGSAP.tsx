@@ -9,25 +9,35 @@ import BigGhostWithNotes from "@/presentation/components/BigGhostWithNotes";
 
 export default function HeroGSAP() {
   const { t } = useTranslation();
-  const refs = useHeroGSAP();
+  const {
+    titleRef,
+    subtitleRef,
+    ctaPrimaryRef,
+    ctaGhostRef,
+    setBgLayerAt,
+    monitorRef,
+    orbRef,
+    glowRef,
+    eyebrowRef,
+  } = useHeroGSAP();
 
   return (
     <section id="hero" className="relative w-full overflow-hidden px-4 sm:px-8 lg:px-12 pt-40 lg:pt-48 pb-24 max-w-[1200px] mx-auto min-h-[90vh] flex items-center">
       {/* Background Layers - registered via ref array for parallax */}
       <div
-        ref={(el) => { refs.bgLayersRef.current[0] = el; }}
+        ref={setBgLayerAt(0)}
         className="absolute -top-40 -left-40 w-[800px] h-[800px] rounded-full bg-primary/5 blur-[200px] pointer-events-none"
         aria-hidden="true"
         style={{ willChange: "transform" }}
       />
       <div
-        ref={(el) => { refs.bgLayersRef.current[1] = el; }}
+        ref={setBgLayerAt(1)}
         className="absolute top-1/4 -right-32 w-[500px] h-[500px] rounded-full bg-secondary-container/5 blur-[180px] pointer-events-none"
         aria-hidden="true"
         style={{ willChange: "transform" }}
       />
       <div
-        ref={(el) => { refs.bgLayersRef.current[2] = el; }}
+        ref={setBgLayerAt(2)}
         className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-primary/3 via-transparent to-secondary/3 blur-[150px] pointer-events-none"
         aria-hidden="true"
         style={{ willChange: "transform" }}
@@ -38,7 +48,7 @@ export default function HeroGSAP() {
         <div className="lg:col-span-7 flex flex-col gap-8">
           {/* Eyebrow - 1 línea técnica */}
           <span
-            ref={refs.eyebrowRef}
+            ref={eyebrowRef}
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1a1b20]/80 text-primary font-label-technical text-[10px] tracking-widest uppercase border border-primary/20"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
@@ -47,7 +57,7 @@ export default function HeroGSAP() {
 
           {/* Title - SplitText reveal, GSAP-style typography + word-break fix */}
           <h1
-            ref={refs.titleRef}
+            ref={titleRef}
             className="font-sans text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] tracking-tight text-[#F4F4EB] max-w-[28ch] break-keep"
             style={{
               wordBreak: "keep-all",
@@ -63,7 +73,7 @@ export default function HeroGSAP() {
 
           {/* Subtitle - Benefit-driven, 1 línea */}
           <p
-            ref={refs.subtitleRef}
+            ref={subtitleRef}
             className="font-sans text-base sm:text-lg leading-relaxed text-[#bcc9c7] max-w-xl"
           >
             {t("landing.hero.subtitleClean", "Sube tu mezcla. Obtén un master listo para streaming en segundos.")}
@@ -72,7 +82,7 @@ export default function HeroGSAP() {
           {/* CTA Primario + Ghost */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-2">
             <motion.a
-              ref={refs.ctaPrimaryRef}
+              ref={ctaPrimaryRef}
               href="/upload"
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-primary text-[#003734] font-sans font-bold shadow-[0_0_32px_rgba(110,233,224,0.4)] flex items-center justify-center gap-2 group cursor-pointer"
               whileHover={{ y: -3, scale: 1.02, boxShadow: "0 0 48px rgba(110,233,224,0.6)" }}
@@ -84,7 +94,7 @@ export default function HeroGSAP() {
             </motion.a>
 
             <motion.a
-              ref={refs.ctaGhostRef}
+              ref={ctaGhostRef}
               href="#demo"
               className="w-full sm:w-auto px-7 py-4 rounded-full bg-[#1a1b20]/80 text-white font-sans font-semibold border border-white/10 hover:bg-[#292a2e] flex items-center justify-center gap-2 cursor-pointer"
               whileHover={{ y: -2, borderColor: "rgba(110,233,224,0.4)" }}
@@ -99,19 +109,19 @@ export default function HeroGSAP() {
         {/* RIGHT: MONITOR CARD - 5/12, solo desktop */}
         <div className="hidden lg:block lg:col-span-5">
           <div 
-            ref={refs.monitorRef} 
+            ref={monitorRef} 
             className="relative w-full max-w-[440px] aspect-square rounded-2xl bg-[#1a1b20]/90 backdrop-blur-2xl p-5 flex flex-col justify-between shadow-2xl border border-white/10 overflow-hidden cursor-pointer"
             style={{ touchAction: "none", willChange: "transform" }}
           >
             {/* Glow reactivo - GSAP controlled */}
             <div 
-              ref={refs.glowRef} 
+              ref={glowRef} 
               className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 pointer-events-none blur-[80px] opacity-10" 
               style={{ willChange: "opacity, transform, filter" }} 
             />
 
             {/* Orb Central */}
-            <div ref={refs.orbRef} className="relative my-auto flex items-center justify-center py-4">
+            <div ref={orbRef} className="relative my-auto flex items-center justify-center py-4">
               <div className="relative w-64 h-64 rounded-full overflow-hidden shadow-[0_0_60px_rgba(110,233,224,0.25)] flex items-center justify-center bg-[#0d0e12] border border-primary/20">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

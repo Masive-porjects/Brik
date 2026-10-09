@@ -9,6 +9,14 @@ import { Observer } from "gsap/Observer";
 
 gsap.registerPlugin(SplitText, ScrollTrigger, Observer);
 
+/**
+ * gsap's bundled ObserverVars type omits the runtime-supported `onLeave`
+ * callback, so we extend it locally instead of casting the config.
+ */
+type ObserverVarsWithLeave = Parameters<typeof Observer.create>[0] & {
+  onLeave?: () => void;
+};
+
 export function useHeroGSAP() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const subtitleRef = useRef<HTMLParagraphElement>(null);
@@ -19,6 +27,11 @@ export function useHeroGSAP() {
   const orbRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const eyebrowRef = useRef<HTMLSpanElement>(null);
+
+  /** Callback-ref factory: assigns the background layer element at `index`. */
+  const setBgLayerAt = (index: number) => (el: HTMLDivElement | null) => {
+    bgLayersRef.current[index] = el;
+  };
 
   useGSAP(() => {
     const ctx = gsap.context(() => {
@@ -81,10 +94,10 @@ export function useHeroGSAP() {
       const container = titleRef.current!.closest("section") as HTMLElement;
       const layers = bgLayersRef.current.filter(Boolean) as HTMLDivElement[];
 
-      Observer.create({
+      const parallaxObserver: ObserverVarsWithLeave = {
         target: container,
         type: "pointer",
-        onMove: (self: { event: Event }) => {
+        onMove: (self) => {
           const e = self.event as PointerEvent;
           const { clientX: x, clientY: y } = e;
           const rect = container.getBoundingClientRect();
@@ -106,7 +119,8 @@ export function useHeroGSAP() {
           });
         },
         onLeave: () => layers.forEach(el => gsap.to(el, { x: 0, y: 0, rotation: 0, duration: 1.2, ease: "elastic.out(1, 0.4)" })),
-      } as any);
+      };
+      Observer.create(parallaxObserver);
 
       // ---------- 3. MONITOR CARD: ENTRADA + 3D TILT + GLOW ----------
       if (monitorRef.current) {
@@ -126,10 +140,10 @@ export function useHeroGSAP() {
 
         // 3D Tilt (desktop only - no touch)
         if (!("ontouchstart" in window)) {
-          Observer.create({
+          const tiltObserver: ObserverVarsWithLeave = {
             target: card,
             type: "pointer",
-            onMove: (self: { event: Event }) => {
+            onMove: (self) => {
               const e = self.event as PointerEvent;
               const rect = card.getBoundingClientRect();
               const cx = rect.left + rect.width / 2;
@@ -139,7 +153,8 @@ export function useHeroGSAP() {
               gsap.to(card, { rotateX: tiltX, rotateY: tiltY, transformPerspective: 1000, duration: 0.35, ease: "power2.out", overwrite: "auto" });
             },
             onLeave: () => gsap.to(card, { rotateX: 0, rotateY: 0, duration: 0.7, ease: "elastic.out(1, 0.3)" }),
-          } as any);
+          };
+          Observer.create(tiltObserver);
         }
 
         // Glow pulsante reactivo al hover
@@ -173,6 +188,7 @@ export function useHeroGSAP() {
     ctaPrimaryRef, 
     ctaGhostRef, 
     bgLayersRef, 
+    setBgLayerAt,
     monitorRef, 
     orbRef, 
     glowRef,
