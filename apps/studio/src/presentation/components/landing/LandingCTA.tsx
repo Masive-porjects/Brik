@@ -5,6 +5,7 @@ import Link from "next/link";
 import gsap from "gsap";
 import { ArrowRight, Terminal, ShieldCheck, Cpu, Sliders, Wifi } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import Reveal from "./Reveal";
 
 export default function LandingCTA() {
   const { t } = useTranslation();
@@ -41,7 +42,7 @@ export default function LandingCTA() {
   }, []);
 
   return (
-    <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative overflow-hidden">
+    <Reveal as="section" className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative overflow-hidden">
       <div className="max-w-[1440px] mx-auto relative rounded-3xl bg-gradient-to-b from-[#1f1f24] to-[#1a1b20] p-8 sm:p-12 lg:p-20 shadow-2xl border border-white/[0.08] flex flex-col items-center text-center gap-8 overflow-hidden">
         {/* Glow flares inside card */}
         <div
@@ -112,6 +113,6 @@ export default function LandingCTA() {
           </div>
         </div>
       </div>
-    </section>
+    </Reveal>
   );
 }

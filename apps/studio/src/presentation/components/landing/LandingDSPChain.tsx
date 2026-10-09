@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { DSP_STAGES } from "./data";
+import Reveal from "./Reveal";
 import { DSPStage } from "./types";
 
 const ICONS_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -68,7 +69,8 @@ export default function LandingDSPChain() {
   }, [isAutoCycle, isHovered]);
 
   return (
-    <section
+    <Reveal
+      as="section"
       className="w-full py-16 sm:py-20 px-4 sm:px-8 lg:px-12 bg-[#0d0e12] border-b border-white/[0.04] relative"
       id="arquitectura-dsp"
     >
@@ -483,6 +485,6 @@ export default function LandingDSPChain() {
       </div>
     </div>
   </div>
-</section>
+</Reveal>
   );
 }

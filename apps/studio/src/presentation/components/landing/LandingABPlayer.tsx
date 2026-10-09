@@ -5,6 +5,7 @@ import { Play, Pause } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import { useTranslation } from "@/i18n";
 import { AB_METRICS } from "./data";
+import Reveal from "./Reveal";
 import type { ABMetricDefinition, ABMetricId, AccentToken } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -469,7 +470,7 @@ export default function LandingABPlayer() {
   }, []);
 
   return (
-    <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative" id="comparador">
+    <Reveal as="section" className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative" id="comparador">
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
         {/* Section Header */}
         <div className="flex flex-col items-center text-center gap-2 max-w-3xl mx-auto">
@@ -608,6 +609,6 @@ export default function LandingABPlayer() {
           </p>
         </div>
       </div>
-    </section>
+    </Reveal>
   );
 }

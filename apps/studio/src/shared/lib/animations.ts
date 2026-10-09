@@ -11,6 +11,8 @@ export const easings = {
   power2Out: [0.25, 0.46, 0.45, 0.94] as const,
   // Suave para micro-interacciones (Material Design standard)
   smooth: [0.4, 0, 0.2, 1] as const,
+  // B7 unified landing choreography curve (ease-out, long tail)
+  brandOut: [0.32, 0.72, 0, 1] as const,
   // Spring suave para layout animations
   springGentle: { type: "spring", stiffness: 350, damping: 30 } as const,
   // Spring para enter/exit rápido

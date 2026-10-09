@@ -1,13 +1,14 @@
 "use client";
 
 import { useTranslation } from "@/i18n";
+import Reveal from "./Reveal";
 
 export default function LandingFooter() {
   const { t } = useTranslation();
 
   return (
     <footer className="w-full bg-[#0d0e12] border-t border-white/[0.05] text-[#869391]">
-      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-10">
+      <Reveal className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-10">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2.5">
@@ -48,7 +49,7 @@ export default function LandingFooter() {
             </div>
           </div>
         </div>
-      </div>
+      </Reveal>
     </footer>
   );
 }
