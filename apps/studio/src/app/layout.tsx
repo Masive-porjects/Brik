@@ -133,8 +133,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The next/font `.variable` classes MUST live on <html> (:root). Tailwind v4
+  // emits the `@theme` font tokens (--font-*, which reference --font-*-loaded)
+  // on :root; if the loader variables are only defined on <body>, the var()
+  // reference resolves as invalid at :root and every family silently falls
+  // back to the UA system stack.
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html
+      lang="es"
+      suppressHydrationWarning
+      className={`${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
+    >
       <head>
         {/* Theme initialization - runs before hydration */}
         <script
@@ -156,9 +165,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: applicationLdJson }}
         />
       </head>
-      <body
-        className={`${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable} antialiased min-h-screen`}
-      >
+      <body className="antialiased min-h-screen">
         <I18nProvider>
           <AuthProvider>
             <MasteringProvider>{children}</MasteringProvider>
