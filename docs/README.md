@@ -47,6 +47,7 @@ Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) �
   - [`reports/REPORT_FASE_3.md`](evidence/reports/REPORT_FASE_3.md): Cierre Fase 3 — Sistema multiidioma i18n extensible (ES/EN).
   - [`reports/REPORT_FASE_4.md`](evidence/reports/REPORT_FASE_4.md): Cierre Fase 4 — Autenticación con Supabase Auth y control de roles (RBAC).
   - [`reports/REPORT_FASE_5.md`](evidence/reports/REPORT_FASE_5.md): Cierre Fase 5 — Persistencia 1:N, drafts no destructivos y consolidación de masters.
+  - [`reports/REPORT_IA_WAVEAI.md`](evidence/reports/REPORT_IA_WAVEAI.md): Línea de IA (en curso) — IA → mezcla, contrato IntentProfile, RAG local sobre los libros de mezcla, pendientes por persona.
 - **Mediciones y Auditorías**:
   - [`DEMO_RESOURCE_AUDIT.md`](evidence/DEMO_RESOURCE_AUDIT.md): Auditoría de consumo de RAM, tiempos de respuesta y límites técnicos.
   - [`DEMO_LOCAL_VALIDATION.md`](evidence/DEMO_LOCAL_VALIDATION.md): Validación local de métricas y latencia de audio.
@@ -61,6 +62,7 @@ Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) �
 - [`specs/08_implementacion_llm.md`](reference/specs/08_implementacion_llm.md): Valores exactos de DSP, presets, rangos, tokens y endpoints.
 - [`specs/03_waveai_backend_mastering.md`](reference/specs/03_waveai_backend_mastering.md): Arquitectura de la cadena DSP en FastAPI.
 - [`specs/04_waveai_sistema_diseno.md`](reference/specs/04_waveai_sistema_diseno.md): Sistema de diseño, paleta analógica y tokens CSS.
+- [`specs/project_document_v1_spec.md`](reference/specs/project_document_v1_spec.md): **Multi-tenant Moises** — contrato de ownership (`project_states` vs `project_documents`), JSON Schema V1, compiler puro y los 3 flujos de datos.
 - [`specs/05_live_engine_gestos_a_master.md`](reference/specs/05_live_engine_gestos_a_master.md): **histórico** — motor Web Audio en tiempo real, eliminado el 27-Sep (`ba3b4a6`).
 
 ---

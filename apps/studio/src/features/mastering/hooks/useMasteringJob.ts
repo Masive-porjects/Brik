@@ -95,11 +95,13 @@ export function useMasteringJob(
   // Evitar submeter dos jobs simultáneos
   const isSubmittingRef = useRef(false);
 
-  // Sync callbacks from options
+  // Sync callbacks from options (effects keep refs fresh without render-phase writes)
   const onCompleteRef = useRef(options.onComplete);
   const onErrorRef = useRef(options.onError);
-  onCompleteRef.current = options.onComplete;
-  onErrorRef.current = options.onError;
+  useEffect(() => {
+    onCompleteRef.current = options.onComplete;
+    onErrorRef.current = options.onError;
+  }, [options.onComplete, options.onError]);
 
   /** Iniciar el intervalo de polling. */
   const startPolling = useCallback(

@@ -837,3 +837,196 @@ export async function getMasterJobStatus(jobId: string): Promise<AsyncJobStatus>
   return res.json();
 }
 
+/* ── Project Document & State (WU3) ───────────────────────────────── */
+
+/** V1 Project Document structure. */
+export interface ProjectDocumentV1 {
+  schemaVersion: 1;
+  stems: Record<string, {
+    name: string;
+    storagePath: string;
+    confirmed: boolean;
+  }>;
+  pendingProposals: Array<{
+    id: string;
+    type: "fader" | "trim" | "balance" | "dimension" | "master_intent";
+    payload: unknown;
+    createdAt: string;
+    status: "pending" | "accepted" | "rejected";
+  }>;
+  masterIntent: {
+    presetId: "universal" | "streaming" | "club" | "cd" | "custom";
+    platformTarget: "spotify" | "apple_music" | "youtube" | "tidal" | "club" | "cd" | "custom";
+    format: "wav" | "mp3";
+    outputBitDepth: 16 | 24 | 32;
+    masterName?: string;
+    parameters?: Record<string, number | boolean>;
+  };
+  updatedAt: string;
+  updatedBy: "user" | "ai";
+}
+
+/** GET /projects/{id}/document response. */
+export interface ProjectDocumentResponse {
+  projectId: string;
+  version: number;
+  document: ProjectDocumentV1;
+  updatedAt: string | null;
+}
+
+/** PUT /projects/{id}/document payload. */
+export interface PutDocumentPayload {
+  document: ProjectDocumentV1;
+  expectedVersion: number;
+}
+
+/** Mix state payload for PATCH /projects/{id}/state. */
+export interface MixStatePayload {
+  state: {
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+  };
+  undo_stack: Array<{
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+    timestamp: number;
+  }>;
+}
+
+/** GET /projects/{id}/state response. */
+export interface MixStateResponse {
+  projectId: string;
+  state: {
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+  };
+  undo_stack: Array<{
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+    timestamp: number;
+  }>;
+  updatedAt: string | null;
+}
+
+/** Fetches the V1 project document (bootstrap if none). */
+export async function getProjectDocument(
+  projectId: string
+): Promise<{
+  projectId: string;
+  version: number;
+  document: ProjectDocumentV1;
+  updatedAt: string | null;
+}> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+    headers: { ...licenseHeaders() },
+  });
+  if (!res.ok) throw new ApiError("Failed to fetch project document", res.status);
+  return res.json();
+}
+
+/** Writes the V1 project document with OCC. */
+export async function putProjectDocument(
+  projectId: string,
+  payload: { document: ProjectDocumentV1; expectedVersion: number }
+): Promise<{
+  projectId: string;
+  version: number;
+  document: ProjectDocumentV1;
+  updatedAt: string | null;
+}> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new ApiError("Failed to write project document", res.status);
+  return res.json();
+}
+
+/** Deletes the project document (resets to bootstrap). */
+export async function deleteProjectDocument(projectId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+    method: "DELETE",
+    headers: { ...licenseHeaders() },
+  });
+  if (!res.ok) throw new ApiError("Failed to delete project document", res.status);
+}
+
+/** Fetches the live mix state. */
+export async function getProjectMixState(
+  projectId: string
+): Promise<{
+  projectId: string;
+  state: { faders: Record<string, number>; toggles: Record<string, unknown> };
+  undo_stack: Array<{
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+    timestamp: number;
+  }>;
+  updatedAt: string | null;
+}> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
+    headers: { ...licenseHeaders() },
+  });
+  if (!res.ok) throw new ApiError("Failed to fetch mix state", res.status);
+  return res.json();
+}
+
+/** Updates the live mix state (debounced by caller). */
+export async function patchProjectMixState(
+  projectId: string,
+  payload: {
+    state: { faders: Record<string, number>; toggles: Record<string, unknown> };
+    undo_stack: Array<{
+      faders: Record<string, number>;
+      toggles: Record<string, unknown>;
+      timestamp: number;
+    }>;
+  }
+): Promise<{
+  projectId: string;
+  state: { faders: Record<string, number>; toggles: Record<string, unknown> };
+  undo_stack: Array<{
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+    timestamp: number;
+  }>;
+  updatedAt: string | null;
+}> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new ApiError("Failed to update mix state", res.status);
+  return res.json();
+}
+
+/** Submits a mix job for a project (returns job_id + poll_url). */
+export async function submitProjectMixJob(
+  projectId: string,
+  signal?: AbortSignal
+): Promise<{ job_id: string; poll_url: string }> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/mix`, {
+    method: "POST",
+    headers: { ...licenseHeaders() },
+    signal,
+  });
+  if (!res.ok) throw new ApiError("Failed to submit mix job", res.status);
+  return res.json();
+}
+
+/** Submits a mastering job for a project (returns job_id + poll_url). */
+export async function submitProjectMasterJob(
+  projectId: string,
+  signal?: AbortSignal
+): Promise<{ job_id: string; poll_url: string }> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/master`, {
+    method: "POST",
+    headers: { ...licenseHeaders() },
+    signal,
+  });
+  if (!res.ok) throw new ApiError("Failed to submit mastering job", res.status);
+  return res.json();
+}
+

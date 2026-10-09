@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { I18nProvider } from "@/i18n/I18nContext";
 import { AuthProvider } from "@/features/auth";
 import { MasteringProvider } from "@/features/mastering";
@@ -35,18 +34,28 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Theme initialization - runs before hydration */}
+        <script
+          id="theme-init"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("waveai-theme");if(t==="light"){document.documentElement.dataset.theme="light";}}catch(e){}})();`,
+          }}
+        />
+        {/* Viewport height fix - runs before hydration */}
+        <script
+          id="vh-fix"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){function setVH(){var vh=window.innerHeight*0.01;document.documentElement.style.setProperty('--vh',vh+'px');}setVH();window.addEventListener('resize',setVH);})();`,
+          }}
+        />
+      </head>
       <body className="antialiased min-h-screen">
         <I18nProvider>
           <AuthProvider>
             <MasteringProvider>{children}</MasteringProvider>
           </AuthProvider>
         </I18nProvider>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem("waveai-theme");if(t==="light"){document.documentElement.dataset.theme="light";}}catch(e){}})();`}
-        </Script>
-        <Script id="vh-fix" strategy="beforeInteractive">
-          {`(function(){function setVH(){var vh=window.innerHeight*0.01;document.documentElement.style.setProperty('--vh',vh+'px');}setVH();window.addEventListener('resize',setVH);})();`}
-        </Script>
       </body>
     </html>
   );
