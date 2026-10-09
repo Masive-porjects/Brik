@@ -3,7 +3,7 @@
 Coverage:
 - compile() with document absent, state absent -> neutral defaults
 - compile() with document present, state absent -> defaults from document
-- compile() stem_trims: all zeros -> None (bypass); non-zero -> dict
+- compile() stem_trims: all zeros -> None (bypass); non-zero -> dict with {stem}_db keys
 - compile() dimension_enabled/auto_balance from toggles
 - load_inputs() returns (None, StateProjection()) when project not found
 """
@@ -35,9 +35,16 @@ class _MockProjectDocument:
         for k, v in kwargs.items():
             setattr(self, k, v)
         # Ensure master_intent is always set for compile() tests
-        if not hasattr(self, "master_intent"):
-            from audiomind.services.compile_project import MasterIntent
-            self.master_intent = MasterIntent()
+        if not hasattr(self, "master_intent") or self.master_intent is None:
+            from audiomind.services.compile_project import MasterIntent  # type: ignore
+            self.master_intent = MasterIntent(
+                preset_id="universal",
+                platform_target="spotify",
+                format="wav",
+                output_bit_depth=24,
+                master_name=None,
+                parameters=None,
+            )
 
 
 # ─── Fixtures ──────────────────────────────────────────────────────────
@@ -45,29 +52,7 @@ class _MockProjectDocument:
 @pytest.fixture
 def mock_doc():
     """A mock ProjectDocument with some data."""
-    doc = _MockProjectDocument(
-        schema_version=1,
-        structure=Structure(
-            stems=StemBlock(
-                drums=StemNode(display_name="Drums", order=0),
-                bass=StemNode(display_name="Bass", order=1),
-                other=StemNode(display_name="Other", order=2),
-                vocals=StemNode(display_name="Vocals", order=3),
-            ),
-            groups=[],
-        ),
-        mix_intent=MixIntent(),
-        master_intent=MasterIntent(
-            preset_id="universal",
-            platform_target="spotify",
-            format="wav",
-            output_bit_depth=24,
-            master_name=None,
-            parameters=None,
-        ),
-        updated_by="user",
-        updated_at=None,
-    )
+    doc = _MockProjectDocument()
     return doc
 
 
@@ -113,6 +98,14 @@ def test_compile_all_zero_faders():
     state = StateProjection(faders={"drums_db": 0.0, "bass_db": 0.0, "other_db": 0.0, "vocals_db": 0.0})
     plan = compile(None, state)
     assert plan.stem_trims is None
+
+
+def test_compile_some_nonzero_faders():
+    """compile() with some non-zero faders -> stem_trims dict con claves {stem}_db."""
+    from audiomind.services.compile_project import compile, StateProjection
+    state = StateProjection(faders={"drums_db": 1.5, "bass_db": 0.0, "other_db": -0.5, "vocals_db": 0.0})
+    plan = compile(None, state)
+    assert plan.stem_trims == {"drums_db": 1.5, "other_db": -0.5}
 
 
 def test_compile_load_inputs_missing_project():

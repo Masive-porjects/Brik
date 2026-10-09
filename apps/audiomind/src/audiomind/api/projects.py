@@ -54,6 +54,8 @@ from audiomind.models.project_document import ProjectDocument, default_document
 from audiomind.services.compile_project import compile, load_inputs
 from audiomind.models.project_document import ProjectDocument
 from audiomind.services.separate_jobs import submit_separate_job
+from audiomind.services import storage
+from audiomind.services import supabase_client
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 

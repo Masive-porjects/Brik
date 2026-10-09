@@ -32,7 +32,7 @@ class StateProjection(BaseModel):
 
     faders: dict[str, float] = Field(
         default_factory=dict
-    )  # {stem}_db -> dB. Si todos son 0.0 -> stem_trims = None (bypass)
+    )  # {stem}_db -> dB. Ej: {"drums_db": -2.0, "bass_db": 1.5, ...}
     toggles: dict[str, bool] = Field(
         default_factory=lambda: {"dimension_enabled": True, "auto_balance": False}
     )
@@ -42,20 +42,17 @@ class MixPlan(BaseModel):
     """Plan de mezcla listo para ser inyectado en build_mix o en un job DSP."""
 
     # ── para build_mix (processing/mix_engine.py:490) ──
-    stem_trims: dict[str, float] | None = None  # None si todos los faders son 0.0
+    stem_trims: dict[str, float] | None = None  # None si todo es 0.0 (neutral)
     dimension_enabled: bool = True  # -> dimension_profiles: None | {}
     auto_balance: bool = False
 
     # ── para MasterJobPayload (services/dsp_worker.py:68) ──
-    preset_id: str | None = None  # Literal["universal", "fuego", "claridad", "cinta",
-    #                                 "natural", "espacial", "cinematico", "empuje"]
-    platform_target: str | None = None  # set de 7 (payload), NOT 5 (params)
+    preset_id: str | None = None  # Literal[8 presets]
+    platform_target: str | None = None  # set de 7, top-level del payload
     format: str = "wav"  # default "wav"
-    output_bit_depth: int = 24  # default 24, rango 16..32
+    output_bit_depth: int = 24  # default 24
     master_name: str | None = None
-    parameters: MasteringParameters | None = None  # overlay parcial, validado
-    #   server-side en submit; si el documento tiene parameters, intentamos
-    #   construir MasteringParameters(**parameters) y guardamos el resultado;
+    parameters: MasteringParameters | None = None  # overlay validado por Pydantic
 
 
 def load_inputs(
@@ -89,7 +86,7 @@ def compile(document: Optional[ProjectDocument], state: StateProjection) -> MixP
     - state ausente/vacío -> defaults neutrales (0 dB, dimension on, balance off).
     - document ausente -> estructura derivada de audio_assets kind='stem'
       + master_intent en defaults.
-    - stem_trims -> None si los 4 faders son 0.0 (neutral = bypass).
+    - stem_trims -> None si los 4 stems tienen fader 0.0 (neutral = bypass).
     - platform_target usa el set de 7 del payload (document master_intent),
       NOT el set de 5 de MasteringParameters.
     - parameters: si el documento tiene parameters, intentamos construir
@@ -98,23 +95,17 @@ def compile(document: Optional[ProjectDocument], state: StateProjection) -> MixP
       validación completa al submit el job.
     """
 
-    # 1. stem_trims a partir de state.faders
-    faders = state.faders
-    # Las 4 claves esperadas en STEM_NAMES order
     stem_names = ("drums", "bass", "other", "vocals")
-    trim_dict = {}
-    all_zero = True
-    for name in stem_names:
-        val = faders.get(name, 0.0)
-        if isinstance(val, (int, float)) and val != 0.0:
-            all_zero = False
-        # only include if non-zero or we have some entries; we'll decide later
-        if val is not None and val != 0.0:
-            trim_dict[name] = float(val)
+    db_keys = (f"{n}_db" for n in stem_names)  # drums_db, bass_db, other_db, vocals_db
 
-    stem_trims: dict[str, float] | None = (
-        trim_dict if not all_zero and len(trim_dict) > 0 else None
-    )
+    # 1. stem_trims: check los 4 stems con su sufijo _db
+    trim_dict: dict[str, float] = {}
+    for db_key in db_keys:
+        name = db_key[:-3]  # Quita el sufijo _db para obtener el nombre del stem
+        val = state.faders.get(db_key, 0.0)
+        if isinstance(val, (int, float)) and val != 0.0:
+            trim_dict[db_key] = float(val)
+    stem_trims: dict[str, float] | None = trim_dict if trim_dict else None
 
     # 2. dimension_enabled y auto_balance de toggles
     dimension_enabled: bool = state.toggles.get("dimension_enabled", True)
