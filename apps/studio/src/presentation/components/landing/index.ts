@@ -1,7 +1,6 @@
 export { default as LandingScreen } from "./LandingScreen";
 export { default as LandingScrollToTop } from "./LandingScrollToTop";
 export { default as LandingHeader } from "./LandingHeader";
-export { default as LandingHero } from "./LandingHero";
 export { default as LandingPhilosophy } from "./LandingPhilosophy";
 export { default as LandingABPlayer } from "./LandingABPlayer";
 export { default as LandingDSPChain } from "./LandingDSPChain";
