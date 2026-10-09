@@ -9,6 +9,7 @@ import LandingABPlayer from "./LandingABPlayer";
 import LandingDSPChain from "./LandingDSPChain";
 import LandingEngineSpecs from "./LandingEngineSpecs";
 import LandingPresets from "./LandingPresets";
+import LandingTagline from "./LandingTagline";
 import LandingPricing from "./LandingPricing";
 import LandingFounders from "./LandingFounders";
 import LandingFAQ from "./LandingFAQ";
@@ -32,6 +33,7 @@ export default function LandingScreen() {
         <LandingDSPChain />
         <LandingEngineSpecs />
         <LandingPresets />
+        <LandingTagline />
         <LandingPricing />
         <LandingFounders />
         <LandingFAQ />

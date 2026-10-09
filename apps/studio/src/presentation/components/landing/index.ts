@@ -5,6 +5,7 @@ export { default as LandingPhilosophy } from "./LandingPhilosophy";
 export { default as LandingABPlayer } from "./LandingABPlayer";
 export { default as LandingDSPChain } from "./LandingDSPChain";
 export { default as LandingPresets } from "./LandingPresets";
+export { default as LandingTagline } from "./LandingTagline";
 export { default as LandingPricing } from "./LandingPricing";
 export { default as LandingFounders } from "./LandingFounders";
 export { default as LandingFAQ } from "./LandingFAQ";
