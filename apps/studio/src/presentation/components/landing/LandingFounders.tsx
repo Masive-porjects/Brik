@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Globe } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { BASE_PATH } from "@/lib/basePath";
 import { GitHubIcon, LinkedInIcon } from "@/features/auth/components/SocialIcons";
 import { FOUNDERS_LIST } from "./data";
 
@@ -79,11 +81,12 @@ export default function LandingFounders() {
               >
                 {/* Photo Viewport */}
                 <div className="w-full h-80 relative overflow-hidden bg-[#292a2e]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={founder.image}
+                  <Image
+                    src={`${BASE_PATH}${founder.image}`}
                     alt={founder.alt}
-                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover transition-transform duration-500 hover:scale-105"
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#1a1b20] via-[#1a1b20]/30 to-transparent" />

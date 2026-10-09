@@ -874,9 +874,17 @@
       }
     },
     "footer": {
-      "brand": "BRIK AUDIO",
+      "brand": "BRIK",
       "engineOnline": "DSP ENGINE v3.4 ONLINE",
-      "copy": "© 2024 Brik Audio DSP Systems. Mastered under spectral consciousness.",
+      "copy": "© 2026 Brik Audio DSP Systems. Mastered under spectral consciousness.",
+      "navTitle": "Navigation",
+      "nav": {
+        "studio": "Brik Studio",
+        "engine": "13-stage engine",
+        "presets": "Ghostly presets",
+        "pricing": "Pricing",
+        "faq": "FAQ"
+      },
       "ebu": "EBU R128 (-14.0 LUFS)",
       "truePeak": "TRUE PEAK: -1.0 dBTP",
       "clock": "CLOCK: 96kHz / 64-bit FP"
