@@ -1,4 +1,47 @@
-import { DSPStage, PresetItem, FounderItem } from "./types";
+import { DSPStage, PresetItem, FounderItem, ABMetricDefinition } from "./types";
+
+/**
+ * Illustrative A/B metrics for the landing demo.
+ *
+ * These are educational product-demo values, not measurements of any real
+ * file. Mastered targets the streaming sweet spot (-14 LUFS, -1.0 dBTP, tight
+ * LRA); Original is quieter on average, peakier and wider in dynamic range.
+ */
+export const AB_METRICS: ABMetricDefinition[] = [
+  {
+    id: "lufs",
+    labelKey: "meterLufs",
+    unitKey: "unitLufs",
+    original: -18.6,
+    mastered: -14.0,
+    min: -24,
+    max: -8,
+    decimals: 1,
+    accent: "primary",
+  },
+  {
+    id: "tp",
+    labelKey: "meterTp",
+    unitKey: "unitTp",
+    original: -0.3,
+    mastered: -1.0,
+    min: -6,
+    max: 0,
+    decimals: 2,
+    accent: "secondary",
+  },
+  {
+    id: "lra",
+    labelKey: "meterLra",
+    unitKey: "unitLra",
+    original: 11.4,
+    mastered: 6.5,
+    min: 3,
+    max: 15,
+    decimals: 1,
+    accent: "tertiary",
+  },
+];
 
 export const DSP_STAGES: DSPStage[] = [
   {
