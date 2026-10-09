@@ -81,8 +81,7 @@ playwright-report/
 test-results/
 
 # Local validation logs and reports (regenerable)
-apps/audiomind/_*.txt
-apps/audiomind/test_output*.txt
+apps/audiomind/*.txt
 apps/audiomind/test_results_junit.xml
 apps/studio/_studio_dev_out.txt
 
