@@ -9,21 +9,12 @@ Spec §5 — The compiler is a pure function. load_inputs may have side effects
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from audiomind.models.audio import MasteringParameters
-from audiomind.models.project_document import (
-    ProjectDocument,
-    default_document,
-    MixIntent,
-    MasterIntent,
-    Structure,
-    StemBlock,
-    StemNode,
-    Group,
-)
+from audiomind.models.project_document import ProjectDocument
 
 
 class StateProjection(BaseModel):
@@ -55,32 +46,89 @@ class MixPlan(BaseModel):
     parameters: MasteringParameters | None = None  # overlay validado por Pydantic
 
 
+class ProjectNotFoundError(Exception):
+    """The project is not owned by the user (or does not exist)."""
+
+
+def _rows(resp: Any) -> list[dict[str, Any]]:
+    """Rows from a PostgREST response, tolerating empty/None payloads."""
+    rows = getattr(resp, "data", None)
+    if not rows:
+        return []
+    if isinstance(rows, dict):
+        return [rows]
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def load_inputs(
-    project_id: str, user_id: str
-) -> tuple[Optional[ProjectDocument], StateProjection]:
-    """Carga document + state para un proyecto y usuario dados.
+    project_id: str,
+    user_id: str,
+    client: Any = None,
+) -> tuple[ProjectDocument | None, StateProjection]:
+    """Load document + state for a project owned by the user.
 
-    Verifica ownership (404/403) y devuelve el documento V1 y la proyección
-    del state con defaults neutrales. Si no hay documento, devuelve None
-    y un StateProjection con defaults totales.
-
-    En producción este función usaría el cliente Supabase token-scoped;
-    aquí devolvemos un documento de ejemplo para que el módulo sea importable.
+    With no ``client`` (unit tests, importability) the neutral
+    ``(None, StateProjection())`` is returned. With a client, ownership is a
+    ``projects`` SELECT filtered by user: a miss raises
+    :class:`ProjectNotFoundError`. A stored ``project_documents`` row must
+    validate against schema V1 (a stored row that no longer validates is a
+    server-side defect and raises ``ValueError``). The state row is projected
+    onto :class:`StateProjection` taking ONLY the two boolean toggles --
+    ``mute``/``solo`` are dicts and must never enter ``toggles``.
     """
-    # --- Ownership check (mismo patrón que api/projects.py) ---
-    # from audiomind.api.projects import _client_for, _data, _get_owned_project
-    # client = _client_for(...)
-    # doc_row = _get_owned_project(client, project_id, user_id)
-    # Si no existe -> return (None, StateProjection())
-    # Cargar document_json y state del row
+    if client is None:
+        return None, StateProjection()
 
-    # --- De momento, devolvemos defaults para que el módulo sea importable ---
-    doc: Optional[ProjectDocument] = None
+    owned = (
+        client.table("projects")
+        .select("id,user_id")
+        .eq("id", project_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not _rows(owned):
+        raise ProjectNotFoundError(f"project {project_id} is not owned by {user_id}")
+
+    doc: ProjectDocument | None = None
+    doc_rows = _rows(
+        client.table("project_documents")
+        .select("document_json")
+        .eq("project_id", project_id)
+        .limit(1)
+        .execute()
+    )
+    if doc_rows:
+        try:
+            doc = ProjectDocument.model_validate(doc_rows[0].get("document_json"))
+        except ValidationError as exc:
+            raise ValueError(f"stored project_document is invalid: {exc}") from exc
+
     state = StateProjection()
+    state_rows = _rows(
+        client.table("project_states")
+        .select("state")
+        .eq("project_id", project_id)
+        .limit(1)
+        .execute()
+    )
+    if state_rows:
+        raw = state_rows[0].get("state") or {}
+        faders = {
+            k: float(v)
+            for k, v in (raw.get("faders") or {}).items()
+            if isinstance(v, (int, float))
+        }
+        toggles_raw = raw.get("toggles") or {}
+        toggles = {
+            "dimension_enabled": bool(toggles_raw.get("dimension_enabled", True)),
+            "auto_balance": bool(toggles_raw.get("auto_balance", False)),
+        }
+        state = StateProjection(faders=faders, toggles=toggles)
     return doc, state
 
 
-def compile(document: Optional[ProjectDocument], state: StateProjection) -> MixPlan:
+def compile(document: ProjectDocument | None, state: StateProjection) -> MixPlan:
     """PURO: compila (document, state) -> MixPlan.
 
     - state ausente/vacío -> defaults neutrales (0 dB, dimension on, balance off).
@@ -101,7 +149,6 @@ def compile(document: Optional[ProjectDocument], state: StateProjection) -> MixP
     # 1. stem_trims: check los 4 stems con su sufijo _db
     trim_dict: dict[str, float] = {}
     for db_key in db_keys:
-        name = db_key[:-3]  # Quita el sufijo _db para obtener el nombre del stem
         val = state.faders.get(db_key, 0.0)
         if isinstance(val, (int, float)) and val != 0.0:
             trim_dict[db_key] = float(val)
@@ -113,11 +160,11 @@ def compile(document: Optional[ProjectDocument], state: StateProjection) -> MixP
 
     # 3. preset_id, platform_target, format, output_bit_depth, master_name
     #    del master_intent del documento (si existe)
-    preset_id: Optional[str] = None
-    platform_target: Optional[str] = None
+    preset_id: str | None = None
+    platform_target: str | None = None
     fmt: str = "wav"
     output_bit_depth: int = 24
-    master_name: Optional[str] = None
+    master_name: str | None = None
 
     if document is not None:
         mi = document.master_intent
@@ -128,7 +175,7 @@ def compile(document: Optional[ProjectDocument], state: StateProjection) -> MixP
         master_name = mi.master_name
 
     # 4. parameters: overlay de MasteringParameters
-    parameters: Optional[MasteringParameters] = None
+    parameters: MasteringParameters | None = None
     if document is not None and document.master_intent.parameters is not None:
         try:
             parameters = MasteringParameters(

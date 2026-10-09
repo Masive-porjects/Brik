@@ -10,7 +10,8 @@ Coverage:
 
 from __future__ import annotations
 
-from typing import Optional
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -36,7 +37,6 @@ class _MockProjectDocument:
             setattr(self, k, v)
         # Ensure master_intent is always set for compile() tests
         if not hasattr(self, "master_intent") or self.master_intent is None:
-            from audiomind.services.compile_project import MasterIntent  # type: ignore
             self.master_intent = MasterIntent(
                 preset_id="universal",
                 platform_target="spotify",
@@ -115,6 +115,121 @@ def test_compile_load_inputs_missing_project():
     assert doc is None
     assert state.faders == {}
     assert state.toggles == {"dimension_enabled": True, "auto_balance": False}
+
+
+# ─── load_inputs with a real (fake) client ───────────────────────────────
+
+
+class _FakeTable:
+    """Chainable PostgREST-shaped fake: select/eq/limit/execute."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = rows
+        self._filters: list[tuple[str, Any]] = []
+        self._limit: int | None = None
+
+    def select(self, _cols: str = "*") -> _FakeTable:
+        return self
+
+    def eq(self, column: str, value: Any) -> _FakeTable:
+        self._filters.append((column, value))
+        return self
+
+    def limit(self, count: int) -> _FakeTable:
+        self._limit = count
+        return self
+
+    def execute(self) -> SimpleNamespace:
+        matched = [
+            r for r in self._rows
+            if all(r.get(c) == v for c, v in self._filters)
+        ]
+        if self._limit is not None:
+            matched = matched[: self._limit]
+        return SimpleNamespace(data=[dict(r) for r in matched])
+
+
+class _FakeClient:
+    """Supabase-shaped fake: ``table(name)`` backed by dicts of rows."""
+
+    def __init__(self, tables: dict[str, list[dict[str, Any]]]) -> None:
+        self._tables = tables
+
+    def table(self, name: str) -> _FakeTable:
+        return _FakeTable(self._tables.get(name, []))
+
+
+def _doc_row() -> dict[str, Any]:
+    return {
+        "project_id": "p1",
+        "user_id": "user123",
+        "document_json": default_document().model_dump(mode="json"),
+    }
+
+
+def test_load_inputs_ownership_miss_raises():
+    """load_inputs raises ProjectNotFoundError when the project is not owned."""
+    from audiomind.services.compile_project import (
+        ProjectNotFoundError,
+        load_inputs,
+    )
+
+    db = _FakeClient({"projects": []})
+    with pytest.raises(ProjectNotFoundError):
+        load_inputs("p1", "user123", client=db)
+
+
+def test_load_inputs_parses_document_and_state():
+    """load_inputs returns the stored document and the projected live state."""
+    from audiomind.services.compile_project import load_inputs
+
+    db = _FakeClient(
+        {
+            "projects": [{"id": "p1", "user_id": "user123"}],
+            "project_documents": [_doc_row()],
+            "project_states": [
+                {
+                    "project_id": "p1",
+                    "state": {
+                        "faders": {
+                            "drums_db": -2.0,
+                            "vocals_db": 1.5,
+                            "bad_db": "loud",  # non-numeric: dropped
+                        },
+                        "toggles": {
+                            "dimension_enabled": False,
+                            "auto_balance": True,
+                            "mute": {"drums": True},
+                            "solo": {"vocals": True},
+                        },
+                    },
+                }
+            ],
+        }
+    )
+    doc, state = load_inputs("p1", "user123", client=db)
+    assert doc is not None
+    assert doc.schema_version == 1
+    # Only the two boolean toggles survive; mute/solo (dicts) are excluded.
+    assert state.faders == {"drums_db": -2.0, "vocals_db": 1.5}
+    assert state.toggles == {"dimension_enabled": False, "auto_balance": True}
+
+
+def test_load_inputs_bad_stored_document_raises_value_error():
+    """A document row that no longer validates is a server-side defect."""
+    from audiomind.services.compile_project import load_inputs
+
+    db = _FakeClient(
+        {
+            "projects": [{"id": "p1", "user_id": "user123"}],
+            "project_documents": [
+            {"project_id": "p1", "user_id": "user123",
+             "document_json": {"schema_version": 99}}
+        ],
+        }
+    )
+    with pytest.raises(ValueError, match="stored project_document is invalid"):
+        load_inputs("p1", "user123", client=db)
 
 
 # ─── Integration-ish test ──────────────────────────────────────────────
