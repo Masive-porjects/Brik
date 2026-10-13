@@ -22,11 +22,11 @@ Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) �
 
 > [!NOTE]
 > Las **reglas normativas de comportamiento para agentes de IA** (como commits obligatorios por tarea, estándares de multiidioma, cursor pointer y arquitectura limpia) se administran en la raíz nativa de reglas del sistema:
-> - [`.agents/rules/ui-and-i18n-guidelines.md`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/.agents/rules/ui-and-i18n-guidelines.md)
-> - [`.agents/rules/architecture-and-code-guidelines.md`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/.agents/rules/architecture-and-code-guidelines.md)
-> - [`.agents/rules/audio-and-dsp-guidelines.md`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/.agents/rules/audio-and-dsp-guidelines.md)
-> - [`.agents/rules/git-and-workflow-guidelines.md`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/.agents/rules/git-and-workflow-guidelines.md)
-> - [`AGENTS.md`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/AGENTS.md)
+> - [`.agents/rules/ui-and-i18n-guidelines.md`](../.agents/rules/ui-and-i18n-guidelines.md)
+> - [`.agents/rules/architecture-and-code-guidelines.md`](../.agents/rules/architecture-and-code-guidelines.md)
+> - [`.agents/rules/audio-and-dsp-guidelines.md`](../.agents/rules/audio-and-dsp-guidelines.md)
+> - [`.agents/rules/git-and-workflow-guidelines.md`](../.agents/rules/git-and-workflow-guidelines.md)
+> - [`AGENTS.md`](../AGENTS.md)
 
 ---
 

@@ -11,7 +11,7 @@ Pipeline: `Audio → AudioMind (FastAPI) → Master / Mix → Studio (UI + Web A
 ## LEER PRIMERO (obligatorio antes de escribir código)
 
 0. `docs/README.md` — índice central de documentación (mapa de qué leer y dónde).
-1. `docs/runbooks/SETUP.md` — runbook de entorno verificado (venv, bun, Convex, stack local, pitfalls reales). Síguelo literal si el entorno no está levantado.
+1. `docs/runbooks/SETUP.md` — runbook de entorno verificado (venv, bun, stack local, pitfalls reales). Síguelo literal si el entorno no está levantado.
 2. `docs/reference/specs/08_implementacion_llm.md` — prompt de implementación con TODOS los valores exactos (presets, rangos, tokens, endpoints, fases, criterios de éxito, pitfalls). **No inventes valores DSP ni de diseño: extráelos de los fuentes.**
 3. `docs/archive/INTEGRATION_REPORT.md` — estado del bloque de integración.
 4. Según el área: `docs/reference/specs/03_*.md` (backend mastering), `04_*.md` (sistema de diseño). `05_live_engine_gestos_a_master.md` es **histórico**: describe el engine retirado.

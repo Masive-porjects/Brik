@@ -29,37 +29,37 @@ Toda la interfaz cuenta con internacionalización completa (Español e Inglés),
 ## 3. Arquitectura y Componentes Creados
 
 ### A. Clientes y Middleware Supabase (`src/lib/supabase/`)
-- [`client.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/lib/supabase/client.ts):
+- [`client.ts`](../../../apps/studio/src/lib/supabase/client.ts):
   - Factoría de cliente de navegador mediante `@supabase/ssr` (`createBrowserClient`).
-- [`server.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/lib/supabase/server.ts):
+- [`server.ts`](../../../apps/studio/src/lib/supabase/server.ts):
   - Factoría para Server Components y Server Actions con gestión de cookies asíncronas (`cookies()`).
-- [`middleware.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/lib/supabase/middleware.ts):
+- [`middleware.ts`](../../../apps/studio/src/lib/supabase/middleware.ts):
   - Refresco automático de tokens y gestión de cookies en el borde (`updateSession`).
-- [`middleware.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/middleware.ts):
+- [`middleware.ts`](../../../apps/studio/src/middleware.ts):
   - Middleware de Next.js configurado para interceptar rutas de aplicación excluyendo assets estáticos.
 
 ### B. Feature Auth (`src/features/auth/`)
-- [`types.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/features/auth/types.ts):
+- [`types.ts`](../../../apps/studio/src/features/auth/types.ts):
   - Definiciones de `UserProfile` y `AuthContextType`.
-- [`AuthContext.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/features/auth/context/AuthContext.tsx):
+- [`AuthContext.tsx`](../../../apps/studio/src/features/auth/context/AuthContext.tsx):
   - Proveedor reactivo que sincroniza sesión, usuario y perfil en tiempo real (`onAuthStateChange`), y provee `signOut()` y `refreshProfile()`.
-- [`UserMenu.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/features/auth/components/UserMenu.tsx):
+- [`UserMenu.tsx`](../../../apps/studio/src/features/auth/components/UserMenu.tsx):
   - Menú de usuario integrado en la barra de navegación: muestra botón "Iniciar sesión" para invitados, o avatar con iniciales, email, enlace al estudio y botón de cierre de sesión con feedback visual.
-- [`LoginForm.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/features/auth/components/LoginForm.tsx):
+- [`LoginForm.tsx`](../../../apps/studio/src/features/auth/components/LoginForm.tsx):
   - Formulario de login con diseño glassmorphism premium, validaciones, visibilidad de contraseña y manejo de errores.
-- [`RegisterForm.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/features/auth/components/RegisterForm.tsx):
+- [`RegisterForm.tsx`](../../../apps/studio/src/features/auth/components/RegisterForm.tsx):
   - Formulario de registro con captura de nombre/alias, correo y contraseña.
-- [`index.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/features/auth/index.ts):
+- [`index.ts`](../../../apps/studio/src/features/auth/index.ts):
   - Barrel export unificado para consumo limpio en la app.
 
 ### C. Páginas y Rutas (`src/app/`)
-- [`layout.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/app/(auth)/layout.tsx):
+- [`layout.tsx`](../../../apps/studio/src/app/(auth)/layout.tsx):
   - Layout inmersivo con estética de audio espacial, fondo radial iluminado, logo interactivo WaveIA, ThemeToggle y LanguageSwitcher.
-- [`login/page.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/app/(auth)/login/page.tsx):
+- [`login/page.tsx`](../../../apps/studio/src/app/(auth)/login/page.tsx):
   - Ruta `/login` con boundary de `Suspense`.
-- [`register/page.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/app/(auth)/register/page.tsx):
+- [`register/page.tsx`](../../../apps/studio/src/app/(auth)/register/page.tsx):
   - Ruta `/register` con boundary de `Suspense`.
-- [`auth/callback/route.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/app/auth/callback/route.ts):
+- [`auth/callback/route.ts`](../../../apps/studio/src/app/auth/callback/route.ts):
   - Route handler para intercambio de código de autenticación (`exchangeCodeForSession`).
 
 ---

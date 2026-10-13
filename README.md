@@ -47,7 +47,7 @@ Documentada en detalle en [`docs/reference/COMPLIANCE_PHASE1.md`](docs/reference
 - **Reporte del motor flotante**: píldora compacta abajo a la izquierda con `LUFS · dBTP · SR · bits` que se expande a la tarjeta completa (`MasteringReportCard`).
 - **Chip de track con género**: en la navbar muestra el **género detectado** (reggaetón, pop, rock…) en vez del UUID interno del archivo.
 - **Marca WaveAI**: textos visibles (navbar, welcome gate, drawer, guía, compartir) — los assets `public/brand/WaveAI.svg` y `WaveAI.png` alimentan la tarjeta de compartir. El favicon/icono es la onda púrpura→cian (`src/app/icon.jpg` + `apple-icon.jpg`, fuente en `public/brand/waveai-logo.jpg`).
-- **Acceso directo sin login**: el studio no tiene flujo de autenticación — entra directo al mastering tras el welcome gate (la ruta `/login`, el middleware y los componentes de auth fueron removidos; `convex/auth.ts` queda disponible para un futuro login real).
+- **Acceso directo sin login**: el studio no tiene flujo de autenticación — entra directo al mastering tras el welcome gate (la ruta `/login`, el middleware y los componentes de auth fueron removidos).
 
 ## Cómo correr localmente
 

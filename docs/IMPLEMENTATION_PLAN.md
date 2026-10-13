@@ -72,6 +72,7 @@ Este documento establece la hoja de ruta técnica paso a paso para la reorganiza
       album: { id: "album", enabled: true, labelKey: "tabs.album" },
     };
     ```
+    - ⚠️ **Histórico — eliminado en `ba3b4a6`**: la entrada `liveEngine` (`tabs.live`) ya no existe en el producto; el Live Engine fue removido el 27-Sep. Se conserva aquí solo como registro del plan original.
   - Crear hook `useFeatures()` para consultar el estado de cada módulo.
   - Conectar el dock de navegación (`ModuleDock`) para que renderice dinámicamente solo las herramientas con `enabled: true`.
 
@@ -98,14 +99,14 @@ Este documento establece la hoja de ruta técnica paso a paso para la reorganiza
   3. `mastering/`:
      - Componentes: `PresetGrid`, `FloatingDeliverySheet`, `ReportCardModal`, controles de carácter.
      - Hook: `useMasteringWorkflow`.
-  4. `live-engine/`:
+  4. `live-engine/` — **histórico; eliminado en `ba3b4a6`** (el Live Engine, el puente MIDI y el WebSocket `:8765` ya no existen como producto):
      - Componentes: visualizador del Web Audio API, knobs de FX (filtro, drive, reverb, delay).
      - Hook: conexión con WebSocket `:8765` y puente MIDI.
   5. `stem-splitter/`, `vocal-chain/`, `songstarter/`:
      - Migración de los paneles actuales a sus respectivos módulos aislados.
 - **Refactorización de `page.tsx`**:
   - `page.tsx` se convierte en un **Composition Root** limpio (<150 líneas) que solo ensambla los contenedores principales y providers.
-- **Criterio de Aceptación**: Toda la experiencia actual (subir audio, masterizar, comparar A/B, cambiar presets, Live Engine) funciona idéntica a la actual, pero con el código 100% modularizado.
+- **Criterio de Aceptación**: Toda la experiencia actual (subir audio, masterizar, comparar A/B, cambiar presets) funciona idéntica a la actual, pero con el código 100% modularizado. *(El Live Engine fue eliminado en `ba3b4a6`, así que ya no forma parte del criterio.)*
 
 ---
 

@@ -45,10 +45,7 @@ docker compose down -v           # detiene y BORRA uploads/outputs persistidos
   `outputFileTracingRoot` en la raíz del monorepo; el Dockerfile copia solo lo
   trazado (imagen final sin `node_modules` completos). `next start` y los
   deploys en Vercel/Railway no se ven afectados.
-- **Convex no es obligatorio.** El provider de la app es un passthrough
-  (`ConvexClientProvider`); el studio compila y corre sin
-  `NEXT_PUBLIC_CONVEX_URL`. Si necesitas auth/datos reales, pásala como
-  build-arg: `docker compose build --build-arg NEXT_PUBLIC_CONVEX_URL=https://… studio`.
+- **Convex fue eliminado** (Fase 0): no hay provider, ni `convex/`, ni env `NEXT_PUBLIC_CONVEX_URL`. El studio compila y corre sin nada de eso.
 - **`GEMINI_API_KEY` / ElevenLabs** son envs de runtime de las rutas `/voz/*`.
   Sin ellas esas rutas responden degradado (comportamiento ya existente).
   Para habilitarlas: `environment:` en el servicio `studio` o un `.env` junto

@@ -145,5 +145,5 @@ sequenceDiagram
 - `@/components/*` **resuelve** a `src/presentation/components/*` (tsconfig) → no hay capa legacy de component-dup real.
 - Duplicación pendiente: `lib/` vs `shared/` vs `adapters/` vs `core/` vs `hooks/` vs `application/` (ver deuda técnica en reporte de estado).
 - Overlays flotantes: **FloatingDeliveryPanel** (FAB derecha), **FloatingReportCard** (píldora izquierda), dock abajo. Filosofía: "nada crece, todo es overlay".
-- Convex desconectado: provider passthrough (layout).
+- Convex eliminado (Fase 0): sin provider ni dependencias.
 - Accesibilidad: `prefers-reduced-motion` respetado en fisheye (desactiva), revealWave, módulos; `aria-hidden` en capas ambientales.

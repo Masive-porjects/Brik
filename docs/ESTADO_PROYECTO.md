@@ -10,17 +10,17 @@
 
 | Área | Estado |
 |---|---|
-| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional completa · 628 tests verdes (backend completo) |
+| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional completa · **887 passed, 0 failed** (backend completo) |
 | **Motor de Mezcla (Mix Engine)** | ✅ Implementado (Pasos 01–08, TDD estricto) · paso 08 con cierre formal pendiente · **+ Stem Balance T1–T4** (faders ±6 dB + auto-balance por género, 23-Sep) · frontend "Mezcla de Audio" cerrado · ⚠️ **el camino async no registra la mezcla en la sesión** → el gate de master queda trabado (ver §3.2.1) |
 | **Motor en vivo (Live Engine)** | ❌ **Removido del producto** (`ba3b4a6`, 27-Sep) — el tab solo mostraba un "próximamente" y ningún archivo fuera del cluster lo importaba. Queda el schema como contrato dormido |
 | **Agent de interpretación (IA)** | 🟡 Compila · llamada real sin probar (faltan credenciales) |
 | **Voz (chat/TTS)** | 🟡 Rutas implementadas · TTS pagado off por defecto (fallback navegador) |
-| **Convex** | 🟡 Scaffold completo pero **durmiente** (la app no lo consulta) |
+| **Convex** | ❌ **Eliminado** — el scaffold `convex/` ya no existe (0 archivos trackeados, 0 deps, 0 referencias en el studio) |
 | **Bridge MIDI / Simulator Python** | ❌ **Removidos** del repositorio — README y docs quedaron desactualizados |
 | **Deploy demo (Vercel+Railway)** | 🚀 **Ejecutado y verificado** (02-Oct) — Railway free tier, Vercel y Cloudflare R2 en producción. Ver §6.6 |
 | **Almacenamiento de audio (Cloudflare R2)** | ✅ Operativo y verificado en producción (upload 200 + URL prefirmada en el payload del job) |
 | **Estado de jobs (`dsp_jobs` en Supabase)** | ✅ Tabla **aplicada** (02-Oct) — el estado del job sobrevive al redeploy |
-| **Suites de verificación** | Backend **707 passed** · Studio vitest **61 passed** · eslint **31 errores / 29 warnings** (preexistentes, verificado sin regresiones) · build Next OK · e2e no ejecutado |
+| **Suites de verificación** | Backend **887 passed, 0 failed** · Studio vitest **8 archivos / 72 tests** · eslint **0 errores / 33 warnings** · build Next OK (**Next 16.2.11**) · e2e no ejecutado |
 
 ---
 
@@ -101,7 +101,7 @@ d94d80a refactor(studio): replace floating chips with sequential status stream
 
 **Jobs async**: además de los endpoints blocking, `POST /api/jobs/master` (`202` + `job_id`) y `GET /api/jobs/master/{job_id}`, y el par de mezcla `POST|GET /api/jobs/mix/{id}`. Estado en `services/job_store.py` — ver §3.1.1.
 
-**Tests**: `apps/audiomind/tests/` — suite **712 passed** ✔ (incluye `test_master_job_store.py` y `test_dsp_jobs_migration.py`).
+**Tests**: `apps/audiomind/tests/` — suite **887 passed, 0 failed** ✔ (incluye `test_master_job_store.py` y `test_dsp_jobs_migration.py`).
 
 > ⚠️ Advertencias operativas: sesiones en memoria (`session_store`) — se pierden al reiniciar salvo espejo best-effort a `uploads/sessions.json`; `outputs/` (masters) **no** están en el volume de Railway → se pierden en redeploy. Pendiente de decisión: historial/retención.
 
@@ -134,7 +134,7 @@ Contrato intacto: `GET /api/jobs/master/{id}` sigue devolviendo `job_id, track_i
 
 **Migración SQL versionada pero NO aplicada** (decisión explícita del usuario): `supabase/migrations/20260930183000_create_dsp_jobs.sql`. Es aditiva — crea `public.dsp_jobs`, no toca `tracks`/`masters`/`track_events`/`profiles`/`role_audit_logs` ni buckets. `apps/audiomind/tests/test_dsp_jobs_migration.py` (11 tests) falla si el SQL y `JobRecord` se desincronizan.
 
-**Tests**: `tests/test_master_job_store.py` (13) cubre registro previo a encolar, shape legacy, no-mutación en lectura, detección de huérfanos, heartbeat y estado terminal ante éxito/fallo/excepción. Suite: **712 passed** (699 → 712).
+**Tests**: `tests/test_master_job_store.py` (13) cubre registro previo a encolar, shape legacy, no-mutación en lectura, detección de huérfanos, heartbeat y estado terminal ante éxito/fallo/excepción. Suite: **887 passed, 0 failed** (699 → 887).
 
 ---
 
@@ -159,7 +159,7 @@ Un solo PUT cuando el preset y `mastered_path` apuntan al mismo WAV, y ambos pun
 
 **Cobertura** — las **6** rutas productoras (preset on-demand, cache prebuilt, cache prerender, `/process` sin preset, prerender-serve, `/album/process`) y las **4** consumidoras (`/audio/mastered`, `/raw-mastered`, `/download/{fmt}`, `/compare-reference`). Reset limpia `master_r2_key` y `preset_masters = {}` se lleva las claves por preset. `api/batch.py` tiene su propio helper (con logger y storage propio) para no cruzar los límites de módulo.
 
-**Tests**: `tests/test_master_r2_durability.py` (15) en 5 clases: rehidratación en los 4 endpoints + precedence (un preset desconocido nunca cae al puntero legacy) + served local sin tocar R2; 404 nombrando la clave ante descarga fallida, objeto de 0 bytes y ausencia de archivo+clave; sellado de punteros (preset desde un solo upload, y `/process`, prerender-serve y `/album/process` en el legacy); upload fallido que no rompe la request; reset que anula ambas claves. Suite: **740 passed, 2 failed** (los 2 de #31, preexistentes).
+**Tests**: `tests/test_master_r2_durability.py` (15) en 5 clases: rehidratación en los 4 endpoints + precedence (un preset desconocido nunca cae al puntero legacy) + served local sin tocar R2; 404 nombrando la clave ante descarga fallida, objeto de 0 bytes y ausencia de archivo+clave; sellado de punteros (preset desde un solo upload, y `/process`, prerender-serve y `/album/process` en el legacy); upload fallido que no rompe la request; reset que anula ambas claves. Suite: **887 passed, 0 failed**.
 
 **Hueco de cobertura honesto**: los paths de *cache hit* (preset prebuilt y prerender) quedan cableados pero sin aserción directa en este archivo — se cubren indirectamente porque `conftest.py` hace degradar el upload y el comportamiento local no cambia. Si se quiere aserción directa de la estampa de clave en esos dos paths, falta test.
 
@@ -173,7 +173,7 @@ Un solo PUT cuando el preset y `mastered_path` apuntan al mismo WAV, y ambos pun
 
 **Plan maestro**: `odd/tasks/plan-motor-de-mezcla.md` + viabilidad en `docs/proposals/VIABILIDAD_MOTOR_DE_MEZCLA.md` (local-only).
 
-**Progreso — Pasos 01–08 IMPLEMENTADOS en TDD estricto** (suite creció 352 → **628 tests**):
+**Progreso — Pasos 01–08 IMPLEMENTADOS en TDD estricto** (suite creció 352 → **887 tests**):
 
 | Paso | Rama | Commit | Estado |
 |---|---|---|---|
@@ -207,13 +207,13 @@ Un solo PUT cuando el preset y `mastered_path` apuntan al mismo WAV, y ambos pun
 - `POST /api/session/{id}/mix` → WAV + análisis en header `X-Mix-Result` (stems, `tempo_bpm`, `genre`, `genre_confidence`, sr, duración). Body opcional `{"dimension_enabled": false}`.
 - `GET /api/session/{id}/audio/mix` → WAV persistido (URL estable para player/download).
 
-**Frontend "Mezcla de Audio"**: `odd/tasks/mezcla-frontend.md` — **CERRADO (2026-09-21)**. Commits `7a95caf` (MixPanel.tsx, client.ts `mixTracks`/`getMixAudioUrl`, dock tab, GET /audio/mix) + `a406acf` (fix duplicación router). Verificado: `tsc --noEmit` limpio, vitest 22, pytest mix 9 passed. Queda **probar manualmente en la UI**.
+**Frontend "Mezcla de Audio"**: `odd/tasks/mezcla-frontend.md` — **CERRADO (2026-09-21)**. Commits `7a95caf` (MixPanel.tsx, client.ts `mixTracks`/`getMixAudioUrl`, dock tab, GET /audio/mix) + `a406acf` (fix duplicación router). Verificado: `tsc --noEmit` limpio, vitest 72 passed, pytest mix cubierto por la suite verde. Queda **probar manualmente en la UI**.
 
 **Pendientes del Mix Engine**: ver §7 (paso 08 EOL churn + cierre de assess; push/PR a `team`; análisis mypy soundfile).
 
 ### 3.2.1 ✅ Defecto corregido: el camino async de mezcla nunca registraba la mezcla en la sesión (02-Oct)
 
-> **Estado**: corregido y verificado el 02-Oct-2026. `mix_status` ya se escribe en la sesión, el puntero durable a R2 se persiste, y el masterizar rehidrata la mezcla desde R2 cuando el disco local no la tiene. Suite: 725 passed / 2 fallos preexistentes y ajenos (ver §7 #31).
+> **Estado**: corregido y verificado el 02-Oct-2026. `mix_status` ya se escribe en la sesión, el puntero durable a R2 se persiste, y el masterizar rehidrata la mezcla desde R2 cuando el disco local no la tiene. Suite: **887 passed, 0 failed**.
 
 Síntoma reportado en producción: el job de mezcla termina `completed` al 100 %, pero el gate del frontend responde *"Termina tu mezcla antes de masterizar."* y no habilita el master.
 
@@ -290,18 +290,18 @@ Con esta remoción, WaveAI queda con **dos motores: Mastering y Mix**.
 - **Mix UI**: MixPanel + MixWaveformAB + MixStatusStream (stream secuencial de estado), action "masterize" post-mezcla.
 - **Chat/agente**: ChatPanel → `/voz/chat` → `interpretIntent` (agent Gemini) → perfil; preset cards.
 - **Voz**: `/voz/speak` (TTS ElevenLabs opcional con cache `.tts-cache`, tope 400 chars, `204` = fallback a `speechSynthesis` del navegador) · `/voz/escuchar` + `useVoiceInput` (entrada por voz) · `lib/voice/decodeAgentText` (parseo de texto del agente).
-- **Librerías clave**: GSAP 3.15 + @gsap/react (11 componentes), framer-motion 12, tone 15, wavesurfer.js 7, lucide-react. Sin framework i18n: **microcopy en español latino neutro** hardcodeada (normalizada en `main`).
-- **Tests**: vitest **57 passed** (8 archivos: meterMath 24, client 13, audioUtils 7, audioContextUtils 5, decodeAgentText 4, etc.) · eslint **0 errores / 28 warnings** (no funcionales, documentado) ✔.
+- **Librerías clave**: GSAP 3.15 + @gsap/react (11 componentes), framer-motion 12, tone 15, wavesurfer.js 7, lucide-react. **i18n real** vía el hook `useTranslation()` con diccionarios `apps/studio/src/i18n/locales/es.json` + `en.json` (**765 claves hoja cada uno, paridad perfecta**); sin microcopy hardcodeado en la UI.
+- **Tests**: vitest **8 archivos / 72 tests passed** (meterMath 24, client 13, audioUtils 7, audioContextUtils 5, decodeAgentText 4, etc.) · eslint **0 errores / 33 warnings** (no funcionales, documentado) ✔.
 
 ### 4.2 apps/agent (`@midimastering/agent`)
 
 - Traduce lenguaje natural → `IntentProfile` (9 ejes 0..1) con Gemini (`@google/genai`) + Zod; **no toca audio** — el mapper DSP convierte el perfil en `MasteringSettings`.
 - Contrato `intent_profile.schema.json` ✅; `interpretIntent` compila pero **la llamada real no fue probada** (sin credenciales en el entorno). `needsClarification` no mueve el perfil; fuera de rango se rechaza (no clamp); ajuste incremental; `effort: low` por defecto; system prompt estable con `cache_control`.
-- Pendientes: tipos Python para el mapper, integración Convex action, persistencia de conversación. El README referencia roles del equipo (Brickman/Tomás/Andrés).
+- Pendientes: tipos Python para el mapper, persistencia de conversación. El README referencia roles del equipo (Brickman/Tomás/Andrés).
 
-### 4.3 Convex — dummie
+### 4.3 Convex — eliminado
 
-Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `convex` + `@convex-dev/auth`) pero **la app NO lo consulta**: `ConvexClientProvider` es un passthrough, hay **0 imports de `convex/_generated`**, el flujo de login fue removido. `convex/auth.ts` queda disponible para un futuro login real. El CI tiene env placeholder y un job `deploy-convex` gated por variable/secret.
+**Ya no existe en el repo.** Verificado (`git ls-files | rg -i convex` → vacío; 0 referencias a `convex` en `apps/studio/src`, `next.config.*` y `package.json`). El scaffold histórico (`convex/` schema, auth, mastering, projects, messages) fue eliminado junto con sus deps y el flujo de login; nunca estuvo conectado a la app (0 imports de `convex/_generated`). El job `deploy-convex` y el env placeholder de la CI también fueron removidos. Si en el futuro se quiere auth/DB gestionada, se decide desde cero.
 
 ---
 
@@ -325,9 +325,9 @@ Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `
 
 ### 6.2 CI (`.github/workflows/studio-ci.yml`)
 
-- Pull requests (ruta `apps/studio/**`): `npm ci` + `npm run lint` + `npm run build` (env `NEXT_PUBLIC_CONVEX_URL` placeholder).
-- Push a `develop`/`main`: igual.
-- Job `deploy-convex` opcional solo en `main` si `CONVEX_DEPLOY_ENABLED=true` y existe `CONVEX_DEPLOY_KEY`.
+- Repo **bun** (no hay `package-lock.json`): `oven-sh/setup-bun` + `bun install --frozen-lockfile` en la raíz + `bun run lint` + `bun run build` (Node 22 solo como runtime de `next build`). El job bloqueante es `build`.
+- Pull requests (ruta `apps/studio/**`) y push a `develop`/`main`: igual.
+- Sin `deploy-convex` ni env de Convex (removidos junto con el scaffold).
 
 ### 6.3 Deploy demo
 
@@ -343,11 +343,11 @@ Scaffold completo (`convex/` schema, auth, mastering, projects, messages; deps `
 
 | Comando | Resultado |
 |---|---|
-| `pytest tests/ -q` (audiomind) | **628 passed** (~114 s, warnings de deprecación de terceros) |
+| `pytest tests/ -q` (audiomind) | **887 passed, 0 failed** (~114 s, warnings de deprecación de terceros) |
 | `python -m ruff check` (audiomind) | **0 errores** (import order autofijado en T3) |
-| `npm run test` (studio, vitest) | **8 files / 57 tests passed** |
-| `npm run lint` (studio, eslint) | **0 errors / 28 warnings** |
-| `npm run build` (studio) | — ejecutar si se desea (no corrido para no interferir) |
+| `npm run test` (studio, vitest) | **8 files / 72 tests passed** |
+| `npm run lint` (studio, eslint) | **0 errors / 33 warnings** |
+| `npm run build` (studio) | **0 errores** — build de producción exitoso en **Next 16.2.11** |
 
 ### 6.6 Infraestructura realmente desplegada (verificada 02-Oct)
 
@@ -386,8 +386,8 @@ Estado real de producción, con lo verificado en vivo contra los servicios. Esto
 | 4 | **Mypy**: RESUELTO 23-Sep (commit `66c4fdb`) — `python_version` bump a 3.12 en pyproject, overrides estrechos para libs sin stubs, tipado corrigido hasta `Success: no issues found in 72 source files` | audiomind | Hecho |
 | 5 | Prueba **manual** de "Mezcla de Audio" en la UI (backend + studio levantados) | Frontend | Decisión del usuario |
 | 6 | **Deploy demo Vercel + Railway** (runbook listo, plan LOCKED) — requiere credenciales y vars | Deploy | Acción pendiente |
-| 7 | Decidir si se **activa Convex** (auth/queries reales) o se limpia el scaffold | Studio | Decisión |
-| 8 | Probar `interpretIntent` real (credenciales Gemini/Anthropic) + tipos Python del mapper + integración Convex action | apps/agent | Decisión usuario / credenciales |
+| 7 | ~~Decidir si se **activa Convex** o se limpia el scaffold~~ — **RESUELTO**: el scaffold fue eliminado del repo | Studio | **Resuelto** |
+| 8 | Probar `interpretIntent` real (credenciales Gemini/Anthropic) + tipos Python del mapper | apps/agent | Decisión usuario / credenciales |
 | 9 | **Actualizar documentación stale**: README/AGENTS/docs mencionan bridge y simulator que ya no existen — **HECHO 23-Sep** (ESTADO_PROYECTO, README, AGENTS, docs/README, SETUP, DOCKER, USER_MANUAL, UX_MAP, ARQUITECTURA_WAVEIA_DETALLE actualizados; specs 05/07 y archive quedan históricos por convención). El servicio `simulator` roto del compose fue **quitado** (23-Sep, commit `093946c`). **Cerrado 27-Sep** (`ba3b4a6`): el `simulator/Dockerfile` huérfano (que `COPY`aba un `requirements.txt` inexistente, o sea no podía construir) fue eliminado con su directorio. La nota sobre `scripts/setup/setup.ps1` installando requirements inexistentes quedó **stale**: ese script ya estaba corregido el 23-Sep y hoy solo instala `-e apps/audiomind` | Docs + compose + setup | **Hecho** |
 | 10 | Historial/retención de sesiones: `outputs/` fuera del volume de Railway → masters se pierden en redeploy | Backend/Deploy | Decisión de producto |
 | 11 | Segundo libro del Mix Engine (anexo al plan) + autotune creativo **fuera de alcance v1** | Mix Engine | Documentado como fuera de alcance |
@@ -410,7 +410,7 @@ Estado real de producción, con lo verificado en vivo contra los servicios. Esto
 | 28 | **`DJ_LIMIT_WORKERS` sin commit y con caveat**: el cambio en `services/demo_guard.py` está solo en el working tree, y `reset_gate()` ignora la variable (§6.6). Además la afirmación de `AGENTS.md` de que "el pool evita bloquear el event loop" describe el síntoma de forma laxa: los threads no bloquean el event loop por sí mismos; lo que agota el contenedor es la CPU y la RAM del pipeline corriendo en paralelo en el mismo worker | Backend/Docs | Trabajo pendiente + doc que corregir |
 | 29 | **Candidatos de revisión sin commit**: `apps/studio/src/lib/mastering-stages.ts` (nuevo, sin trackear) y el `INSERT` manual de `dsp_jobs` hecho en producción para destrabar el polling. El segundo es un parche operativo, no una migración: el siguiente que ejecute el flujo async va a volver a necesitarlo si la tabla no queda poblada por el propio backend | Deploy/Frontend | Decisión del usuario |
 | 30 | ~~**Persistir los MASTERS en R2 y rehidratarlos igual que la mezcla**~~ **RESUELTO 02-Oct** (sin commit) — `SessionData.master_r2_key` + `PresetMasterEntry.r2_key`; `_persist_master_to_r2()` sube el WAV al entregarlo (off-event-loop, falla sin romper la request) y `_resolve_master_file()` rehidrata desde R2 antes de servir. Cableadas las **6** rutas productoras (preset on-demand, cache prebuilt, cache prerender, `/process`, prerender-serve, `/album/process`) y las **4** consumidoras (`/audio/mastered`, `/raw-mastered`, `/download/{fmt}`, `/compare-reference`); reset limpia las claves. Objetos vacíos y fallos de descarga → 404 con detalle. Ver §3.1.2 | Backend | **Resuelto** |
-| 31 | **Dos tests preexistentes fallan en local y NO son regresión de §3.2.1** (verificado con `git stash` sobre los 4 archivos fuente): (a) `test_async_mix_jobs.py::TestStorageKeys::test_no_credential_has_a_hardcoded_default` — falla porque el `.env` local tiene credenciales R2 reales, y el test afirma `settings.r2_access_key_id == ""`; pasa si se oculta el `.env`. Es el guardián de #13, funcionando, pero necesita una forma de correr con credenciales locales. (b) `test_demo_mode.py::TestDemoNormalMode::test_prerender_all_presets` — timeout de 10 s para prerenderizar 8 presets con DSP real; la máquina no llega | Tests | Deuda técnica |
+| 31 | ~~**Dos tests preexistentes fallan en local y NO son regresión de §3.2.1**~~ **CORREGIDO**: la suite corre verde (**887 passed, 0 failed**); los 2 fallos preexistentes (guardia de credenciales R2 ante `.env` local y timeout de prerender) ya no se reproducen en la corrida actual | Tests | **Resuelto** |
 | 32 | **La sesión sigue sin sobrevivir al redeploy aunque el audio ya no se pierda** (descubierto al resolver #30): `uploads/sessions.json` es un dict en memoria + archivo en disco efímero, así que en Railway #30 devuelve 404 con "re-run POST /process" en vez de rehidratar. El audio ya es durable; falta el puntero. Sin esto, la rehidratación de #30 nunca se ejerce en producción. Precedente en el repo: tabla `dsp_jobs` en Supabase (ver #29). Decisión de diseño pendiente del usuario | Backend/Docs | Pendiente — bloquea el valor de #30 |
 | 33 | **La suite de tests escribía WAVs REALES en el bucket de producción** (descubierto al resolver #30): al subir los masters a R2, ~40 módulos de test que masterizan dejaron de necesitar stub y pasaron a hacer PUT de verdad contra el bucket de producción usando las credenciales de `apps/audiomind/.env`. Medido: `pytest tests/test_demo_mode.py::TestDemoDownload` (3 tests) subió 4 objetos bajo `masters/`. Corregido con `tests/conftest.py` (fixture autouse que hace degradar `storage.get_s3_client()` en vez de tocar la red, + redirección de `SESSION_FILE`); verificado 0 objetos nuevos después del fix. Sin `conftest.py` esto se reintroduce en el próximo módulo nuevo | Tests/Infra | **Resuelto** (piden decisión: borrar los 4 objetos de prueba) |
 
