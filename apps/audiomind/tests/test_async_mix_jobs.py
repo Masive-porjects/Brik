@@ -336,9 +336,17 @@ class TestStorageKeys:
         assert "not configured" in str(exc.value)
 
     def test_no_credential_has_a_hardcoded_default(self):
-        """Regression guard: a credential in source is a leaked credential."""
-        assert settings.r2_access_key_id == ""
-        assert settings.r2_secret_access_key == ""
+        """Regression guard: a credential in source is a leaked credential.
+
+        Assert the *source* default, not the env-loaded singleton: a local
+        ``.env`` is expected to supply real credentials, but the class default
+        must stay empty so a missing env never leaks a value.
+        """
+        from audiomind.config import Settings
+
+        fresh = Settings(_env_file=None)
+        assert fresh.r2_access_key_id == ""
+        assert fresh.r2_secret_access_key == ""
 
 
 # ── Endpoint tests ──────────────────────────────────────────────────────

@@ -290,7 +290,7 @@ class TestNegotiateAlbumTargets:
 
 
 class TestProcessAlbum:
-    def test_happy_path_mutates_sessions_and_reports_tolerance(self, monkeypatch):
+    def test_happy_path_mutates_sessions_and_reports_tolerance(self, monkeypatch, tmp_path):
         dyn_id = _make_session(_dynamic_program())
         dense_id = _make_session(_dense_program())
         captured = {}
@@ -338,7 +338,8 @@ class TestProcessAlbum:
             data["tracks"][1]["negotiated_target_lufs_db"]
         )
         # Sessions were persisted exactly once (single save after all tracks).
-        persisted = settings.upload_dir / "sessions.json"
+        # The harness pins the session backend to this test's tmp_path.
+        persisted = tmp_path / "sessions.json"
         assert persisted.exists()
 
     def test_failing_track_is_marked_and_album_continues(self, monkeypatch):
