@@ -301,7 +301,7 @@ Con esta remoción, WaveAI queda con **dos motores: Mastering y Mix**.
 
 ### 4.3 Convex — eliminado
 
-**Ya no existe en el repo.** Verificado (`git ls-files | rg -i convex` → vacío; 0 referencias a `convex` en `apps/studio/src`, `next.config.*` y `package.json`). El scaffold histórico (`convex/` schema, auth, mastering, projects, messages) fue eliminado junto con sus deps y el flujo de login; nunca estuvo conectado a la app (0 imports de `convex/_generated`). El job `deploy-convex` y el env placeholder de la CI también fueron removidos. Si en el futuro se quiere auth/DB gestionada, se decide desde cero.
+**Ya no existe en el repo.** Verificado (`git ls-files | rg -i convex` → vacío; 0 referencias a `convex` en `apps/studio/src`, `next.config.*` y `package.json`). El scaffold histórico de Convex (`convex/` schema, auth, mastering, projects, messages) fue eliminado junto con sus deps; nunca estuvo conectado a la app (0 imports de `convex/_generated`). **El flujo de login NO se removió**: el studio tiene su propio auth con Supabase (`src/middleware.ts` → `updateSession`, `features/auth/`, `app/auth/callback/route.ts`), independiente del Convex eliminado. El job `deploy-convex` y el env placeholder de la CI también fueron removidos. Si en el futuro se quiere auth/DB gestionada, se decide desde cero.
 
 ---
 
@@ -311,7 +311,7 @@ Con esta remoción, WaveAI queda con **dos motores: Mastering y Mix**.
 |---|---|---|
 | **`apps/bridge`** (MIDI → LiveParams → WS :8765) | ❌ **No existe** (ni en árbol ni en git) | Commits `92c79bf` (*remove vision/gesture/MIDI stack — Live Engine standalone*) y `38c1246` (*remove legacy HumanMidi gesture stack*) |
 | **`simulator` (Python)** `python -m simulator.main` | ❌ **Solo queda `simulator/Dockerfile`** — el módulo ya no existe | `git ls-files simulator` → solo `simulator/Dockerfile` |
-| **HumanMidi / gestos** | ❌ Removido | `docs/archive/HUMANMIDI_REMOVAL_REPORT.md` (histórico) |
+| **HumanMidi / gestos** | ❌ Removido | Commits `92c79bf` (*remove vision/gesture/MIDI stack*) y `38c1246` (*remove legacy HumanMidi gesture stack*). El reporte `docs/archive/HUMANMIDI_REMOVAL_REPORT.md` citado antes **no existe** en el repo |
 
 > **Consecuencia (resuelta 27-Sep)**: `README.md`, `AGENTS.md`, `docs/README.md` y los runbooks ya no listan `apps/bridge/` ni `simulator/` como componentes vivos. Con la eliminación del Live Engine (`ba3b4a6`) no queda ningún flujo MIDI→WS en el producto.
 
@@ -420,7 +420,7 @@ Estado real de producción, con lo verificado en vivo contra los servicios. Esto
 
 **Canónica/vigente** (`docs/reference/`, `docs/runbooks/`, `docs/manual/`, `docs/evidence/`): índice central en `docs/README.md` — specs de implementación (valores DSP exactos), COMPLIANCE_PHASE1, DSP_INDUSTRY_REVIEW, DESIGN, SETUP/DOCKER/DEPLOY, USER_MANUAL, UX_MAP, evidencias de benchmark.
 
-**Histórica** (`docs/archive/`): integración, HumanMidi removal, workplan, plan original.
+**Histórica** (`docs/archive/`): integración, workplan, plan original. (El reporte de remoción de HumanMidi y el handoff de Convex no existen como archivos; su registro vivo está en §3.3 y §5.)
 
 **Local-only (excluida de git, `.git/info/exclude`)**:
 

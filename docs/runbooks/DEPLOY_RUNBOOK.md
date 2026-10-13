@@ -47,7 +47,9 @@ Verified source: `config.py` lines 40–55 (license, prerender, concurrency, dur
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `https://<backend-railway>/api` | Contract: must end in `/api` (backend mounts all routers under that prefix). Trailing slash / double `/api` are auto-normalized client-side. Inlined at build time — set it before the first deploy. |
 | `NEXT_PUBLIC_BASE_PATH` | **leave unset** | `""` = serve at the Vercel domain root. Only needed if the app is later mounted under a subpath (e.g. `/waveai`). |
-| ~~`NEXT_PUBLIC_REQUIRE_AUTH`~~ | **removed** | The login flow was removed from the frontend — the env var no longer does anything. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<project>.supabase.co` | Supabase Auth project URL — read by `src/middleware.ts` and `src/lib/supabase/{client,server}.ts`. Set together with the anon key, `updateSession` refreshes the session and redirects unauthenticated users to `/login?redirect=…`. Inlined at build time: set it before the first deploy. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | Pairs with the URL above. **If either variable is missing, the middleware returns early and the whole studio runs unauthenticated** — this is how the open demo behaves. |
+| ~~`NEXT_PUBLIC_REQUIRE_AUTH`~~ | **vestigial** | Never read anywhere in the codebase. Auth is enforced by the Supabase middleware above, not by this flag. |
 | ~~`NEXT_PUBLIC_CONVEX_URL`~~ | **eliminado** | Convex fue removido por completo (Fase 0): la env ya no existe ni se usa en ningún lado. |
 | `ELEVENLABS_*` | **not needed** | Voice agent runtime is off in the demo UI. |
 

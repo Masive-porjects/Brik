@@ -18,7 +18,7 @@ Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) �
 | **`docs/runbooks/`** | Guías operativas paso a paso para levantar entornos de desarrollo local, contenedores y despliegues. | `SETUP.md`, `DOCKER.md`, `DEPLOY_RUNBOOK.md`, `DEMO_*.md` |
 | **`docs/manual/`** | Documentación de producto orientada al usuario final y mapas de experiencia y navegación. | `USER_MANUAL.md`, `UX_MAP.md` |
 | **`docs/presentation/`** | Materiales de presentación comercial, activos de marca y plantillas visuales. | `propuesta-waveAi.html`, `waveai-logo.jpg` |
-| **`docs/archive/`** | Archivo histórico inmutable de decisiones previas (remoción de HumanMidi, desacople de Convex). | `INTEGRATION_REPORT.md`, `PLAN.md`, etc. |
+| **`docs/archive/`** | Archivo histórico inmutable de decisiones previas (bloque de integración, workplan, plan original). | `INTEGRATION_REPORT.md`, `PLAN.md`, `WORKPLAN.md` |
 
 > [!NOTE]
 > Las **reglas normativas de comportamiento para agentes de IA** (como commits obligatorios por tarea, estándares de multiidioma, cursor pointer y arquitectura limpia) se administran en la raíz nativa de reglas del sistema:
@@ -59,7 +59,7 @@ Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) �
 - [`COMPLIANCE_PHASE1.md`](reference/COMPLIANCE_PHASE1.md): Contrato técnico de entrega (Modo Transparente, bypass bit-exacto, platform targets).
 - [`DSP_INDUSTRY_REVIEW.md`](reference/DSP_INDUSTRY_REVIEW.md): Revisión de la cadena de mastering contra estándares profesionales de la industria.
 - [`DESIGN.md`](reference/DESIGN.md): Especificación del UI del Studio: layout, responsive, componentes y microcopy.
-- [`specs/08_implementacion_llm.md`](reference/specs/08_implementacion_llm.md): Valores exactos de DSP, presets, rangos, tokens y endpoints.
+- [`specs/08_implementacion_llm.md`](reference/specs/08_implementacion_llm.md): Valores exactos de DSP, presets, rangos, tokens y endpoints (**parcialmente histórico**: el backend de mastering y el contrato siguen vigentes; las fases 3–6 describen HumanMidi, Bridge, Live Engine y Simulator, todos eliminados — ver [`ESTADO_PROYECTO.md`](ESTADO_PROYECTO.md) §3.3 y §5).
 - [`specs/03_waveai_backend_mastering.md`](reference/specs/03_waveai_backend_mastering.md): Arquitectura de la cadena DSP en FastAPI.
 - [`specs/04_waveai_sistema_diseno.md`](reference/specs/04_waveai_sistema_diseno.md): Sistema de diseño, paleta analógica y tokens CSS.
 - [`specs/05_live_engine_gestos_a_master.md`](reference/specs/05_live_engine_gestos_a_master.md): **histórico** — motor Web Audio en tiempo real, eliminado el 27-Sep (`ba3b4a6`).
@@ -82,8 +82,9 @@ Audio → AudioMind (FastAPI DSP) → Master / Mix → Studio (UI + Web Audio) �
 
 ### 6. Histórico Inmutable (`docs/archive/`)
 - [`INTEGRATION_REPORT.md`](archive/INTEGRATION_REPORT.md): Reporte histórico del bloque de integración.
-- [`HUMANMIDI_REMOVAL_REPORT.md`](archive/HUMANMIDI_REMOVAL_REPORT.md): Registro formal de la remoción de componentes heredados.
-- [`HANDOFF_BACKEND_CONVEX.md`](archive/HANDOFF_BACKEND_CONVEX.md), [`WORKPLAN.md`](archive/WORKPLAN.md), [`PLAN.md`](archive/PLAN.md).
+- [`WORKPLAN.md`](archive/WORKPLAN.md): Plan de trabajo histórico.
+- [`PLAN.md`](archive/PLAN.md): Plan original del producto.
+- Los registros de remoción de HumanMidi y del desacople de Convex **nunca llegaron a existir como archivos**: su contenido vivo es [`ESTADO_PROYECTO.md`](ESTADO_PROYECTO.md) §3.3 (Live Engine) y §5 (componentes removidos).
 
 ---
 
