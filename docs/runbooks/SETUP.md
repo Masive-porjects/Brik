@@ -102,7 +102,7 @@ cd apps/audiomind && ../../.venv/bin/python -m pytest tests/ -q      # 887 passe
 ## 8. Estado conocido del repo (verificado 2026-10-13)
 
 - ✅ audiomind **887 passed, 0 failed** · studio vitest **8 archivos / 72 tests** · eslint **0 errores / 33 warnings** (no funcionales) · build OK (Next 16.2.11)
-- ✅ HumanMidi **removido** (2026-09-11) — ver `../archive/HUMANMIDI_REMOVAL_REPORT.md`; bridge y simulator **removidos**; Live Engine eliminado (`ba3b4a6`); contrato `live_params` **dormido** — ver `../ESTADO_PROYECTO.md` §5
+- ✅ HumanMidi **removido** (2026-09-11) — el reporte `archive/HUMANMIDI_REMOVAL_REPORT.md` que esta línea citaba **no existe** en el repo; HumanMidi, bridge y simulator **removidos**; Live Engine eliminado (`ba3b4a6`); contrato `live_params` **dormido** — ver `../ESTADO_PROYECTO.md` §5
 - ✅ Convex **eliminado** — sin scaffold, sin deps, sin referencias en el studio
 - ✅ **CI activa**: `.github/workflows/studio-ci.yml` (bun) — lint + build bloqueantes; ver `../ESTADO_PROYECTO.md` §6.2
 - ✅ i18n real: hook `useTranslation()` + `apps/studio/src/i18n/locales/{es,en}.json` (765 claves hoja, paridad)

@@ -31,7 +31,7 @@ Pipeline: `Audio → AudioMind (FastAPI) → Master / Mix → Studio (UI + Web A
 
 - **`packages/contracts/live_params.schema.json` es la fuente de verdad** del protocolo. Si cambia, regenera tipos con `packages/contracts/scripts/gen_types.sh` (TS → `packages/contracts/liveParams.gen.ts`). Nunca edites los tipos generados a mano. Como el Live Engine está eliminado, este contrato está **dormido**: no lo consumas ni lo regeneres sin una reactivación explícita.
 - **Neutral = bypass**: en el backend, parámetro neutral = audio idéntico (bypass bit-exacto). Presérvalo en TODAS las rutas.
-- **Todo cambio de parámetro Web Audio con `setTargetAtTime(value, ctx.currentTime, 0.02)` — NUNCA asignación directa** (anti-zipper). Aplica a cualquier nodo Web Audio con parámetros; hoy el único Web Audio en vivo es el análisis estéreo de `useStereoField.ts`, que solo lee.
+- **Todo cambio de parámetro Web Audio con `setTargetAtTime(value, ctx.currentTime, 0.02)` — NUNCA asignación directa** (anti-zipper). Aplica a cualquier nodo Web Audio con parámetros. Hoy hay dos usos vivos: el análisis estéreo de `src/application/hooks/useStereoField.ts` (solo lee) y el reproductor A/B de la landing `src/presentation/components/landing/LandingABPlayer.tsx` (sí escribe `filter.frequency` y `gain.gain` con `setTargetAtTime`).
 - **Sesiones del backend en memoria** (dict + `SessionCache`) — se pierden al reiniciar el backend. `ProcessingStatus`: `uploaded → analyzing → processing → completed | error`.
 - **El limiter es 8× oversampling** (si tocas MasteringGuide escribe 8×, no 4×).
 - **Microcopy y Multiidioma Obligatorio (i18n)**:
