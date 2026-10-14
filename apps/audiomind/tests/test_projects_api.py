@@ -357,6 +357,80 @@ class TestPresignAssets:
         assert theirs.status_code == 404
 
 
+# ── Asset download (presigned GET) ─────────────────────────────────────────
+
+
+class TestAssetDownload:
+    @pytest.fixture(autouse=True)
+    def _stub_presign(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Se stubean ambas firmas: la de subida la usa `presign_asset` para
+        # crear el asset, y la de bajada es la que ejercita el endpoint nuevo.
+        monkeypatch.setattr(
+            storage_mod,
+            "presigned_put_url",
+            lambda key, **kw: f"https://r2.example/{key}?sig=put",
+        )
+        monkeypatch.setattr(
+            storage_mod,
+            "presigned_url",
+            lambda key, **kw: f"https://r2.example/{key}?sig=get",
+        )
+
+    def _project(self, token: str = "tok_a") -> str:
+        return client.post(
+            "/api/projects", json={"name": "P"}, headers=_auth(token)
+        ).json()["id"]
+
+    def _original(
+        self, token: str = "tok_a", filename: str = "toma.wav"
+    ) -> dict[str, Any]:
+        pid = self._project(token)
+        return client.post(
+            f"/api/projects/{pid}/assets/presign",
+            json={
+                "kind": "original",
+                "original_filename": filename,
+                "content_type": "audio/wav",
+            },
+            headers=_auth(token),
+        ).json()
+
+    def test_download_signs_the_asset_and_keeps_the_original_name(
+        self, fake_db: _FakeClient
+    ) -> None:
+        asset = self._original(filename="Toma con espacios & signos.wav")
+        resp = client.get(
+            f"/api/projects/{asset['project_id']}/assets/{asset['asset_id']}/download",
+            headers=_auth("tok_a"),
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["download_url"].startswith("https://r2.example/")
+        assert body["r2_key"] == asset["r2_key"]
+        # El nombre original se devuelve tal cual (sin limpiar) para la UI.
+        assert body["original_filename"] == "Toma con espacios & signos.wav"
+
+    def test_download_of_a_foreign_asset_is_404(self, fake_db: _FakeClient) -> None:
+        asset = self._original("tok_a")
+        resp = client.get(
+            f"/api/projects/{asset['project_id']}/assets/{asset['asset_id']}/download",
+            headers=_auth("tok_b"),
+        )
+        # `detail` propio (no el "Not Found" del router) prueba que la ruta
+        # existe y que el 404 es la respuesta de ownership, no un route miss.
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Proyecto no encontrado."
+
+    def test_download_of_an_unknown_asset_is_404(self, fake_db: _FakeClient) -> None:
+        pid = self._project()
+        resp = client.get(
+            f"/api/projects/{pid}/assets/{uuid.uuid4()}/download",
+            headers=_auth("tok_a"),
+        )
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Archivo no encontrado."
+
+
 # ── Mix state ──────────────────────────────────────────────────────────────
 
 

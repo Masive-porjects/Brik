@@ -10,6 +10,7 @@ document store:
                                                 and register the asset row.
 * ``PATCH  /projects/{id}/assets/{asset_id}``   record upload introspection.
 * ``GET    /projects/{id}/assets``              list a project's files.
+* ``GET    /projects/{id}/assets/{aid}/download`` mint a presigned GET URL.
 * ``GET    /projects/{id}/state``               read the live mix state.
 * ``PATCH  /projects/{id}/state``               upsert the live mix state.
 * ``GET    /projects/{id}/document``            read the V1 project document.
@@ -73,6 +74,11 @@ AssetKind = Literal["original", "stem", "master"]
 #: upload; 15 minutes is generous for a local file and keeps a leaked URL
 #: short-lived.
 _PRESIGN_EXPIRES_SECONDS = 900
+
+#: Las URLs de descarga viven más que las de subida: se firman al momento de
+#: reproducir y una sesión reanudada puede quedar en pausa antes de empezar a
+#: buffear. Una hora cubre ese hueco sin dejar la llave suelta todo el día.
+_DOWNLOAD_EXPIRES_SECONDS = 3600
 
 #: content-type → file extension for the deterministic R2 key. Anything
 #: unrecognised falls back to ``bin`` (the key is a pointer, not a player).
@@ -186,6 +192,23 @@ class AssetOut(BaseModel):
     format: str | None = None
     size_bytes: int | None = None
     created_at: str | None = None
+
+
+class AssetDownloadOut(BaseModel):
+    """Respuesta de ``GET /projects/{id}/assets/{asset_id}/download``.
+
+    Entrega una URL firmada de vida corta para que un bucket privado igual se
+    pueda reproducir o descargar. La ``r2_key`` viaja junto a la URL porque el
+    Studio la guarda en ``tracks.storage_path`` y no necesita una segunda
+    consulta para resolver el mismo archivo.
+    """
+
+    project_id: str
+    asset_id: str
+    r2_key: str
+    original_filename: str | None = None
+    download_url: str
+    expires_in: int
 
 
 class StateUpsert(BaseModel):
@@ -572,6 +595,51 @@ async def list_assets(
     rows = _data(resp)
     rows.sort(key=lambda r: str(r.get("created_at") or ""))
     return [_asset_out(row) for row in rows]
+
+
+@router.get(
+    "/{project_id}/assets/{asset_id}/download",
+    response_model=AssetDownloadOut,
+)
+async def download_asset(
+    project_id: str,
+    asset_id: str,
+    ctx: Annotated[UserContext, Depends(get_user_context)],
+) -> AssetDownloadOut:
+    """Firma una URL GET para un asset del llamador.
+
+    El bucket es privado, así que la única forma de que el Studio reproduzca o
+    descargue un archivo es una URL firmada acá. La propiedad se verifica ANTES
+    de firmar: firmar primero y filtrar después le entregaría la URL de una
+    clave ajena a cualquiera que adivine dos UUIDs.
+    """
+    client = _client_for(ctx)
+    _get_owned_project(client, project_id, ctx.user_id)
+    asset = _get_owned_asset(client, project_id, asset_id, ctx.user_id)
+
+    r2_key = str(asset.get("r2_key") or "")
+    if not r2_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Archivo no encontrado.",
+        )
+
+    try:
+        url = storage.presigned_url(r2_key, expires_in=_DOWNLOAD_EXPIRES_SECONDS)
+    except storage.StorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"No se pudo generar el enlace de descarga: {exc}",
+        ) from exc
+
+    return AssetDownloadOut(
+        project_id=project_id,
+        asset_id=asset_id,
+        r2_key=r2_key,
+        original_filename=asset.get("original_filename"),
+        download_url=url,
+        expires_in=_DOWNLOAD_EXPIRES_SECONDS,
+    )
 
 
 # ── Stem separation (async, idempotent) ────────────────────────────────────
