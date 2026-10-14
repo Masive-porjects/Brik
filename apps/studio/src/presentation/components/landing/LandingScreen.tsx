@@ -18,7 +18,7 @@ import LandingFooter from "./LandingFooter";
 
 export default function LandingScreen() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#121317] text-[#e3e2e8] font-sans relative selection:bg-primary-container selection:text-[#003734] overflow-x-clip overflow-y-auto">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] font-sans relative selection:bg-primary-container selection:text-[var(--color-on-primary)] overflow-x-clip overflow-y-auto">
       {/* Ambient decorative brand ghosts floating across the viewport */}
       <FloatingGhosts zIndex={1} />
 

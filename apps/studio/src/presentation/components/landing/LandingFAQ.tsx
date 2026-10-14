@@ -16,7 +16,7 @@ export default function LandingFAQ() {
   return (
     <section
       id="faq"
-      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#0d0e12] relative overflow-x-hidden"
+      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[var(--bg-glass-elevated)] relative overflow-x-hidden"
     >
       <div className="max-w-3xl mx-auto flex flex-col gap-10">
         {/* Section header — mirrors the other landing sections' reveal */}
@@ -30,10 +30,10 @@ export default function LandingFAQ() {
           <span className="font-label-technical text-secondary text-[10px] uppercase tracking-widest">
             {t("landing.faq.badge", "Preguntas Frecuentes")}
           </span>
-          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[#e3e2e8] font-bold">
+          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[var(--text-primary)] font-bold">
             {t("landing.faq.title", "Todo lo que debes saber")}
           </h2>
-          <p className="font-body-md text-[#bcc9c7] text-sm sm:text-base leading-relaxed">
+          <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
             {t(
               "landing.faq.subtitle",
               "Respuestas directas sobre propiedad, formatos de entrega y cómo procesa el motor."
@@ -56,7 +56,7 @@ export default function LandingFAQ() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.2 }}
                 transition={{ ...transitions.scrollReveal, delay: idx * 0.05 }}
-                className="rounded-2xl bg-[#121317]/95 backdrop-blur-md border border-white/[0.08] overflow-hidden"
+                className="rounded-2xl bg-[var(--bg-glass-elevated)]/95 backdrop-blur-md border border-[var(--border-subtle)] overflow-hidden"
               >
                 <h3 className="m-0">
                   <button
@@ -65,7 +65,7 @@ export default function LandingFAQ() {
                     aria-expanded={isOpen}
                     aria-controls={panelId}
                     onClick={() => setOpenId(isOpen ? null : item.id)}
-                    className="w-full min-h-[44px] flex items-center justify-between gap-4 px-5 sm:px-6 py-5 text-left font-headline-sm text-base sm:text-lg text-[#e3e2e8] hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-primary/70"
+                    className="w-full min-h-[44px] flex items-center justify-between gap-4 px-5 sm:px-6 py-5 text-left font-headline-sm text-base sm:text-lg text-[var(--text-primary)] hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-primary/70"
                   >
                     <span>{t(item.questionKey)}</span>
                     <motion.span
@@ -90,7 +90,7 @@ export default function LandingFAQ() {
                       transition={transitions.presence}
                       className="overflow-hidden"
                     >
-                      <p className="px-5 sm:px-6 pb-5 font-body-sm text-sm text-[#bcc9c7] leading-relaxed">
+                      <p className="px-5 sm:px-6 pb-5 font-body-sm text-sm text-[var(--text-secondary)] leading-relaxed">
                         {t(item.answerKey)}
                       </p>
                     </motion.div>

@@ -22,7 +22,7 @@ export default function LandingTagline() {
     <section
       id="manifiesto"
       ref={containerRef}
-      className="w-full py-20 sm:py-28 px-4 sm:px-8 lg:px-12 bg-[#0d0e12] relative overflow-hidden border-y border-white/[0.04]"
+      className="w-full py-20 sm:py-28 px-4 sm:px-8 lg:px-12 bg-[var(--bg-glass-elevated)] relative overflow-hidden border-y border-[var(--border-subtle)]"
     >
       {/* Ambient spectral bloom behind the statement — brightened on scroll */}
       <div
@@ -38,7 +38,7 @@ export default function LandingTagline() {
           </span>
           <h2
             data-tagline
-            className="font-display-xl text-2xl sm:text-4xl lg:text-5xl tracking-tight text-[#e3e2e8]"
+            className="font-display-xl text-2xl sm:text-4xl lg:text-5xl tracking-tight text-[var(--text-primary)]"
           >
             {t(
               "landing.tagline.statement",

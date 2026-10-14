@@ -26,7 +26,7 @@ export default function LandingPricing() {
   return (
     <section
       id="precios"
-      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative overflow-x-hidden"
+      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[var(--bg-app)] relative overflow-x-hidden"
     >
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
         {/* Section header — same staggered reveal as the other landing sections */}
@@ -40,10 +40,10 @@ export default function LandingPricing() {
           <span className="font-label-technical text-primary text-[10px] uppercase tracking-widest">
             {t("landing.pricing.badge", "Estructura Comercial")}
           </span>
-          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[#e3e2e8] font-bold">
+          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[var(--text-primary)] font-bold">
             {t("landing.pricing.title", "Precios claros, sin sorpresas")}
           </h2>
-          <p className="font-body-md text-[#bcc9c7] text-sm sm:text-base leading-relaxed">
+          <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
             {t(
               "landing.pricing.subtitle",
               "Paga por canción cuando lo necesites o compra créditos para tu estudio o sello. Sin suscripciones obligatorias ni cargos ocultos."
@@ -63,14 +63,14 @@ export default function LandingPricing() {
                   {/* Offer identity + featured badge */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="w-11 h-11 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
+                      <span className="w-11 h-11 rounded-xl bg-[var(--surface-hover)] border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0">
                         <Icon className={`w-5 h-5 ${accentText}`} />
                       </span>
                       <div className="flex flex-col">
-                        <span className="font-label-technical text-[10px] uppercase tracking-widest text-[#869391]">
+                        <span className="font-label-technical text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
                           {t(plan.nameKey)}
                         </span>
-                        <span className="font-body-sm text-xs text-[#e3e2e8] font-semibold">
+                        <span className="font-body-sm text-xs text-[var(--text-primary)] font-semibold">
                           {t(plan.taglineKey)}
                         </span>
                       </div>
@@ -85,11 +85,11 @@ export default function LandingPricing() {
 
                   {/* Price — amount + currency + translated unit suffix */}
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-label-technical text-sm text-[#869391]">{plan.currency}</span>
-                    <span className="font-display-xl text-4xl sm:text-5xl font-bold text-[#e3e2e8] tracking-tight leading-none">
+                    <span className="font-label-technical text-sm text-[var(--text-muted)]">{plan.currency}</span>
+                    <span className="font-display-xl text-4xl sm:text-5xl font-bold text-[var(--text-primary)] tracking-tight leading-none">
                       {plan.price}
                     </span>
-                    <span className="font-body-sm text-xs text-[#869391]">{t(plan.unitKey)}</span>
+                    <span className="font-body-sm text-xs text-[var(--text-muted)]">{t(plan.unitKey)}</span>
                   </div>
 
                   {/* Feature bullets */}
@@ -97,7 +97,7 @@ export default function LandingPricing() {
                     {plan.featureKeys.map((featureKey) => (
                       <li key={featureKey} className="flex items-start gap-2.5">
                         <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${accentText}`} />
-                        <span className="font-body-sm text-xs text-[#bcc9c7] leading-relaxed">
+                        <span className="font-body-sm text-xs text-[var(--text-secondary)] leading-relaxed">
                           {t(featureKey)}
                         </span>
                       </li>
@@ -109,8 +109,8 @@ export default function LandingPricing() {
                     href={plan.ctaHref}
                     className={`w-full py-3 px-4 rounded-xl font-body-md font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                       plan.highlighted
-                        ? "bg-primary text-[#003734] hover:bg-primary-container shadow-[0_0_20px_rgba(110,233,224,0.35)]"
-                        : "bg-[#292a2e]/80 text-[#e3e2e8] border border-white/10 hover:bg-[#38393e]"
+                        ? "bg-primary text-[var(--color-on-primary)] hover:bg-primary-container shadow-[0_0_20px_rgba(110,233,224,0.35)]"
+                        : "bg-[var(--surface-active)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:bg-[var(--surface-hover)]"
                     }`}
                   >
                     <span>{t(plan.ctaKey)}</span>
@@ -123,7 +123,7 @@ export default function LandingPricing() {
         </div>
 
         {/* Honest note: these are not the final commercial numbers yet. */}
-        <p className="font-label-technical text-[10px] text-[#869391]/80 max-w-4xl">
+        <p className="font-label-technical text-[10px] text-[var(--text-muted)]/80 max-w-4xl">
           {t(
             "landing.pricing.disclaimer",
             "Precios de referencia: se confirmarán al habilitar el pago."

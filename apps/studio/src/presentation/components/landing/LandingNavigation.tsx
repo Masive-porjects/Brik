@@ -54,8 +54,8 @@ function DesktopNav() {
             onClick={() => onLinkClick(link.id)}
             className={`px-3.5 py-1.5 rounded-lg font-body-sm text-xs transition-all duration-200 ${
               isActive
-                ? "bg-[#292a2e] text-primary font-semibold shadow-sm"
-                : "text-[#bcc9c7] hover:text-[#e3e2e8] hover:bg-white/[0.03]"
+                ? "bg-[var(--surface-active)] text-primary font-semibold shadow-sm"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
             }`}
           >
             {t(link.label)}
@@ -74,7 +74,7 @@ function MobileMenuButton() {
   return (
     <button
       type="button"
-      className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg text-[#bcc9c7] hover:text-white hover:bg-white/[0.05] transition-colors"
+      className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
       onClick={() => setIsOpen(!isOpen)}
       aria-expanded={isOpen}
       aria-controls="mobile-menu"
@@ -178,7 +178,7 @@ function MobileDrawer() {
         >
           {/* Backdrop - full screen, dark with heavy blur */}
           <motion.div
-            className="absolute inset-0 bg-[#0B0D0E]/95 backdrop-blur-xl"
+            className="absolute inset-0 bg-black/60 backdrop-blur-xl"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -191,20 +191,20 @@ function MobileDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 400, damping: 35 }}
-            className="absolute right-0 top-0 h-full w-full max-w-sm bg-[#121317] border-l border-white/5 shadow-2xl flex flex-col"
+            className="absolute right-0 top-0 h-full w-full max-w-sm bg-[var(--bg-app)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-heavy)] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)]">
               <span className="font-sans text-xl text-primary font-bold tracking-tight">BRIK</span>
               <button
                 ref={closeButtonRef}
                 type="button"
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-white/[0.05] transition-colors"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
                 onClick={handleClose}
                 aria-label={t("landing.nav.closeMenu", "Cerrar menú")}
               >
-                <svg className="w-5 h-5 text-[#bcc9c7]" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg className="w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
@@ -220,7 +220,7 @@ function MobileDrawer() {
                     className={`w-full text-left px-4 py-4 rounded-xl font-sans text-lg font-medium transition-all duration-200 active:scale-[0.98] ${
                       isActive
                         ? "bg-primary/15 text-primary border border-primary/30"
-                        : "text-[#bcc9c7] hover:text-white hover:bg-white/[0.03]"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
                     }`}
                     aria-current={isActive ? "page" : undefined}
                   >
@@ -235,7 +235,7 @@ function MobileDrawer() {
               })}
 
               {/* User Controls / Language / Theme */}
-              <div className="pt-4 border-t border-white/5 space-y-3">
+              <div className="pt-4 border-t border-[var(--border-subtle)] space-y-3">
                 <LanguageSwitcher />
                 {user ? <UserMenu /> : <ThemeToggle />}
               </div>
@@ -244,15 +244,15 @@ function MobileDrawer() {
               <Link
                 href="/upload"
                 onClick={handleClose}
-                className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[#003734] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
+                className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[var(--color-on-primary)] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
               >
                 {t("landing.nav.enterStudio", "Ingresar a Brik Studio")}
               </Link>
             </nav>
 
             {/* Footer info */}
-            <div className="p-4 border-t border-white/5 text-center">
-              <p className="font-label-technical text-[10px] text-[#869391] uppercase tracking-wider">
+            <div className="p-4 border-t border-[var(--border-subtle)] text-center">
+              <p className="font-label-technical text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
                 {t("landing.nav.dspCore", "DSP Core")} v2.4
               </p>
             </div>

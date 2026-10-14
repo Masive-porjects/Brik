@@ -84,8 +84,8 @@ function MetricCard({ metric, value, label, unit }: MetricCardProps) {
   const fill = normalize(metric, value) * 100;
 
   return (
-    <div className="p-2.5 sm:p-4 bg-[#1f1f24] rounded-lg border border-white/5 flex flex-col gap-1.5">
-      <span className="font-label-technical text-[9px] sm:text-[10px] leading-tight text-[#869391]">
+    <div className="p-2.5 sm:p-4 bg-[var(--bg-glass)] rounded-lg border border-[var(--border-subtle)] flex flex-col gap-1.5">
+      <span className="font-label-technical text-[9px] sm:text-[10px] leading-tight text-[var(--text-muted)]">
         {label}
       </span>
       <div className="flex items-baseline justify-between gap-1">
@@ -94,7 +94,7 @@ function MetricCard({ metric, value, label, unit }: MetricCardProps) {
         </span>
         <span className={`font-label-technical text-[9px] sm:text-xs ${accent.text}`}>{unit}</span>
       </div>
-      <div className="w-full bg-[#343439] h-1.5 rounded-full overflow-hidden">
+      <div className="w-full bg-[var(--surface-active)] h-1.5 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${accent.bg}`} style={{ width: `${fill}%` }} />
       </div>
     </div>
@@ -168,10 +168,10 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
         onChange(Math.min(100, Math.max(0, next)));
       }}
     >
-      <div className="absolute inset-x-0 h-1.5 rounded-full bg-[#343439]" />
+      <div className="absolute inset-x-0 h-1.5 rounded-full bg-[var(--surface-active)]" />
       <div className="absolute left-0 h-1.5 rounded-full bg-primary" style={{ width: `${value}%` }} />
       <div
-        className="absolute h-5 w-5 -translate-x-1/2 rounded-full border-2 border-primary bg-[#1a1b20] shadow-[0_0_0_2px_rgba(0,0,0,0.4),0_0_10px_rgba(110,233,224,0.35)]"
+        className="absolute h-5 w-5 -translate-x-1/2 rounded-full border-2 border-primary bg-[var(--bg-glass-elevated)] shadow-[0_0_0_2px_rgba(0,0,0,0.4),0_0_10px_rgba(110,233,224,0.35)]"
         style={{ left: `${value}%` }}
       />
     </div>
@@ -470,40 +470,40 @@ export default function LandingABPlayer() {
   }, []);
 
   return (
-    <Reveal as="section" className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative" id="comparador">
+    <Reveal as="section" className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[var(--bg-app)] relative" id="comparador">
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
         {/* Section Header */}
         <div className="flex flex-col items-center text-center gap-2 max-w-3xl mx-auto">
           <span className="font-label-technical text-secondary text-[10px] uppercase tracking-widest">
             {t("landing.abPlayer.badge")}
           </span>
-          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[#e3e2e8] font-bold">
+          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[var(--text-primary)] font-bold">
             {t("landing.abPlayer.title")}
           </h2>
-          <p className="font-body-md text-[#bcc9c7] text-sm sm:text-base leading-relaxed">
+          <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
             {t("landing.abPlayer.subtitle")}
           </p>
         </div>
 
         {/* Interactive Audio Widget Shell */}
-        <div className="w-full bg-[#1a1b20] rounded-2xl p-4 sm:p-8 lg:p-10 shadow-2xl border border-white/5 flex flex-col gap-6">
+        <div className="w-full bg-[var(--bg-glass-elevated)] rounded-2xl p-4 sm:p-8 lg:p-10 shadow-2xl border border-[var(--border-subtle)] flex flex-col gap-6">
           {/* Control Bar */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-6 border-b border-white/10">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-6 border-b border-[var(--border-strong)]">
             {/* Track Info & Play */}
             <div className="flex items-center gap-3.5 min-w-0">
               <button
                 type="button"
                 onClick={togglePlay}
-                className="shrink-0 w-12 h-12 min-h-[44px] rounded-full bg-primary text-[#003734] flex items-center justify-center hover:bg-primary-container transition-all shadow-[0_0_18px_rgba(110,233,224,0.35)] hover:scale-105 active:scale-[0.98] cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-primary/70"
+                className="shrink-0 w-12 h-12 min-h-[44px] rounded-full bg-primary text-[var(--color-on-primary)] flex items-center justify-center hover:bg-primary-container transition-all shadow-[0_0_18px_rgba(110,233,224,0.35)] hover:scale-105 active:scale-[0.98] cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-primary/70"
                 aria-label={isPlaying ? t("landing.abPlayer.pauseAria") : t("landing.abPlayer.playAria")}
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
               </button>
               <div className="flex flex-col min-w-0">
-                <span className="font-headline-sm text-sm sm:text-base font-semibold text-[#e3e2e8] truncate">
+                <span className="font-headline-sm text-sm sm:text-base font-semibold text-[var(--text-primary)] truncate">
                   {t("landing.abPlayer.trackTitle")}
                 </span>
-                <span className="font-label-technical text-[10px] text-[#869391] truncate">
+                <span className="font-label-technical text-[10px] text-[var(--text-muted)] truncate">
                   {t("landing.abPlayer.trackMeta")}
                 </span>
               </div>
@@ -512,8 +512,8 @@ export default function LandingABPlayer() {
             {/* Intensity & A/B Switchers */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4">
               {/* DSP Intensity Fader */}
-              <div className="flex items-center gap-3 bg-[#1f1f24] px-4 rounded-full border border-white/5">
-                <span className="font-label-technical text-[10px] text-[#869391] uppercase shrink-0">
+              <div className="flex items-center gap-3 bg-[var(--bg-glass)] px-4 rounded-full border border-[var(--border-subtle)]">
+                <span className="font-label-technical text-[10px] text-[var(--text-muted)] uppercase shrink-0">
                   {t("landing.abPlayer.intensityLabel")}
                 </span>
                 <Fader
@@ -530,7 +530,7 @@ export default function LandingABPlayer() {
               <div
                 role="group"
                 aria-label={t("landing.abPlayer.toggleAria")}
-                className="grid grid-cols-2 gap-1 p-1 bg-[#292a2e] rounded-full border border-white/5 shadow-inner w-full sm:w-auto"
+                className="grid grid-cols-2 gap-1 p-1 bg-[var(--surface-active)] rounded-full border border-[var(--border-subtle)] shadow-inner w-full sm:w-auto"
               >
                 <button
                   type="button"
@@ -539,8 +539,8 @@ export default function LandingABPlayer() {
                   aria-keyshortcuts="a"
                   className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70 ${
                     !isBrik
-                      ? "bg-[#38393e] text-[#e3e2e8] shadow-md border border-white/10"
-                      : "text-[#869391] hover:text-[#e3e2e8]"
+                      ? "bg-[var(--surface-active)] text-[var(--text-primary)] shadow-md border border-[var(--border-strong)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   }`}
                 >
                   {t("landing.abPlayer.btnOrig")}
@@ -552,8 +552,8 @@ export default function LandingABPlayer() {
                   aria-keyshortcuts="b"
                   className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70 ${
                     isBrik
-                      ? "bg-primary text-[#003734] shadow-[0_0_12px_rgba(110,233,224,0.35)]"
-                      : "text-[#869391] hover:text-[#e3e2e8]"
+                      ? "bg-primary text-[var(--color-on-primary)] shadow-[0_0_12px_rgba(110,233,224,0.35)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   }`}
                 >
                   {t("landing.abPlayer.btnBrik")}
@@ -563,7 +563,7 @@ export default function LandingABPlayer() {
           </div>
 
           {/* Waveform Canvas */}
-          <div className="relative w-full h-48 sm:h-56 bg-[#0d0e12] rounded-xl overflow-hidden border border-white/5">
+          <div className="relative w-full h-48 sm:h-56 bg-[var(--bg-app)] rounded-xl overflow-hidden border border-[var(--border-subtle)]">
             <canvas
               ref={canvasRef}
               role="img"
@@ -574,13 +574,13 @@ export default function LandingABPlayer() {
               <span className="text-primary font-bold shrink-0">{t("landing.abPlayer.vizLabel")}</span>
               <span
                 className={`uppercase tracking-wider text-right truncate transition-colors duration-500 ${
-                  isBrik ? "text-primary" : "text-[#869391]"
+                  isBrik ? "text-primary" : "text-[var(--text-muted)]"
                 }`}
               >
                 {isBrik ? t("landing.abPlayer.statusBrik") : t("landing.abPlayer.statusOrig")}
               </span>
             </div>
-            <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[#869391] font-label-technical text-[10px] pointer-events-none">
+            <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[var(--text-muted)] font-label-technical text-[10px] pointer-events-none">
               <span>20 Hz</span>
               <span className="hidden sm:inline">100 Hz</span>
               <span>1 kHz</span>
@@ -604,7 +604,7 @@ export default function LandingABPlayer() {
           </div>
 
           {/* Honest demo disclaimer */}
-          <p className="font-label-technical text-[10px] leading-relaxed text-[#869391] text-center">
+          <p className="font-label-technical text-[10px] leading-relaxed text-[var(--text-muted)] text-center">
             {t("landing.abPlayer.demoNote")}
           </p>
         </div>

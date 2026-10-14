@@ -30,7 +30,7 @@ export default function LandingPresets() {
         "Realza la presencia aérea de las frecuencias altas y limpia el barro en la zona de 250Hz. Ideal para producciones electrónicas de alta velocidad."
       ),
       metric: t("landing.presets.preset1.metric", "CLARIDAD +4.5 dB"),
-      dotColor: "bg-primary shadow-[0_0_10px_#6ee9e0]",
+      dotColor: "bg-primary shadow-[0_0_10px_var(--color-primary)]",
       textColor: "text-primary",
       glowColor: "primary" as const,
       specs: [
@@ -49,7 +49,7 @@ export default function LandingPresets() {
         "Empuja la pared de sonoridad hasta el límite extremo (-9 LUFS de club) preservando el punch seco del subgrave 808 sin ahogo dinámico."
       ),
       metric: t("landing.presets.preset2.metric", "DENSIDAD MÁXIMA"),
-      dotColor: "bg-secondary shadow-[0_0_10px_#ecb2ff]",
+      dotColor: "bg-secondary shadow-[0_0_10px_var(--color-secondary)]",
       textColor: "text-secondary",
       glowColor: "secondary" as const,
       specs: [
@@ -68,7 +68,7 @@ export default function LandingPresets() {
         "Expansión dimensional extrema de la imagen estéreo. Convierte sintetizadores etéreos y cuerdas orquestales en una experiencia envolvente de 360 grados."
       ),
       metric: t("landing.presets.preset3.metric", "ANCHO HAAS 160%"),
-      dotColor: "bg-tertiary-container shadow-[0_0_10px_#ffa654]",
+      dotColor: "bg-tertiary-container shadow-[0_0_10px_var(--color-tertiary-container)]",
       textColor: "text-tertiary-container",
       glowColor: "tertiary" as const,
       specs: [
@@ -87,7 +87,7 @@ export default function LandingPresets() {
         "Inyección de distorsión armónica par a través de transformadores de consola británica y suave compresión óptica con sensación orgánica y cálida."
       ),
       metric: t("landing.presets.preset4.metric", "CALIDEZ VÁLVULA"),
-      dotColor: "bg-primary shadow-[0_0_10px_#6ee9e0]",
+      dotColor: "bg-primary shadow-[0_0_10px_var(--color-primary)]",
       textColor: "text-primary",
       glowColor: "primary" as const,
       specs: [
@@ -100,7 +100,7 @@ export default function LandingPresets() {
   ];
 
   return (
-    <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#121317] relative overflow-x-hidden" id="presets-fantasmagoricos">
+    <section className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[var(--bg-app)] relative overflow-x-hidden" id="presets-fantasmagoricos">
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
         {/* Section Header - Stagger */}
         <motion.div
@@ -113,10 +113,10 @@ export default function LandingPresets() {
           <span className="font-label-technical text-secondary text-[10px] uppercase tracking-widest">
             {t("landing.presets.badge", "Invocaciones Sónicas")}
           </span>
-          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[#e3e2e8] font-bold">
+          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[var(--text-primary)] font-bold">
             {t("landing.presets.title", "Presets Fantasmagóricos de Brik")}
           </h2>
-          <p className="font-body-md text-[#bcc9c7] text-sm sm:text-base leading-relaxed">
+          <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
             {t(
               "landing.presets.subtitle",
               "Perfiles tímbricos calibrados para canalizar estéticas sonoras precisas con un solo clic en la consola."
@@ -141,22 +141,22 @@ export default function LandingPresets() {
                 <div className="flex flex-col gap-4 flex-1">
                   <div className="flex items-center justify-between">
                     <span className={`w-3 h-3 rounded-full ${preset.dotColor}`} />
-                    <span className="font-label-technical text-[9px] text-[#869391] uppercase">
+                    <span className="font-label-technical text-[9px] text-[var(--text-muted)] uppercase">
                       {preset.genre}
                     </span>
                   </div>
 
                   <div className="flex flex-col gap-1.5 flex-1">
-                    <h3 className="font-headline-sm text-lg font-bold text-[#e3e2e8]">
+                    <h3 className="font-headline-sm text-lg font-bold text-[var(--text-primary)]">
                       {preset.title}
                     </h3>
-                    <p className="font-body-sm text-xs text-[#bcc9c7] leading-relaxed flex-1">
+                    <p className="font-body-sm text-xs text-[var(--text-secondary)] leading-relaxed flex-1">
                       {preset.desc}
                     </p>
                   </div>
                 </div>
 
-                <div className="pt-5 mt-auto border-t border-white/5 flex flex-col gap-3">
+                <div className="pt-5 mt-auto border-t border-[var(--border-subtle)] flex flex-col gap-3">
                   <div className={`font-label-technical text-xs ${preset.textColor} font-bold flex items-center justify-between`}>
                     <span>{preset.metric}</span>
                     <Icon className="w-4 h-4" />
@@ -166,10 +166,9 @@ export default function LandingPresets() {
                   <motion.button
                     type="button"
                     onClick={() => setExpandedPresetId(isExpanded ? null : preset.id)}
-                    whileHover={{ backgroundColor: "#292a2e" }}
                     whileTap={{ scale: 0.99 }}
                     transition={transitions.cardHover}
-                    className="w-full min-h-[44px] py-1.5 px-2.5 rounded-lg bg-[#292a2e]/60 border border-white/5 hover:border-white/10 text-[#bcc9c7] hover:text-[#e3e2e8] font-label-technical text-[10px] flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full min-h-[44px] py-1.5 px-2.5 rounded-lg bg-[var(--surface-active)]/60 border border-[var(--border-subtle)] hover:bg-[var(--surface-active)] hover:border-[var(--border-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-label-technical text-[10px] flex items-center justify-between transition-colors cursor-pointer"
                   >
                     <span>
                       {isExpanded
@@ -193,11 +192,11 @@ export default function LandingPresets() {
                       >
                         <div className="grid grid-cols-2 gap-2 text-left">
                           {preset.specs.map((spec) => (
-                            <div key={spec.label} className="p-2 bg-[#292a2e] rounded-lg flex flex-col">
-                              <span className="font-label-technical text-[9px] text-[#869391] uppercase">
+                            <div key={spec.label} className="p-2 bg-[var(--surface-active)] rounded-lg flex flex-col">
+                              <span className="font-label-technical text-[9px] text-[var(--text-muted)] uppercase">
                                 {spec.label}
                               </span>
-                              <span className="font-label-technical text-[10px] text-[#e3e2e8] font-bold">
+                              <span className="font-label-technical text-[10px] text-[var(--text-primary)] font-bold">
                                 {spec.value}
                               </span>
                             </div>
@@ -206,7 +205,7 @@ export default function LandingPresets() {
 
                         <Link
                           href="/upload"
-                          className="min-h-[44px] py-2 px-3 rounded-lg bg-primary text-[#003734] font-label-technical text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                          className="min-h-[44px] py-2 px-3 rounded-lg bg-primary text-[var(--color-on-primary)] font-label-technical text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                         >
                           <span>{t("landing.presets.loadPreset", "Usar preset en Studio")}</span>
                           <ArrowRight className="w-3.5 h-3.5" />

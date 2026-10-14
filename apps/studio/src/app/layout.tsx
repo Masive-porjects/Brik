@@ -54,10 +54,10 @@ const siteTitle =
 const siteDescription =
   "Masteriza y mezcla tu música con IA y un motor DSP 100% determinista: análisis espectral, 13 etapas de procesamiento, salida 24-bit/48kHz y preservación de fase. Sin alucinaciones: el mismo archivo produce el mismo master, toma a toma.";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://brikmaster.app";
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://brikmaster.app"
-  ),
+  metadataBase: new URL(siteUrl),
   title: {
     default: siteTitle,
     template: "%s | BrikMaster",
@@ -71,18 +71,32 @@ export const metadata: Metadata = {
     "preservación de fase",
     "mastering espectral",
     "BrikMaster",
+    "mezcla de audio IA",
+    "mastering online gratis",
+    "loudness LUFS",
+    "true peak limiter",
   ],
+  authors: [{ name: "Brik Audio DSP Systems" }],
+  creator: "Brik Audio DSP Systems",
+  publisher: "Brik Audio DSP Systems",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
     title: siteTitle,
     description: siteDescription,
     type: "website",
     locale: "es_ES",
+    alternateLocale: ["en_US"],
+    siteName: "BrikMaster",
     images: [
       {
         url: "/brand/mascota-3d.png",
         width: 1024,
         height: 1024,
-        alt: "BrikMaster",
+        alt: "BrikMaster - Mastering IA + Motor DSP Determinista",
       },
     ],
   },
@@ -91,10 +105,23 @@ export const metadata: Metadata = {
     title: siteTitle,
     description: siteDescription,
     images: ["/brand/mascota-3d.png"],
+    creator: "@brikaudio",
   },
   icons: {
     icon: "/brand/mascota-3d.png",
     apple: "/brand/mascota-3d.png",
+    shortcut: "/brand/mascota-3d.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 
@@ -112,6 +139,33 @@ const applicationLdJson = JSON.stringify({
     "Preservación de fase en toda la cadena de procesamiento",
     "Cero alucinaciones: el mismo archivo de entrada produce el mismo master",
   ],
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "EUR",
+    availability: "https://schema.org/InStock",
+  },
+});
+
+/** Organization structured data. */
+const organizationLdJson = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Brik Audio DSP Systems",
+  url: siteUrl,
+  logo: `${siteUrl}/brand/mascota-3d.png`,
+  sameAs: [
+    "https://github.com/Masive-porjects/Brik",
+    "https://twitter.com/brikaudio",
+  ],
+});
+
+/** WebSite structured data. */
+const webSiteLdJson = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "BrikMaster",
+  url: siteUrl,
 });
 
 export const dynamic = "force-dynamic";
@@ -159,10 +213,20 @@ export default function RootLayout({
             __html: `(function(){function setVH(){var vh=window.innerHeight*0.01;document.documentElement.style.setProperty('--vh',vh+'px');}setVH();window.addEventListener('resize',setVH);})();`,
           }}
         />
-        {/* Schema.org structured data - SoftwareApplication (printed as-is) */}
+        {/* Schema.org structured data - SoftwareApplication */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: applicationLdJson }}
+        />
+        {/* Organization structured data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: organizationLdJson }}
+        />
+        {/* WebSite structured data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: webSiteLdJson }}
         />
       </head>
       <body className="antialiased min-h-screen">

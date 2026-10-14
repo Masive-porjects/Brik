@@ -39,7 +39,7 @@ export default function LandingScrollToTop() {
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           whileHover={{ scale: 1.12, y: -4 }}
           whileTap={{ scale: 0.92 }}
-          className="fixed bottom-7 right-7 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-[#1a1b20]/90 backdrop-blur-2xl border border-primary/40 text-primary shadow-[0_0_25px_rgba(110,233,224,0.35)] hover:shadow-[0_0_35px_rgba(110,233,224,0.6)] hover:border-primary transition-colors cursor-pointer group"
+          className="fixed bottom-7 right-7 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-[var(--bg-glass-elevated)] backdrop-blur-2xl border border-primary/40 text-primary shadow-[0_0_25px_rgba(110,233,224,0.35)] hover:shadow-[0_0_35px_rgba(110,233,224,0.6)] hover:border-primary transition-colors cursor-pointer group"
           aria-label={t("landing.scrollToTop", "Volver al inicio")}
           title={t("landing.scrollToTop", "Volver al inicio")}
         >
@@ -47,7 +47,7 @@ export default function LandingScrollToTop() {
           <span className="absolute inset-0 rounded-full bg-primary/10 animate-ping pointer-events-none" />
 
           {/* Upward chevron / arrow badge on ghost's head */}
-          <span className="absolute -top-1.5 w-4 h-4 rounded-full bg-primary text-[#003734] flex items-center justify-center shadow-md">
+          <span className="absolute -top-1.5 w-4 h-4 rounded-full bg-primary text-[var(--color-on-primary)] flex items-center justify-center shadow-md">
             <ArrowUp className="w-2.5 h-2.5 stroke-[3]" />
           </span>
 
