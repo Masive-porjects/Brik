@@ -22,7 +22,7 @@ import { useTranslation } from "@/i18n/useTranslation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import {
   extractAudioMetadata,
-  uploadOriginalAudio,
+  uploadOriginalToR2,
   createTrackRecord,
   updateTrackStatus,
   uploadMasterAudio,
@@ -252,7 +252,7 @@ export function useMasteringWorkflow(
       setUploadProgress(0);
       setError(null);
 
-      // 1. Initiate Supabase Storage upload & track record in parallel (non-blocking for audio engine)
+      // 1. Subida directa a R2 + registro del track (no bloquea al motor de audio)
       const cloudUploadPromise = (async () => {
         if (!user) {
           currentTrackIdRef.current = null;
@@ -264,7 +264,9 @@ export function useMasteringWorkflow(
           const trackId = crypto.randomUUID();
           currentTrackIdRef.current = trackId;
           const meta = await extractAudioMetadata(file);
-          const { storagePath } = await uploadOriginalAudio(user.id, file, trackId);
+          // El original va a R2 (presign → PUT → PATCH) y `storage_path` guarda
+          // `r2:<r2_key>`; el nombre legible queda en `audio_assets`.
+          const { storagePath } = await uploadOriginalToR2(file, meta);
           const savedTrack = await createTrackRecord(user.id, {
             id: trackId,
             title: file.name.replace(/\.[^/.]+$/, ""),
