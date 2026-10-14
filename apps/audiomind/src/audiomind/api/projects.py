@@ -155,7 +155,7 @@ class ProjectOut(BaseModel):
 class PresignRequest(BaseModel):
     kind: AssetKind
     stem_name: str | None = Field(default=None, max_length=16)
-    original_filename: str | None = Field(default=None, max_length=300)
+    original_filename: str | None = Field(default=None, max_length=1024)
     content_type: str = Field(default="audio/wav", max_length=100)
 
 
