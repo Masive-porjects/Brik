@@ -35,9 +35,9 @@ export interface UseMasteringJobResult {
   isTerminal: boolean;
   /** ¿El trabajo está completo y listo para consumir? */
   isComplete: boolean;
-  /** Funcula para submeter un nuevo trabajo asíncrono. */
+  /** Función para submeter un nuevo trabajo asíncrono. */
   submit: (payload?: MasterJobPayload) => Promise<void>;
-  /** Funcula para reiniciar/limpiar el trabajo actual. */
+  /** Función para reiniciar/limpiar el trabajo actual. */
   reset: () => void;
   /** Callback invocado cuando el trabajo llega a estado terminal. */
   onComplete?: (result: MasterJobResult) => void;
@@ -50,20 +50,20 @@ export interface UseMasteringJobResult {
  *
  * Flujo:
  *  1. Llama submitMasterJob(payload { is_async: true }) → retorna { jobId, status: 'processing' }
- *  2. Inicia intervalo de polling a GET /api/jobs/master/{jobId} cada 2.5 s
+ *  2. Inicia polling con exponential backoff a GET /api/jobs/master/{jobId}
  *  3. Actualiza el estado local según la respuesta del backend:
  *     - 'processing' → state = 'processing'
  *     - 'completed' → state = 'completed', invoca onComplete con el resultado
  *     - 'error' → state = 'error', invoca onError con el mensaje
  *     - Job no encontrado / stale lease → state = 'error'
- * 4. Detiene el polling al llegar a estado terminal.
+ *  4. Detiene el polling al llegar a estado terminal.
  *
  * NOTAS:
  * - El hook es independiente de useMasteringWorkflow; no interfiere en el
  *   flujo sincrónico upload→analysis→processAudio. Se usa cuando el usuario
  *   quiere encolar el job en el background queue (Fase 6).
  * - El backend refresca el lease cada ~300 s (job_lease_seconds / 3). El hook
- *   puede opcionalmenteheartbeatear para evitar que el lease expire mientras
+ *   puede opcionalmente heartbeatear para evitar que el lease expire mientras
  *   el job permanece processing.
  * - Soporta tanto modo demo (sin Supabase) como producción (con tabla dsp_jobs).
  */
@@ -89,8 +89,10 @@ export function useMasteringJob(
   const [isTerminal, setIsTerminal] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submitPromiseRef = useRef<Promise<void> | null>(null);
+  const pollIntervalRef = useRef(2500); // Exponential backoff: starts at 2.5s
+  const MAX_POLL_INTERVAL = 10000; // Cap at 10s
 
   // Evitar submeter dos jobs simultáneos
   const isSubmittingRef = useRef(false);
@@ -105,23 +107,22 @@ export function useMasteringJob(
     onErrorRef.current = options.onError;
   }, [options.onComplete, options.onError]);
 
-  /** Iniciar el intervalo de polling. */
+  /** Iniciar el polling con exponential backoff. */
   const startPolling = useCallback(
     (overrideJobId?: string) => {
-      // Clear any existing interval
+      // Clear any existing timeout
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
       }
+      pollIntervalRef.current = 2500; // Reset backoff
       setProgress(0);
       setError(null);
       setIsTerminal(false);
       setIsComplete(false);
 
-      intervalRef.current = setInterval(async () => {
+      const tick = async () => {
         const activeJobId = overrideJobId || jobId;
         if (!activeJobId) {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
           setState("error");
           setError(t("errors.masteringJobNoId", "ID de job inexistente"));
           return;
@@ -138,11 +139,15 @@ export function useMasteringJob(
               setState("processing");
               // Reset error if was previously errored and now running again
               setError(null);
+              // Exponential backoff
+              pollIntervalRef.current = Math.min(
+                pollIntervalRef.current * 1.5,
+                MAX_POLL_INTERVAL
+              );
+              intervalRef.current = setTimeout(tick, pollIntervalRef.current);
               break;
 
             case "completed":
-              clearInterval(intervalRef.current!);
-              intervalRef.current = null;
               setState("completed");
               setIsTerminal(true);
               setIsComplete(true);
@@ -163,8 +168,6 @@ export function useMasteringJob(
               break;
 
             case "error":
-              clearInterval(intervalRef.current!);
-              intervalRef.current = null;
               setState("error");
               setIsTerminal(true);
               const errMsg =
@@ -175,7 +178,12 @@ export function useMasteringJob(
               break;
 
             default:
-              // Estado desconocido, continuar polling
+              // Estado desconocido, continuar polling con backoff
+              pollIntervalRef.current = Math.min(
+                pollIntervalRef.current * 1.5,
+                MAX_POLL_INTERVAL
+              );
+              intervalRef.current = setTimeout(tick, pollIntervalRef.current);
               break;
           }
         } catch (pollErr: unknown) {
@@ -185,8 +193,6 @@ export function useMasteringJob(
           );
           // Si el job desaparece (404), tratar como error de lease expirado
           if (pollErr instanceof Error && pollErr.message.includes("404")) {
-            clearInterval(intervalRef.current!);
-            intervalRef.current = null;
             setState("error");
             setError(
               t(
@@ -198,9 +204,18 @@ export function useMasteringJob(
             setError(
               t("errors.masteringJobPoll", "Error al consultar el estado del job"),
             );
+            // Exponential backoff on error too
+            pollIntervalRef.current = Math.min(
+              pollIntervalRef.current * 1.5,
+              MAX_POLL_INTERVAL
+            );
+            intervalRef.current = setTimeout(tick, pollIntervalRef.current);
           }
         }
-      }, 2500); // 2.5 segundos: balance entre responsividad y carga de API
+      };
+
+      // Start first tick
+      intervalRef.current = setTimeout(tick, pollIntervalRef.current);
     },
     [jobId, t],
   );
@@ -256,9 +271,10 @@ export function useMasteringJob(
   /** Detener polling y limpiar. */
   const stopPolling = useCallback(() => {
     if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+      clearTimeout(intervalRef.current);
       intervalRef.current = null;
     }
+    pollIntervalRef.current = 2500; // Reset backoff
   }, []);
 
   /** Reiniciar el hook (limpiar job actual y volver a idle). */
