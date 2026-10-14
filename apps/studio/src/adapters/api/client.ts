@@ -1143,3 +1143,269 @@ export async function submitProjectMasterJob(
   return { jobId: raw.job_id, pollUrl: raw.poll_url };
 }
 
+/* ── Project assets (subida directa a R2) ─────────────────────────────── */
+
+/** Tipos de asset aceptados por el backend (literal `AssetKind`). */
+export type AssetKind = "original" | "stem" | "master";
+
+/** Una fila de `projects`, normalizada a camelCase. Espeja `ProjectOut`. */
+export interface ProjectOut {
+  id: string;
+  userId: string;
+  name: string;
+  bpm: number | null;
+  musicalKey: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+/** Cuerpo de `POST /projects/{id}/assets/presign` (snake_case en el cable). */
+export interface PresignAssetInput {
+  kind: AssetKind;
+  stemName?: string;
+  originalFilename?: string;
+  contentType?: string;
+}
+
+/** Respuesta de `POST /projects/{id}/assets/presign`, normalizada. */
+export interface PresignedAsset {
+  assetId: string;
+  projectId: string;
+  r2Key: string;
+  putUrl: string;
+  contentType: string;
+  expiresIn: number;
+}
+
+/** Cuerpo de `PATCH /projects/{id}/assets/{asset_id}` (snake_case). */
+export interface AssetCompleteInput {
+  durationSeconds?: number;
+  sampleRate?: number;
+  channels?: number;
+  format?: string;
+  sizeBytes?: number;
+  mediaHash?: string;
+}
+
+/** Una fila de `audio_assets`, normalizada. Espeja `AssetOut`. */
+export interface ProjectAsset {
+  id: string;
+  projectId: string;
+  userId: string;
+  kind: string;
+  stemName: string | null;
+  r2Key: string;
+  mediaHash: string | null;
+  originalFilename: string | null;
+  durationSeconds: number | null;
+  sampleRate: number | null;
+  channels: number | null;
+  format: string | null;
+  sizeBytes: number | null;
+  createdAt: string | null;
+}
+
+/** Respuesta de `GET /projects/{id}/assets/{asset_id}/download`, camelCase. */
+export interface AssetDownload {
+  projectId: string;
+  assetId: string;
+  r2Key: string;
+  originalFilename: string | null;
+  downloadUrl: string;
+  expiresIn: number;
+}
+
+/** Forma cruda (snake_case) de un proyecto. */
+interface RawProjectOut {
+  id: string;
+  user_id: string;
+  name: string;
+  bpm: number | null;
+  musical_key: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Forma cruda (snake_case) de la respuesta de presign. */
+interface RawPresignedAsset {
+  asset_id: string;
+  project_id: string;
+  r2_key: string;
+  put_url: string;
+  content_type: string;
+  expires_in: number;
+}
+
+/** Forma cruda (snake_case) de un asset. */
+interface RawProjectAsset {
+  id: string;
+  project_id: string;
+  user_id: string;
+  kind: string;
+  stem_name: string | null;
+  r2_key: string;
+  media_hash: string | null;
+  original_filename: string | null;
+  duration_seconds: number | null;
+  sample_rate: number | null;
+  channels: number | null;
+  format: string | null;
+  size_bytes: number | null;
+  created_at: string | null;
+}
+
+/** Forma cruda (snake_case) de la respuesta de descarga. */
+interface RawAssetDownload {
+  project_id: string;
+  asset_id: string;
+  r2_key: string;
+  original_filename: string | null;
+  download_url: string;
+  expires_in: number;
+}
+
+function toProjectOut(raw: RawProjectOut): ProjectOut {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    name: raw.name,
+    bpm: raw.bpm,
+    musicalKey: raw.musical_key,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function toPresignedAsset(raw: RawPresignedAsset): PresignedAsset {
+  return {
+    assetId: raw.asset_id,
+    projectId: raw.project_id,
+    r2Key: raw.r2_key,
+    putUrl: raw.put_url,
+    contentType: raw.content_type,
+    expiresIn: raw.expires_in,
+  };
+}
+
+function toProjectAsset(raw: RawProjectAsset): ProjectAsset {
+  return {
+    id: raw.id,
+    projectId: raw.project_id,
+    userId: raw.user_id,
+    kind: raw.kind,
+    stemName: raw.stem_name,
+    r2Key: raw.r2_key,
+    mediaHash: raw.media_hash,
+    originalFilename: raw.original_filename,
+    durationSeconds: raw.duration_seconds,
+    sampleRate: raw.sample_rate,
+    channels: raw.channels,
+    format: raw.format,
+    sizeBytes: raw.size_bytes,
+    createdAt: raw.created_at,
+  };
+}
+
+function toAssetDownload(raw: RawAssetDownload): AssetDownload {
+  return {
+    projectId: raw.project_id,
+    assetId: raw.asset_id,
+    r2Key: raw.r2_key,
+    originalFilename: raw.original_filename,
+    downloadUrl: raw.download_url,
+    expiresIn: raw.expires_in,
+  };
+}
+
+/** Crea un proyecto del llamador. */
+export async function createProject(
+  name: string,
+  opts?: { bpm?: number; musicalKey?: string }
+): Promise<ProjectOut> {
+  const body: Record<string, unknown> = { name };
+  if (opts?.bpm !== undefined) body.bpm = opts.bpm;
+  if (opts?.musicalKey !== undefined) body.musical_key = opts.musicalKey;
+  const res = await fetch(`${API_BASE}/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("No se pudo crear el proyecto", res.status);
+  return toProjectOut(await res.json());
+}
+
+/** Lista los proyectos del llamador, más recientes primero. */
+export async function listProjects(): Promise<ProjectOut[]> {
+  const res = await fetch(`${API_BASE}/projects`, {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("No se pudieron listar los proyectos", res.status);
+  const raw = (await res.json()) as RawProjectOut[];
+  return raw.map(toProjectOut);
+}
+
+/** Registra el asset y devuelve la URL firmada de subida a R2. */
+export async function presignAsset(
+  projectId: string,
+  input: PresignAssetInput
+): Promise<PresignedAsset> {
+  const body: Record<string, unknown> = { kind: input.kind };
+  if (input.stemName !== undefined) body.stem_name = input.stemName;
+  if (input.originalFilename !== undefined) {
+    body.original_filename = input.originalFilename;
+  }
+  if (input.contentType !== undefined) body.content_type = input.contentType;
+  const res = await fetch(`${API_BASE}/projects/${projectId}/assets/presign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("No se pudo firmar la subida del archivo", res.status);
+  return toPresignedAsset(await res.json());
+}
+
+/** Registra los metadatos del asset después del PUT directo a R2. */
+export async function completeAsset(
+  projectId: string,
+  assetId: string,
+  input: AssetCompleteInput
+): Promise<ProjectAsset> {
+  const body: Record<string, unknown> = {};
+  if (input.durationSeconds !== undefined) body.duration_seconds = input.durationSeconds;
+  if (input.sampleRate !== undefined) body.sample_rate = input.sampleRate;
+  if (input.channels !== undefined) body.channels = input.channels;
+  if (input.format !== undefined) body.format = input.format;
+  if (input.sizeBytes !== undefined) body.size_bytes = input.sizeBytes;
+  if (input.mediaHash !== undefined) body.media_hash = input.mediaHash;
+  const res = await fetch(`${API_BASE}/projects/${projectId}/assets/${assetId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("No se pudieron registrar los metadatos", res.status);
+  return toProjectAsset(await res.json());
+}
+
+/** Lista los archivos de un proyecto (original, stems, masters). */
+export async function listAssets(projectId: string): Promise<ProjectAsset[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/assets`, {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("No se pudieron listar los archivos", res.status);
+  const raw = (await res.json()) as RawProjectAsset[];
+  return raw.map(toProjectAsset);
+}
+
+/** Pide una URL firmada de descarga para reproducir un asset desde la librería. */
+export async function getAssetDownloadUrl(
+  projectId: string,
+  assetId: string
+): Promise<AssetDownload> {
+  const res = await fetch(
+    `${API_BASE}/projects/${projectId}/assets/${assetId}/download`,
+    { headers: { ...(await authHeaders()) } }
+  );
+  if (!res.ok) throw new ApiError("No se pudo obtener el enlace de descarga", res.status);
+  return toAssetDownload(await res.json());
+}
+
