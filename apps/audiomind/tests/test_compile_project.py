@@ -15,16 +15,9 @@ from typing import Any
 
 import pytest
 
-from audiomind.models.audio import MasteringParameters
 from audiomind.models.project_document import (
-    ProjectDocument,
     default_document,
-    MixIntent,
     MasterIntent,
-    Structure,
-    StemBlock,
-    StemNode,
-    Group,
 )
 
 

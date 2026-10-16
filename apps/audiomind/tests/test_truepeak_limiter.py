@@ -9,7 +9,6 @@ import sys
 sys.path.insert(0, "src")
 
 import numpy as np
-import pytest
 
 from audiomind.processing.engine import _user_limiter_ceiling
 from audiomind.processing.truepeak import (
