@@ -4,11 +4,9 @@ def _match_peak(ref, tgt):
     return tgt*(np.max(np.abs(ref))/np.max(np.abs(tgt)))
 
 from audiomind.processing.loudness import measure_lra
-from audiomind.processing.truepeak import measure_true_peak
 def measure_correlation(*args, **kwargs): return 0.0
 
 from audiomind.processing.truepeak import compute_codec_safe_ceiling
-import numpy as np
 from audiomind.processing.loudness import integrated_loudness
 measure_lufs = integrated_loudness
 
@@ -30,7 +28,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import soundfile as sf
 import pedalboard
 from pedalboard import (
@@ -92,9 +89,6 @@ from audiomind.processing.stereo_imaging import (
     apply_stereo_imaging,
 )
 from audiomind.processing.tape import TapeParams, tape_saturate
-from audiomind.processing.truepeak import true_peak_limit
-from audiomind.processing.loudness import integrated_loudness, true_peak_db
-measure_lufs = integrated_loudness
 # ── Gain Staging ──────────────────────────────────────────────────────
 
 
@@ -1561,56 +1555,6 @@ def _clamp_trim(params: MasteringParameters) -> MasteringParameters:
     if hasattr(new_params, 'trim'):
         new_params.trim = max(-20.0, min(20.0, new_params.trim or 0))
     return new_params
-
-
-# ════════════════════════════════════════════════════════════════
-# FASE 4: Reporte JSON — Before vs After
-# ════════════════════════════════════════════════════════════════
-
-import json
-
-
-def generate_report(input_metrics: dict,
-                    output_metrics: dict,
-                    chain_applied: list,
-                    strategy_used: str,
-                    passes_iterated: int,
-                    test_result: dict) -> dict:
-    """Genera un informe JSON estructurado con Before vs After.
-
-    Incluye métricas comparativas, confirmación de seguridad y estado de la
-    suite de pruebas.
-    """
-    confirmation = {
-        "zero_clipped_samples": input_metrics.get("clipped_samples", 0) == 0
-                        and output_metrics.get("clipped_samples", 0) == 0,
-        "lufs_within_tolerance": abs(output_metrics.get("integrated_lufs", 0) - target_lufs) <= TARGET_TOLERANCE_LUFS,
-        "peak_within_limits": output_metrics.get("true_peak_dbtp", 999) <= target_dbtp,
-        "regressions_zero": test_result.get("passed", 0) > 0,
-    }
-
-    report = {
-        "input_metrics": input_metrics,
-        "output_metrics": output_metrics,
-        "chain_applied": chain_applied,
-        "strategy_used": strategy_used,
-        "passes_iterated": passes_iterated,
-        "confirmation": confirmation,
-    }
-    return report
-    """Gain-match ``processed`` to the peak of ``reference`` so that
-    non-linear stages do not push the true-peak limiter into harder limiting.
-
-    Non-linear stages (tape, exciter) add energy and raise the peak. Without
-    compensation the true-peak limiter sees a hotter signal and works harder,
-    which defeats the purpose of the stage. Matching keeps the limiter input
-    consistent with the dry signal.
-    """
-    ref_peak = float(np.max(np.abs(reference)))
-    out_peak = float(np.max(np.abs(processed)))
-    if ref_peak == 0.0 or out_peak == 0.0 or out_peak <= ref_peak:
-        return processed
-    return processed * (ref_peak / out_peak)
 
 
 def _apply_saturation(audio: np.ndarray, drive_db: float, sat_type: str) -> np.ndarray:
