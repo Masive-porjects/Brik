@@ -528,6 +528,21 @@ def test_no_recipe_render_matches_the_committed_golden_fingerprint(tmp_path):
     _assert_fingerprint_matches(_render_fingerprint(audio))
 
 
+def test_render_fingerprint_is_pure_and_deterministic():
+    """The fingerprint is a pure function of its input (S12.2): same input,
+    same dict, and the input is never mutated. Pinned here because the guard's
+    sensitivity and portability claims both rest on this property, and it was
+    not previously asserted."""
+    rng = np.random.default_rng(42)
+    audio = rng.standard_normal((2048, 2))
+    snapshot = audio.copy()
+    first = _render_fingerprint(audio)
+    second = _render_fingerprint(audio)
+    assert first == second
+    assert list(first.keys()) == list(second.keys())
+    np.testing.assert_array_equal(audio, snapshot)
+
+
 def test_the_golden_guard_tolerates_platform_noise_and_still_catches_real_drift(
     tmp_path,
 ):
