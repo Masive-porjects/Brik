@@ -74,6 +74,34 @@ def test_compile_no_doc_no_state():
     assert plan.output_bit_depth == 24
     assert plan.master_name is None
     assert plan.parameters is None
+    assert plan.character is None
+
+
+def test_compile_carries_a_known_character():
+    from audiomind.models.project_document import default_document, MixIntent
+    from audiomind.services.compile_project import compile, StateProjection
+
+    doc = default_document()
+    doc.mix_intent = MixIntent(character="commercial_alt_pop")
+    plan = compile(doc, StateProjection())
+    assert plan.character == "commercial_alt_pop"
+
+
+def test_compile_drops_an_unknown_character():
+    from audiomind.models.project_document import default_document, MixIntent
+    from audiomind.services.compile_project import compile, StateProjection
+
+    doc = default_document()
+    doc.mix_intent = MixIntent(character="warm analog")
+    plan = compile(doc, StateProjection())
+    assert plan.character is None
+
+
+def test_compile_defaults_to_no_character_without_a_document():
+    from audiomind.services.compile_project import compile, StateProjection
+
+    plan = compile(None, StateProjection())
+    assert plan.character is None
 
 
 def test_compile_no_doc_no_state_no_overrides():

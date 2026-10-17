@@ -432,6 +432,41 @@ class TestMixJobEndpoints:
         assert captured["auto"] is True
         assert captured["trims"] == {"vocals_db": -1.5}
 
+    def test_character_survives_the_submit(self, tmp_path, monkeypatch):
+        """The Studio commands the textured render through the async path exactly
+        as it does through the blocking one: both fields are captured at submit
+        time, so the job outlives the request without losing them."""
+        session_id = _register_session(tmp_path, monkeypatch)
+        captured = {}
+
+        def _capture(job_id, sid, options):
+            captured["character"] = options.character
+            captured["seed"] = options.character_seed
+
+        monkeypatch.setattr(jobs_mod, "run_mix_job", _capture)
+        client.post(
+            f"/api/jobs/mix/{session_id}",
+            json={
+                "character": "commercial_alt_pop",
+                "character_seed": 7,
+            },
+        )
+
+        assert captured["character"] == "commercial_alt_pop"
+        assert captured["seed"] == 7
+
+    def test_unknown_character_is_rejected(self, tmp_path, monkeypatch):
+        """The async body mirrors the blocking contract: an unknown profile is a
+        configuration bug, not a silent no-op, so it answers 422."""
+        session_id = _register_session(tmp_path, monkeypatch)
+        monkeypatch.setattr(jobs_mod, "run_mix_job", lambda *a, **k: None)
+
+        resp = client.post(
+            f"/api/jobs/mix/{session_id}",
+            json={"character": "no_such_profile"},
+        )
+        assert resp.status_code == 422
+
     def test_poll_resigns_the_expired_r2_url(self, tmp_path, monkeypatch):
         """The URL minted at completion expires. Reading the job later must
         hand back a fresh one, otherwise every mix older than the presign TTL
