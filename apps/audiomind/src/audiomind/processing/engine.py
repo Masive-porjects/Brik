@@ -229,9 +229,33 @@ def _as_number(value: object) -> float | None:
     ``bool`` is an ``int`` subclass; a bool is not a number here, so a recipe
     that smuggled one in is rejected as malformed rather than silently read as
     0/1.
+
+    Neither is ``NaN``/``±Inf`` a measurement, and ``isinstance`` alone cannot
+    tell: they are floats, so the reader accepted them as valid (review findings
+    ``R3-as-number-nan-inf`` / ``R4-recipe-nonfinite-values``). What that
+    acceptance actually did, measured on the pre-fix revision rather than
+    reasoned about:
+
+    * a non-finite value is not inert. ``measured.loudness_delta_lu = inf``
+      moved the applied loudness compensation to its ``+6 dB`` clamp and
+      ``measured.hf_excess_db = inf`` drove the HF withdrawal to its full ±2 dB
+      bound and the clarity shelf to ``0.0`` — the render changed, and neither
+      number is what the peer could have meant;
+    * it reaches the RETURNED payload: the same run reported
+      ``loudness_compensation_lu: nan``, and ``NaN`` is not valid JSON, so the
+      response the Studio parses breaks;
+    * and it is silent: no warning, and a recipe reported as applied.
+
+    Rejecting it here discards the recipe WHOLE with
+    ``texture_recipe_malformed`` (S2) — the route every other wrong-typed value
+    already takes. The emitter floors its meters today, so today's payload is
+    finite; the reader's contract is that the recipe is DATA from another
+    service (S2), and "the peer is correct" is not a type check.
     """
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
+        number = float(value)
+        if np.isfinite(number):
+            return number
     return None
 
 

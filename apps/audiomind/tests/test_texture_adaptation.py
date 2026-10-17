@@ -23,8 +23,6 @@ import sys
 
 sys.path.insert(0, "src")
 
-import hashlib
-
 import numpy as np
 import pytest
 import soundfile as sf
@@ -217,6 +215,72 @@ def test_reader_rejects_malformed_recipes_whole(bad):
     assert warning == TEXTURE_WARNING_MALFORMED
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        pytest.param(_recipe(bed={"hiss_dbfs": float("nan")}), id="bed_hiss_nan"),
+        pytest.param(
+            _recipe(bed={"crackle_dbfs": float("-inf")}), id="bed_crackle_inf"
+        ),
+        pytest.param(
+            _recipe(measured={"loudness_delta_lu": float("nan")}), id="loudness_nan"
+        ),
+        pytest.param(_recipe(measured={"hf_excess_db": float("inf")}), id="hf_inf"),
+        pytest.param(
+            _recipe(measured={"crest_delta_db": float("nan")}), id="crest_nan"
+        ),
+        pytest.param(
+            _recipe(measured={"centroid_delta_hz": float("inf")}), id="centroid_inf"
+        ),
+    ],
+)
+def test_reader_rejects_non_finite_numbers_whole(bad):
+    """``NaN``/``±Inf`` are floats, so ``isinstance`` alone accepted them as if
+    they were measurements (review findings ``R3-as-number-nan-inf`` and
+    ``R4-recipe-nonfinite-values``). A non-finite number is not a measurement:
+    the recipe is discarded WHOLE, exactly like every other wrong-typed value."""
+    recipe, warning = _read_texture_recipe(_metadata(bad))
+    assert recipe is None
+    assert warning == TEXTURE_WARNING_MALFORMED
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        pytest.param(
+            _recipe(measured={"loudness_delta_lu": float("nan")}), id="loudness_nan"
+        ),
+        pytest.param(
+            _recipe(measured={"loudness_delta_lu": float("inf")}), id="loudness_inf"
+        ),
+        pytest.param(_recipe(bed={"hiss_dbfs": float("inf")}), id="hiss_inf"),
+    ],
+)
+def test_non_finite_recipe_renders_identically_and_never_poisons_the_master(
+    tmp_path, bad
+):
+    """The end-to-end consequence of the hole, which is why it was a WARNING.
+
+    Measured on the pre-fix revision, not assumed: ``loudness_delta_lu = inf``
+    moved the applied compensation to its ``+6 dB`` clamp and
+    ``hf_excess_db = inf`` drove the HF withdrawal and the clarity shelf to
+    their limits, so the render changed; and the same run put
+    ``loudness_compensation_lu: nan`` in the returned payload, which is not
+    valid JSON — the client's parse of the response breaks. All of it silent:
+    no warning, and a recipe reported as applied. Now the recipe is rejected
+    whole, the render is byte-identical to the no-recipe baseline, and the
+    warning says why."""
+    params = _params()
+    baseline, baseline_audio = _run(tmp_path, "nf_base", params)
+    result, audio = _run(tmp_path, "nf_bad", params, mix_metadata=_metadata(bad))
+
+    assert np.isfinite(audio).all()
+    np.testing.assert_array_equal(baseline_audio, audio)
+    assert TEXTURE_WARNING_MALFORMED in result["warnings"]
+    assert "texture_adaptation" not in result
+    assert list(result.keys()) == list(baseline.keys())
+
+
 # ── S8: the neutrality invariant ────────────────────────────────────────
 
 
@@ -263,16 +327,155 @@ def test_rejected_recipe_renders_identically_and_warns(
     assert list(result.keys()) == list(baseline.keys())
 
 
-#: SHA-256 of the rendered samples for ``_program`` (the suite's deterministic
-#: seeded program) through the FULL mastering chain with ``_params()`` and NO
-#: recipe. This is a BASELINE FINGERPRINT, not a self-comparison: it pins the
-#: delivered bytes against a value committed here, so any drift in the DSP
-#: stack — or a texture adaptation leaking into the no-recipe path — fails it.
-#: It must be re-baselined DELIBERATELY (update the constant in the same commit
-#: that intentionally changes the render), never by relaxing the assertion.
-GOLDEN_NEUTRAL_RENDER_SHA256 = (
-    "bdd4e1d388fe752b0198d52ae62285603ec7f22718ac172fb66bdb7749543f54"
+# ── S12.2: the portable golden fingerprint ──────────────────────────────
+#
+# Why this is NOT a committed hash of the render's bytes any more (review
+# findings ``R3-golden-hash-cross-platform-fragile`` / ``R4-golden-hash-portability``):
+# a whole-array digest cannot express a tolerance. Any last-bit difference
+# between two platforms that crosses a quantisation boundary flips it (and a
+# "quantised hash" only narrows that window to ~δ/step × N samples, which is
+# worse than it looks), so the old constant failed on hosts whose float stack
+# differs in the last bits while catching nothing extra on the author's machine.
+# A guard whose failure mode is "relax the test" is not a guard. This summary is
+# compared at an explicit absolute tolerance instead.
+#
+# The strongest neutrality evidence is unchanged and stays where it belongs: the
+# independent verifier's cross-commit render comparison, which hashes two
+# renders produced on ONE machine and is therefore portable by construction.
+
+#: FFT bands (Hz) of the fingerprint's ``band_<index>_db`` metrics. Absolute
+#: energy (dB), not a share of the total, so a level change actually moves them.
+_FINGERPRINT_BANDS_HZ: tuple[tuple[float, float], ...] = (
+    (0.0, 200.0),
+    (200.0, 1000.0),
+    (1000.0, 4000.0),
+    (4000.0, 8000.0),
+    (8000.0, 16000.0),
 )
+
+#: Floor (dB) of every dB metric. An empty band reports a jittery ratio to a
+#: perturbation; floored, it is a STABLE number that still trips on any real
+#: energy appearing in it. Stated, not hidden: a floored metric is coarse.
+_FINGERPRINT_FLOOR_DB = -60.0
+
+#: Absolute tolerance (dB) of the comparison. It sits ~10× below the smallest
+#: change this feature cares about (the 0.01 dB used by the guard's own
+#: sensitivity test) and ~1000× above what platform float noise adds to these
+#: metrics (≈1e-6 dB for a 1e-7 perturbation of the samples).
+GOLDEN_NEUTRAL_RENDER_TOLERANCE_DB = 1e-3
+
+#: The golden summary of the NEUTRAL render: ``_program`` through the FULL
+#: mastering chain with ``_params()`` and NO recipe. It is a COMMITTED value,
+#: not a self-comparison, so drift in the DSP stack — or a texture adaptation
+#: leaking into the no-recipe path — fails it. Re-baseline it DELIBERATELY, in
+#: the commit that intentionally changes the render; never by relaxing the
+#: tolerance. Regenerate with::
+#:
+#:     python -c "import test_texture_adaptation as t; print(t._golden_values())"
+GOLDEN_NEUTRAL_RENDER: dict[str, float] = {
+    "frames": 66150.0,
+    "channels": 2.0,
+    "peak_dbfs": -8.827205,
+    "rms_dbfs": -17.002474,
+    "crest_db": 8.175269,
+    "side_to_mid_db": -5.525582,
+    "integrated_lufs": -14.0,
+    "band_0_db": 29.14402,
+    "band_1_db": 70.98933,
+    "band_2_db": 59.380734,
+    "band_3_db": 44.836714,
+    "band_4_db": 47.715765,
+}
+
+
+def _floor_db(value: float) -> float:
+    """Clamp a dB metric to ``_FINGERPRINT_FLOOR_DB`` (an empty one is stable)."""
+    return max(float(value), _FINGERPRINT_FLOOR_DB)
+
+
+def _safe_db(power: float) -> float:
+    """``10·log10`` of a power value that may legitimately be zero (silence)."""
+    return _floor_db(10.0 * np.log10(power) if power > 0.0 else -np.inf)
+
+
+def _render_fingerprint(audio) -> dict[str, float]:
+    """A portable summary of one delivered render (S12.2).
+
+    Length, peak/RMS/crest levels, integrated LUFS, a side-to-mid ratio and five
+    FFT band energies — every metric in dB and floored at
+    ``_FINGERPRINT_FLOOR_DB``. Compared through
+    :func:`_assert_fingerprint_matches`, never by equality.
+    """
+    x = np.asarray(audio, dtype=np.float64)
+    if x.ndim == 1:
+        x = x[:, np.newaxis]
+    frames, channels = int(x.shape[0]), int(x.shape[1])
+    mono = x.mean(axis=1)
+    peak = float(np.max(np.abs(x)))
+    rms = float(np.sqrt(np.mean(np.square(x))))
+
+    windowed = mono * np.hanning(mono.size)
+    power = np.square(np.abs(np.fft.rfft(windowed)))
+    freqs = np.fft.rfftfreq(mono.size, d=1.0 / SR)
+
+    fingerprint = {
+        "frames": float(frames),
+        "channels": float(channels),
+        "peak_dbfs": _floor_db(20.0 * np.log10(peak) if peak > 0.0 else -np.inf),
+        "rms_dbfs": _floor_db(20.0 * np.log10(rms) if rms > 0.0 else -np.inf),
+        "crest_db": _floor_db(
+            20.0 * np.log10(peak / rms) if peak > 0.0 and rms > 0.0 else -np.inf
+        ),
+        # The stereo width of the delivered master: the P4 work does not touch
+        # the M/S block (S6), so a drift here is a regression of another stage.
+        "side_to_mid_db": _safe_db(0.0) if channels < 2 else _side_to_mid_db(x),
+        "integrated_lufs": _floor_db(measure_lufs(x.T, SR)),
+    }
+    for index, (low, high) in enumerate(_FINGERPRINT_BANDS_HZ):
+        band = float(np.sum(power[(freqs >= low) & (freqs <= high)]))
+        fingerprint[f"band_{index}_db"] = _safe_db(band)
+    return fingerprint
+
+
+def _side_to_mid_db(x) -> float:
+    """``20·log10(rms(side) / rms(mid))`` of a stereo render, floored."""
+    mid = x[:, 0] + x[:, 1]
+    side = x[:, 0] - x[:, 1]
+    mid_rms = float(np.sqrt(np.mean(np.square(mid))))
+    side_rms = float(np.sqrt(np.mean(np.square(side))))
+    ratio = side_rms / mid_rms if mid_rms > 0.0 else 0.0
+    return _floor_db(20.0 * np.log10(ratio) if ratio > 0.0 else -np.inf)
+
+
+def _assert_fingerprint_matches(
+    actual: dict[str, float], expected: dict[str, float] | None = None
+) -> None:
+    """Compare a fingerprint against the committed golden, at the tolerance."""
+    expected = GOLDEN_NEUTRAL_RENDER if expected is None else expected
+    assert actual.keys() == expected.keys()
+    for key, value in expected.items():
+        if key in ("frames", "channels"):
+            # Exact: a different length or channel count is a different render.
+            assert actual[key] == value, key
+        else:
+            assert actual[key] == pytest.approx(
+                value, abs=GOLDEN_NEUTRAL_RENDER_TOLERANCE_DB
+            ), key
+
+
+def _golden_values() -> dict[str, float]:
+    """Print-ready golden values for the NEUTRAL render (see the constant)."""
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _, audio = _run(Path(tmp), "golden_regen", _params())
+    values = _render_fingerprint(audio)
+    return {
+        key: round(value, 6) if key not in ("frames", "channels") else value
+        for key, value in values.items()
+    }
+
 
 
 @pytest.mark.parametrize(
@@ -317,12 +520,35 @@ def test_no_recipe_render_matches_the_committed_golden_fingerprint(tmp_path):
 
     The three self-comparison tests above compare ``HEAD`` against ``HEAD``, so
     they cannot detect drift in the DSP stack. This one compares the delivered
-    samples against a committed constant. If it fails, do NOT tweak the hash to
-    match: re-baseline ``GOLDEN_NEUTRAL_RENDER_SHA256`` deliberately, in the
-    commit that intentionally changes the render."""
+    render against a committed summary, at the documented tolerance. If it
+    fails, do NOT widen ``GOLDEN_NEUTRAL_RENDER_TOLERANCE_DB``: re-baseline
+    ``GOLDEN_NEUTRAL_RENDER`` deliberately, in the commit that intentionally
+    changes the render."""
     _, audio = _run(tmp_path, "golden", _params())
-    digest = hashlib.sha256(np.ascontiguousarray(audio).tobytes()).hexdigest()
-    assert digest == GOLDEN_NEUTRAL_RENDER_SHA256
+    _assert_fingerprint_matches(_render_fingerprint(audio))
+
+
+def test_the_golden_guard_tolerates_platform_noise_and_still_catches_real_drift(
+    tmp_path,
+):
+    """The guard's own contract (S12.2), pinned with one render.
+
+    The tolerance exists for exactly one reason: a host whose float stack
+    differs in the last bits must not red-fail a build, because the fix for a
+    false alarm is to relax the guard, and a relaxed guard catches nothing. The
+    probe is a 1e-7 perturbation — the aperture of the render's own sample grid
+    (a 24-bit LSB is ≈1.2e-7), i.e. the order of difference a different float
+    stack can leave behind, and it must NOT fail the comparison. A real change
+    must: +0.01 dB is the smallest level change a DSP edit produces here, and it
+    is an order of magnitude above the tolerance.
+    """
+    _, audio = _run(tmp_path, "golden_guard", _params())
+    rng = np.random.default_rng(0)
+    perturbed = audio + rng.standard_normal(audio.shape) * 1e-7
+    _assert_fingerprint_matches(_render_fingerprint(perturbed))
+
+    with pytest.raises(AssertionError):
+        _assert_fingerprint_matches(_render_fingerprint(audio * 10 ** (0.01 / 20)))
 
 
 # ── S4.2: the de-esser skip ─────────────────────────────────────────────
