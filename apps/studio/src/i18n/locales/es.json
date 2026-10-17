@@ -590,46 +590,35 @@
     "scrollToTop": "Volver al inicio",
     "nav": {
       "brand": "BRIK",
-      "dspCore": "DSP Core",
       "stage13": "Arquitectura 13 Etapas",
       "presets": "Presets Fantasmagóricos",
+      "pricing": "Precios",
       "abCompare": "Comparador A/B",
       "founders": "Equipo Fundador",
-      "docs": "Documentación",
+      "faq": "Preguntas Frecuentes",
       "enterStudio": "Ingresar a Brik Studio",
-      "studioBadge": "(/studio)"
+      "studioBadge": "(/studio)",
+      "openMenu": "Abrir menú",
+      "closeMenu": "Cerrar menú",
+      "menuLabel": "Menú de navegación",
+      "mainNav": "Navegación principal",
+      "mobileNav": "Navegación móvil",
+      "dspCore": "DSP Core"
     },
     "hero": {
-      "badgeDsp": "DSP Core v2.4 Activo",
-      "badgeNeural": "Motor Neuronal AudioMind",
-      "badgeFormat": "96kHz / 64-bit FP Listo",
+      "eyebrow": "Mastering Spectral DSP · 13 Etapas · 8× Oversampling",
       "title": "El master ya no es un problema.",
       "titleGradient": "Deja que el sonido cobre vida del más allá.",
-      "description": "Arquitectura de 13 etapas de procesamiento espectral en tiempo real. Eliminamos la planicie dimensional de tus mezclas mediante inteligencia tímbrica, balance psicoacústico Haas y fidelidad cuántica.",
+      "subtitleClean": "Sube tu mezcla. Obtén un master listo para streaming en segundos.",
       "hud": {
         "loudness": "Target Loudness",
         "loudnessVal": "-14.0",
-        "loudnessSub": "Cumple EBU R128",
-        "truePeak": "True-Peak Ceiling",
-        "truePeakVal": "-1.0",
-        "truePeakSub": "Cero Intersample Peaks",
-        "throughput": "DSP Throughput",
-        "throughputVal": "<420",
-        "throughputSub": "Pipeline Rust SIMD",
-        "quantum": "Profundidad Cuántica",
-        "quantumVal": "48",
-        "quantumSub": "24-bit PCM Impecable"
+        "loudnessSub": "Cumple EBU R128"
       },
-      "ctaEnter": "Ingresar a Brik Studio",
-      "ctaListenDemo": "Escuchar Demostración A/B",
-      "ocularMonitor": "SPECTRAL OCULAR MONITOR",
-      "dualPrecision": "64-BIT DUAL PRECISION",
-      "telemetryCorrelation": "CORRELACIÓN",
-      "telemetryCorrelationVal": "+0.94 ESTÉREO",
-      "telemetryDynamicCrest": "CRESTA DINÁMICA",
-      "telemetryDynamicCrestVal": "11.8 dB PLR",
-      "telemetryHaasPhase": "FASE HAAS",
-      "telemetryHaasPhaseVal": "BLOQUEO EN FASE"
+      "ctaEnter": "Probar Brik Studio",
+      "ctaListenDemo": "Ver demo A/B",
+      "monitorMetric": "TARGET LOUDNESS",
+      "monitorValue": "-14.0 LUFS"
     },
     "philosophy": {
       "badge": "Tríada Ontológica",
@@ -667,14 +656,23 @@
       "trackTitle": "Resonancia Espectral (Stems Master)",
       "trackMeta": "ELECTRONIC BASS MUSIC — 128 BPM — 24-BIT 48KHZ",
       "intensityLabel": "INTENSIDAD DSP:",
-      "btnOrig": "ORIGINAL [A]",
-      "btnBrik": "MASTER BRIK [B]",
-      "statusBrik": "SATURACIÓN ARMÓNICA BRIK ACTIVADA (+2.8 dB AIR)",
-      "statusOrig": "MEZCLA PREVIA SIN PROCESAR (PUNTAS DINÁMICAS PLANAS)",
-      "meterLufs": "INTEGRATED LUFS",
-      "meterTp": "MAX TRUE PEAK",
-      "meterWidth": "ESTÉREO HAAS WIDTH",
-      "meterHarm": "DENSIDAD ARMÓNICA"
+      "intensityAria": "Intensidad del procesamiento DSP",
+      "toggleAria": "Modo de comparación A/B",
+      "playAria": "Reproducir audio",
+      "pauseAria": "Pausar audio",
+      "btnOrig": "Original",
+      "btnBrik": "BrikMaster Mastered",
+      "statusBrik": "MASTER BRIKMASTER — SONORIDAD OPTIMIZADA, PICOS CONTROLADOS",
+      "statusOrig": "MEZCLA ORIGINAL — MAYOR RANGO DINÁMICO, PICOS SIN CONTROL",
+      "vizLabel": "FORMA DE ONDA — ORIGINAL VS MASTER",
+      "vizAria": "Forma de onda que reacciona al comparador A/B",
+      "meterLufs": "LUFS INTEGRADO",
+      "meterTp": "TRUE PEAK MÁX.",
+      "meterLra": "RANGO DINÁMICO (LRA)",
+      "unitLufs": "LUFS",
+      "unitTp": "dBTP",
+      "unitLra": "LU",
+      "demoNote": "Métricas ilustrativas de demostración: no miden tu archivo. El audio se genera localmente en tu navegador."
     },
     "chain": {
       "badge": "Matriz Algorítmica Lineal — 13 Etapas DSP",
@@ -730,6 +728,10 @@
         "metric": "CALIDEZ VÁLVULA"
       }
     },
+    "tagline": {
+      "eyebrow": "Manifiesto",
+      "statement": "Un master no es magia: es física aplicada con precisión. Trece etapas, cero adivinanzas, tu música intacta."
+    },
     "founders": {
       "badge": "Arquitectos del Sonido",
       "title": "El Aquelarre Técnico — Equipo Fundador de Brik",
@@ -779,10 +781,110 @@
         "instantWs": "WebSocket Instantáneo"
       }
     },
+    "specs": {
+      "badge": "Especificaciones del Motor DSP",
+      "title": "Arquitectura Técnica Detallada",
+      "subtitle": "Todos los parámetros, métricas y capacidades del motor de 13 etapas en un solo lugar.",
+      "liveBadge": "Motor v3.4 Activo",
+      "categoryLabel": "MÓDULO",
+      "viewSpecs": "Ver especificaciones completas",
+      "hideSpecs": "Ocultar detalles",
+      "showMore": "+{count} más",
+      "viewDocs": "Ver documentación técnica completa",
+      "dspCore": {
+        "title": "Núcleo DSP",
+        "spec1": { "label": "Arquitectura", "value": "13 Etapas Lineales", "desc": "Cadena secuencial feed-forward sin bucles de retroalimentación destructiva" },
+        "spec2": { "label": "Precisión Interna", "value": "64-bit Float (FP64)", "desc": "Acumulación de errores de redondeo < 1e-15 por muestra" },
+        "spec3": { "label": "Oversampling", "value": "8× Lineal (FIR)", "desc": "Filtros anti-aliasing de fase lineal con 8× oversampling en limiter y saturación" },
+        "spec4": { "label": "Latencia Total", "value": "< 420 ms", "desc": "Pipeline Rust SIMD optimizado AVX-512 / NEON" },
+        "spec5": { "label": "Sample Rate", "value": "96 kHz / 64-bit FP", "desc": "Procesamiento nativo sin conversión de rate interna" }
+      },
+      "loudness": {
+        "title": "Target Loudness & True Peak",
+        "spec1": { "label": "Target Integrado", "value": "-14.0 LUFS", "desc": "Cumple EBU R128 / ITU-R BS.1770-4 para streaming" },
+        "spec2": { "label": "True Peak Ceiling", "value": "-1.0 dBTP", "desc": "Limiter 8× oversampling — cero intersample peaks" },
+        "spec3": { "label": "Plataformas", "value": "Spotify -14 / Apple -16 / YT -14", "desc": "Presets calibrados por plataforma con compensación de codec" },
+        "spec4": { "label": "Rango Dinámico", "value": "Preservado > 11 dB PLR", "desc": "Compresión proporcional — sin over-compression" }
+      },
+      "spatial": {
+        "title": "Bloque Espacial Haas",
+        "spec1": { "label": "Haas Delay", "value": "4–16 ms (configurable)", "desc": "Decorrelación psicoacústica sin cancelación de fase en mono" },
+        "spec2": { "label": "Side High-Pass", "value": "120 Hz / 24 dB/oct", "desc": "Limpieza subgrave en canal lateral — mono compatibility 100%" },
+        "spec3": { "label": "Ancho Estéreo", "value": "Hasta 160% decorrelacionado", "desc": "Matriz M/S con control de correlación de fase en tiempo real" },
+        "spec4": { "label": "Correlación de Fase", "value": "> +0.94", "desc": "Monitoreo continuo — bloqueo automático si < +0.8" }
+      },
+      "pipeline": {
+        "title": "Calidad de Pipeline & QC",
+        "spec1": { "label": "THD+N", "value": "< 0.001% (@ 1 kHz)", "desc": "Distorsión armónica total + ruido — transparente" },
+        "spec2": { "label": "Dithering", "value": "Lipshitz 2º Orden (NS)", "desc": "Noise-shaped dithering — piso de ruido > 15 kHz" },
+        "spec3": { "label": "Validación Multi-Dispositivo", "value": "14 Perfiles IR", "desc": "Simulación de entornos: estudio, club, coche, móvil, festival" },
+        "spec4": { "label": "Tolerancia Espectral", "value": "±0.4 dB", "desc": "QC automático — rechazo si excede tolerancia vs referencia" }
+      }
+    },
+    "pricing": {
+      "badge": "Estructura Comercial",
+      "title": "Precios claros, sin sorpresas",
+      "subtitle": "Paga por canción cuando lo necesites o compra créditos para tu estudio o sello. Sin suscripciones obligatorias ni cargos ocultos.",
+      "featuredBadge": "Más elegido",
+      "disclaimer": "Precios de referencia: se confirmarán al habilitar el pago.",
+      "payPerSong": {
+        "name": "Pago por canción",
+        "tagline": "Para artistas independientes",
+        "unit": "por canción",
+        "feature1": "1 master 24-bit listo para streaming",
+        "feature2": "Entrega en WAV y MP3",
+        "feature3": "Cadena DSP determinista de 13 etapas",
+        "feature4": "Propiedad intelectual 100% tuya",
+        "cta": "Masterizar una canción"
+      },
+      "credits": {
+        "name": "Créditos y planes",
+        "tagline": "Para estudios y sellos",
+        "unit": "por pack",
+        "feature1": "Descuento por volumen en packs",
+        "feature2": "Facturación y gestión de equipo",
+        "feature3": "Procesamiento por lotes de catálogo",
+        "feature4": "Soporte prioritario",
+        "cta": "Solicitar acceso B2B"
+      }
+    },
+    "faq": {
+      "badge": "Preguntas Frecuentes",
+      "title": "Todo lo que debes saber",
+      "subtitle": "Respuestas directas sobre propiedad, formatos de entrega y cómo procesa el motor.",
+      "ip": {
+        "question": "¿De quién es la propiedad intelectual de mi música?",
+        "answer": "Al 100% tuya. BrikMaster no reclama ningún derecho sobre tu mezcla, tu master ni los archivos que cargas. Conservas la titularidad total de tu obra y puedes distribuirla libremente."
+      },
+      "formats": {
+        "question": "¿En qué formatos recibo mi master?",
+        "answer": "Recibes tu master en WAV de 16 o 24 bits para máxima fidelidad, y también puedes exportarlo en MP3 para compartirlo rápido. Descargas todo desde tu biblioteca cuando quieras."
+      },
+      "deterministic": {
+        "question": "¿La IA inventa o alucina cosas al procesar mi audio?",
+        "answer": "No. La cadena de BrikMaster es un motor DSP determinista de 13 etapas: el mismo audio de entrada y los mismos ajustes producen siempre el mismo resultado. No hay contenido generado al azar; el procesamiento es reproducible y verificable."
+      },
+      "privacy": {
+        "question": "¿Mi audio se comparte o queda expuesto?",
+        "answer": "Tu audio se usa únicamente para generar tu master y queda en tu biblioteca privada. No lo publicamos ni lo compartimos con terceros, y puedes eliminar tus archivos cuando quieras."
+      },
+      "skill": {
+        "question": "¿Necesito conocimientos de ingeniería de audio?",
+        "answer": "No. Cargas tu mezcla, eliges un preset y BrikMaster aplica la cadena completa. Si quieres afinar, tienes control manual de cada etapa; si no, el ajuste automático ya entrega un master listo para streaming."
+      }
+    },
     "footer": {
-      "brand": "BRIK AUDIO",
+      "brand": "BRIK",
       "engineOnline": "MOTOR DSP v3.4 EN LÍNEA",
-      "copy": "© 2024 Brik Audio DSP Systems. Masterizado bajo conciencia espectral.",
+      "copy": "© 2026 Brik Audio DSP Systems. Masterizado bajo conciencia espectral.",
+      "navTitle": "Navegación",
+      "nav": {
+        "studio": "Brik Studio",
+        "engine": "Motor de 13 etapas",
+        "presets": "Presets fantasmagóricos",
+        "pricing": "Precios",
+        "faq": "Preguntas frecuentes"
+      },
       "ebu": "EBU R128 (-14.0 LUFS)",
       "truePeak": "TRUE PEAK: -1.0 dBTP",
       "clock": "RELOJ: 96kHz / 64-bit FP"

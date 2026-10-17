@@ -1890,27 +1890,12 @@ async def download_audio(
     )
 
 
-@router.get("/session/{session_id}")
-async def get_session(session_id: str) -> SessionData:
-    """Get session status and data (for polling progress)."""
-    session = sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session
-
-
-@router.post("/session/new", response_model=SessionData)
-async def create_session() -> SessionData:
-    """Create a new empty session (without uploading audio yet).
-
-    Useful for pre-initializing a session before upload, or for
-    programmatic session creation.
-    """
-    import uuid
-    session_id = str(uuid.uuid4())
-    session = SessionData(session_id=session_id)
-    sessions[session_id] = session
-    return session
+# NOTE: `POST /session/new` and `GET /session/{session_id}` are served by
+# api/upload.py and must NOT be re-declared here. Starlette matches routes in
+# registration order and `upload_router` is included before `mastering_router`
+# (see main.py), so a copy in this module would be unreachable at runtime while
+# still emitting a "Duplicate Operation ID" warning on every OpenAPI build.
+# Regression guard: tests/test_session_routes.py.
 
 
 @router.post("/master")

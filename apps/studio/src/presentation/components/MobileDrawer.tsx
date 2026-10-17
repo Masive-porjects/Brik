@@ -93,7 +93,7 @@ export default function MobileDrawer({
                 label="Cerrar menú"
                 icon={X}
                 onClick={onClose}
-                size="md"
+                size="lg"
               />
             </div>
 
@@ -153,9 +153,9 @@ export default function MobileDrawer({
                   onBackToUpload();
                   onClose();
                 }}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium
+                className="flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-medium
                   text-[var(--text-secondary)] hover:text-[var(--text-primary)]
-                  hover:bg-[var(--surface-hover)] transition-all"
+                  hover:bg-[var(--surface-hover)] transition-all active:scale-[0.98]"
               >
                 <Upload size={14} />
                 Subir nuevo track

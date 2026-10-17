@@ -1,6 +1,6 @@
 # 05 — Live Engine: Primero el Master, Después los Efectos en Vivo
 
-> **⚠️ 2026-09-11 · ACTUALIZADO:** HumanMidi fue removido; el Live Engine se conserva y los efectos se controlan por MIDI (fuente externa o Simulator) vía el Bridge. Las referencias a gestos/cámara de este documento son históricas.
+> **⚠️ 2026-10-13 · DOCUMENTO HISTÓRICO:** HumanMidi, el **Live Engine**, el **Bridge** y el **Simulator** fueron **todos eliminados** del producto (`ba3b4a6` 27-Sep para el Live Engine; `92c79bf` y `38c1246` para el stack de gestos/MIDI). Este documento se conserva solo como registro del diseño original y **no describe estado vigente**. Ver `../../ESTADO_PROYECTO.md` §3.3 y §5.
 
 > El punto de unión de las dos ideas, rediseñado: **WaveAI masteriza la canción primero (offline) y el resultado se toca en vivo con efectos controlados por gestos de HumanMidi, todo en una misma interface.**
 

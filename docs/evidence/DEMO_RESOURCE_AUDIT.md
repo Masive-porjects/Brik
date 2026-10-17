@@ -3,6 +3,7 @@
 > **Fecha:** 2026-09-11 · **Método:** medición REAL sobre el stack del proyecto (backend FastAPI + DSP de audiomind + Studio Next.js), NO estimaciones de papel.
 > **Alcance:** dictar cuánto cuesta ejecutar el flujo completo *mastering → Live* para decidir un deploy demo de $0.
 > **Lenguaje del doc:** español (neutro-profesional, sin jerga rioplatense de microcopy).
+> ⚠️ **Informe HISTÓRICO (2026-09-11).** No refleja el estado actual: el **Live Engine fue eliminado** (`ba3b4a6`) y **Convex fue eliminado** por completo (Fase 0). Las referencias a Convex, al `middleware.ts` de auth y al flujo *mastering → Live* describen el estado de esa fecha.
 
 ---
 

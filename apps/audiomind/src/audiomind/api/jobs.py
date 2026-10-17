@@ -22,6 +22,7 @@ from pydantic import BaseModel, field_validator
 
 from audiomind.api.license import require_license
 from audiomind.config import settings
+from audiomind.processing.character import CHARACTER_PROFILE, is_known_profile
 from audiomind.services import demo_guard, storage
 from audiomind.services.dsp_worker import (
     MasterJobPayload,
@@ -130,6 +131,19 @@ class MixJobRequest(BaseModel):
     dimension_enabled: bool = True
     auto_balance: bool = False
     stem_trims: dict[str, float] | None = None
+    character: str | None = None
+    character_seed: int | None = None
+
+    @field_validator("character")
+    @classmethod
+    def _validate_character(cls, value: str | None) -> str | None:
+        """Strict contract, same as ``api.mix.MixRequest``: an unknown profile is
+        a configuration bug, not a silent no-op, so it answers 422."""
+        if value is None or is_known_profile(value):
+            return value
+        raise ValueError(
+            f"character {value!r} not allowed; expected {CHARACTER_PROFILE!r}"
+        )
 
     @field_validator("stem_trims")
     @classmethod
@@ -203,6 +217,8 @@ async def submit_mix(
         dimension_enabled=request.dimension_enabled,
         auto_balance=request.auto_balance,
         stem_trims=request.stem_trims,
+        character=request.character if request else None,
+        character_seed=request.character_seed if request else None,
     )
     record = submit_mix_job(
         session_id, options, original_path=str(session.original_path)
@@ -284,4 +300,81 @@ def _fresh_download(record: Any) -> dict[str, Any]:
             logger.warning("Could not re-sign R2 url for %s", key, exc_info=True)
             return {}
     return {"result": {**result, "download_url": url}}
+
+
+# ── Stem separation jobs ──────────────────────────────────────────────────
+# Same /jobs/<kind>/{job_id} shape as mastering and mix so the frontend keeps
+# one polling client and one state machine for every job kind.
+
+
+#: Reported when a job outlived its lease. Same reason as the mix job: a
+#: worker killed mid-Demucs cannot write the reason itself.
+_STALE_SEPARATE_ERROR = (
+    "The job was interrupted (the worker stopped before it finished)"
+)
+
+
+@router.get(
+    "/separate/{job_id}",
+    summary="Query status and result of a stem-separation job",
+)
+async def get_separate_job(job_id: str) -> dict[str, Any]:
+    """Report the state of a submitted separation job.
+
+    A job whose worker died is reported as ``error`` via the lease, exactly
+    like the mix job. On completion every stem gets a freshly minted download
+    URL: the R2 presigned URL is never persisted, because any separation older
+    than its expiry would otherwise hand the client a 403 on a valid job.
+    """
+    store = get_job_store()
+    record = store.get(job_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Separate job '{job_id}' not found",
+        )
+    if is_stale(record):
+        return {
+            **public_view(record),
+            "status": "error",
+            "error": _STALE_SEPARATE_ERROR,
+        }
+    return {**public_view(record), **_fresh_stem_urls(record)}
+
+
+def _fresh_stem_urls(record: Any) -> dict[str, Any]:
+    """Re-sign each stem's R2 URL on read instead of persisting dead ones.
+
+    The result's ``stems`` list holds the stable ``r2_key`` for every stem; a
+    presigned URL minted at completion expires, so it is minted per request
+    here (the same reasoning as ``_fresh_download`` for the mix job).
+    """
+    if getattr(record, "status", None) != "completed":
+        return {}
+    result = getattr(record, "result", None)
+    if not isinstance(result, dict):
+        return {}
+    stems = result.get("stems")
+    if not isinstance(stems, list):
+        return {}
+
+    signed: list[Any] = []
+    for stem in stems:
+        if not isinstance(stem, dict):
+            signed.append(stem)
+            continue
+        key = stem.get("r2_key")
+        if not key:
+            signed.append(stem)
+            continue
+        try:
+            if settings.r2_public_url:
+                url = f"{settings.r2_public_url.rstrip('/')}/{key}"
+            else:
+                url = storage.presigned_url(key)
+            signed.append({**stem, "download_url": url})
+        except storage.StorageError:
+            logger.warning("Could not re-sign stem url for %s", key, exc_info=True)
+            signed.append(stem)
+    return {"result": {**result, "stems": signed}}
 

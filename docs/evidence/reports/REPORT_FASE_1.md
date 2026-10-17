@@ -11,7 +11,7 @@
 Se implementó con éxito la **Fase 1** del plan de modernización de WaveAI. Esta fase dota al estudio de:
 1. **Sistema Desacoplado de Feature Flags**: Permite prender, apagar o registrar nuevos módulos del estudio (`DOCK_MODULES` y futuras herramientas) sin modificar la lógica interna de los componentes.
 2. **Soporte de Internacionalización Modular (i18n)**: Soporte completo e instantáneo para Español (`es`) e Inglés (`en`), con persistencia en `localStorage`, sincronización de la etiqueta `lang` en el DOM, fallback inteligente y selector estético en la barra de navegación y drawer móvil.
-3. **Restauración y Localización del Toggle de Tema (Claro / Oscuro)**: Se restauró el botón flotante [`ThemeToggle.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/presentation/components/ThemeToggle.tsx) (con su icono reactivo Ghost e indicador Estudio/Dev) en la barra de navegación y en el menú móvil, dotándolo de soporte i18n y compatibilidad con React 19.
+3. **Restauración y Localización del Toggle de Tema (Claro / Oscuro)**: Se restauró el botón flotante [`ThemeToggle.tsx`](../../../apps/studio/src/presentation/components/ThemeToggle.tsx) (con su icono reactivo Ghost e indicador Estudio/Dev) en la barra de navegación y en el menú móvil, dotándolo de soporte i18n y compatibilidad con React 19.
 4. **Integración con Componentes Clave**: El dock flotante (`ModuleDock`), el cargador de archivos (`DropZone`) y los menús de navegación ahora responden dinámicamente tanto a los flags de características como al idioma seleccionado.
 
 ---
@@ -19,33 +19,33 @@ Se implementó con éxito la **Fase 1** del plan de modernización de WaveAI. Es
 ## 2. Detalle de Cambios Realizados
 
 ### A. Sistema de Feature Flags
-- [`apps/studio/src/shared/config/features.config.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/shared/config/features.config.ts):
+- [`apps/studio/src/shared/config/features.config.ts`](../../../apps/studio/src/shared/config/features.config.ts):
   - Definición de tipos `FeatureKey` y `FeatureDefinition`.
   - Diccionario maestro `DEFAULT_FEATURES` que mapea cada módulo (`mezcla`, `modules`, `splitter`, `vocal`, `songstarter`, `genres`, `pipeline`, `analysis`, `stereo`, `live`, `album`, `history`, `chat`, `delivery`, `report`).
-- [`apps/studio/src/shared/hooks/useFeatures.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/shared/hooks/useFeatures.ts):
+- [`apps/studio/src/shared/hooks/useFeatures.ts`](../../../apps/studio/src/shared/hooks/useFeatures.ts):
   - Hook reactivo optimizado para React 19 (inicialización perezosa de estado, sin llamadas síncronas a `setState` en `useEffect`).
   - Funciones de utilidad: `isFeatureEnabled(key)`, `toggleFeature(key)`, `filterDockModules(modules)`.
 
 ### B. Sistema Multiidioma (i18n)
 - **Diccionarios de traducción**:
-  - [`apps/studio/src/i18n/locales/es.json`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/i18n/locales/es.json): Traducciones completas en español para navegación, presets de masterización, reproductor, subida de archivos, selector de tema, control de calidad y autenticación.
-  - [`apps/studio/src/i18n/locales/en.json`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/i18n/locales/en.json): Traducciones completas en inglés con terminología técnica de audio mastering.
+  - [`apps/studio/src/i18n/locales/es.json`](../../../apps/studio/src/i18n/locales/es.json): Traducciones completas en español para navegación, presets de masterización, reproductor, subida de archivos, selector de tema, control de calidad y autenticación.
+  - [`apps/studio/src/i18n/locales/en.json`](../../../apps/studio/src/i18n/locales/en.json): Traducciones completas en inglés con terminología técnica de audio mastering.
 - **Contexto y Hooks**:
-  - [`apps/studio/src/i18n/I18nContext.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/i18n/I18nContext.tsx): Proveedor `<I18nProvider>` con detección automática de idioma del navegador, persistencia en `localStorage`, resolución por dot-notation con soporte para interpolación de parámetros `{param}` y textos fallback.
-  - [`apps/studio/src/i18n/useTranslation.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/i18n/useTranslation.ts): Hook de consumo directo `useTranslation()` con accesos rápidos (`t`, `locale`, `setLocale`, `isEs`, `isEn`).
+  - [`apps/studio/src/i18n/I18nContext.tsx`](../../../apps/studio/src/i18n/I18nContext.tsx): Proveedor `<I18nProvider>` con detección automática de idioma del navegador, persistencia en `localStorage`, resolución por dot-notation con soporte para interpolación de parámetros `{param}` y textos fallback.
+  - [`apps/studio/src/i18n/useTranslation.ts`](../../../apps/studio/src/i18n/useTranslation.ts): Hook de consumo directo `useTranslation()` con accesos rápidos (`t`, `locale`, `setLocale`, `isEs`, `isEn`).
 - **Componentes de Control**:
-  - [`apps/studio/src/presentation/components/LanguageSwitcher.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/presentation/components/LanguageSwitcher.tsx): Selector visual en píldora con microanimaciones (ES/EN).
-  - [`apps/studio/src/presentation/components/ThemeToggle.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/presentation/components/ThemeToggle.tsx): Selector de tema oscuro/claro restaurado, con tooltips y aria-labels traducidos.
+  - [`apps/studio/src/presentation/components/LanguageSwitcher.tsx`](../../../apps/studio/src/presentation/components/LanguageSwitcher.tsx): Selector visual en píldora con microanimaciones (ES/EN).
+  - [`apps/studio/src/presentation/components/ThemeToggle.tsx`](../../../apps/studio/src/presentation/components/ThemeToggle.tsx): Selector de tema oscuro/claro restaurado, con tooltips y aria-labels traducidos.
 
 ### C. Integración en la Interfaz de Usuario
-- [`apps/studio/src/app/layout.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/app/layout.tsx): Envuelto el árbol de la aplicación con `<I18nProvider>`.
-- [`apps/studio/src/app/page.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/app/page.tsx): Incorporados `<ThemeToggle />` y `<LanguageSwitcher />` en la barra superior junto al botón de inicio.
-- [`apps/studio/src/presentation/components/dock/ModuleDock.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/presentation/components/dock/ModuleDock.tsx):
+- [`apps/studio/src/app/layout.tsx`](../../../apps/studio/src/app/layout.tsx): Envuelto el árbol de la aplicación con `<I18nProvider>`.
+- [`apps/studio/src/app/page.tsx`](../../../apps/studio/src/app/page.tsx): Incorporados `<ThemeToggle />` y `<LanguageSwitcher />` en la barra superior junto al botón de inicio.
+- [`apps/studio/src/presentation/components/dock/ModuleDock.tsx`](../../../apps/studio/src/presentation/components/dock/ModuleDock.tsx):
   - Conectado `filterDockModules` para excluir del dock cualquier módulo deshabilitado en tiempo de ejecución.
   - Conectado `useTranslation` para que los labels de cada pedestal se actualicen en tiempo real al cambiar entre ES y EN.
-- [`apps/studio/src/presentation/components/DropZone.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/presentation/components/DropZone.tsx):
+- [`apps/studio/src/presentation/components/DropZone.tsx`](../../../apps/studio/src/presentation/components/DropZone.tsx):
   - Localizados los textos del lienzo de subida, botones y validaciones de formato/tamaño.
-- [`apps/studio/src/presentation/components/MobileDrawer.tsx`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/presentation/components/MobileDrawer.tsx):
+- [`apps/studio/src/presentation/components/MobileDrawer.tsx`](../../../apps/studio/src/presentation/components/MobileDrawer.tsx):
   - Añadidos selectores de idioma y tema en las opciones del menú móvil.
 
 ---

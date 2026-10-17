@@ -18,7 +18,6 @@ audio and no test fixture in the repo.
 
 from __future__ import annotations
 
-import pathlib
 import sys
 import time
 import uuid

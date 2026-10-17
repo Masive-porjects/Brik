@@ -10,7 +10,7 @@ Define características técnicas medibles de un género para guiar:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 

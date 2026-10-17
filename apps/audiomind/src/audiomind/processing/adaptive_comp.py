@@ -67,7 +67,6 @@ channels receive the same per-frame gain and the image is preserved
 (identical channels stay identical). Input shape and dtype are preserved.
 """
 
-import math
 from dataclasses import dataclass
 
 import numpy as np

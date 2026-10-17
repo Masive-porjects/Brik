@@ -52,7 +52,13 @@ class MixJobOptions:
     not read from a Pydantic request model that is about to be freed.
     """
 
-    __slots__ = ("dimension_enabled", "auto_balance", "stem_trims")
+    __slots__ = (
+        "dimension_enabled",
+        "auto_balance",
+        "stem_trims",
+        "character",
+        "character_seed",
+    )
 
     def __init__(
         self,
@@ -60,10 +66,14 @@ class MixJobOptions:
         dimension_enabled: bool = True,
         auto_balance: bool = False,
         stem_trims: dict[str, float] | None = None,
+        character: str | None = None,
+        character_seed: int | None = None,
     ) -> None:
         self.dimension_enabled = dimension_enabled
         self.auto_balance = auto_balance
         self.stem_trims = dict(stem_trims) if stem_trims else None
+        self.character = character
+        self.character_seed = character_seed
 
 
 def submit_mix_job(
@@ -172,6 +182,8 @@ def _execute(
             auto_balance=options.auto_balance,
             stem_trims=options.stem_trims,
             progress_cb=progress_cb,
+            character=options.character,
+            character_seed=options.character_seed,
         )
 
     future = demo_guard.get_or_create_flight(session_id, f"job:{job_id}", _work)

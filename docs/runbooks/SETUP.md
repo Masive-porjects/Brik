@@ -2,7 +2,7 @@
 
 > Instrucciones para levantar el entorno **completo** en una máquina nueva.
 > Cualquier agente de IA puede seguir esto literalmente: comandos exactos, output esperado, pitfalls reales.
-> Stack: Studio (Next.js :3000) · AudioMind (FastAPI :8000) · Convex (cloud). El Live Engine fue eliminado (`ba3b4a6`); el contrato live_params queda dormido.
+> Stack: Studio (Next.js :3000) · AudioMind (FastAPI :8000). El Live Engine fue eliminado (`ba3b4a6`); el contrato live_params queda dormido. Convex fue eliminado por completo (ver sección 3).
 
 ---
 
@@ -44,25 +44,9 @@ En Windows el venv queda en `.venv\Scripts\` (no `.venv/bin`):
 
 ---
 
-## 3. Convex (único servicio cloud — los datos se aislan por dev)
+## 3. Convex — ELIMINADO (nada que levantar)
 
-```bash
-cd apps/studio
-npx convex login        # flujo device: te da URL + código (5 min); autoriza en el navegador
-npx convex dev          # elige "choose an existing project" (o créalo) → pushea schema, genera:
-                        #   convex/_generated/   (NO se commitea — ver .gitignore)
-                        #   .env.local           (NEXT_PUBLIC_CONVEX_URL — NO se commitea)
-                        # queda corriendo como watcher (déjalo en una terminal aparte)
-```
-
-**Esperado:** `✔ Convex functions ready!` y `convex/_generated/api.d.ts` + `server.d.ts` existentes.
-
-Si `_generated/api.d.ts` quedó incompleto (faltan internal functions):
-```bash
-npx convex codegen      # regenera los bindings
-```
-
-**Para el resto del equipo:** el dueño del proyecto los invita en dashboard.convex.dev → Settings → Members. Cada dev hace su propio login + `convex dev` (su dev deployment es aislado; el schema es compartido).
+El scaffold `convex/` fue removido del repo (verificado 2026-10-13: `git ls-files | rg -i convex` → vacío; sin deps en `apps/studio/package.json`; 0 referencias en `apps/studio/src`). **No se necesita `convex login` ni `convex dev`**: el studio no consulta Convex. El flujo histórico queda en el historial de git.
 
 ---
 
@@ -95,12 +79,12 @@ cd apps/studio && bun run dev                           # http://localhost:3000
 ```bash
 # Studio
 cd apps/studio
-npx tsc --noEmit        # ⚠️ errores residuales en convex/mastering.ts (ciclo de tipos) — NO son tuyos
-npx vitest run          # 57/57 passing
-npm run build           # OK
+bun run lint            # 0 errores / 33 warnings (no funcionales)
+bun run test            # 8 archivos / 72 tests passing
+bun run build           # OK (Next 16.2.11)
 
 # Python
-cd apps/audiomind && ../../.venv/bin/python -m pytest tests/ -q      # 628/628 passing
+cd apps/audiomind && ../../.venv/bin/python -m pytest tests/ -q      # 887 passed, 0 failed
 ```
 
 ---
@@ -110,17 +94,15 @@ cd apps/audiomind && ../../.venv/bin/python -m pytest tests/ -q      # 628/628 p
 | # | Pitfall | Detalle |
 |---|---|---|
 | 1 | npm vs bun | el equipo migró a bun. `npm install` regenera package-lock y ensucia el repo. Usar `bun install` |
-| 2 | `convex/_generated/` | NO se commitea (`.gitignore` de apps/studio). Se regenera con `npx convex dev` |
-| 3 | `.env.local` | NO se commitea. `convex dev` lo genera con la URL del deployment propio |
-| 4 | `@midimastering/agent` | apunta a `dist/` — sin `bun run build` previo, el studio no lo resuelve (TS2307) |
-| 5 | typecheck global | los 3 errores de `convex/mastering.ts` son de Tomás (ciclo `api.d.ts` ↔ `mastering.ts`). No tocarlos sin avisarle |
-| 6 | contrato live_params | `packages/contracts/live_params.schema.json` es la fuente de verdad. Si cambia: `packages/contracts/scripts/gen_types.sh` (regenera TS + Python). Nunca editar tipos generados a mano |
+| 2 | `@midimastering/agent` | apunta a `dist/` — sin `bun run build` previo, el studio no lo resuelve (TS2307) |
+| 3 | contrato live_params | **dormido** (Live Engine eliminado en `ba3b4a6`): no consumirlo ni regenerarlo. Fuente de verdad histórica: `packages/contracts/live_params.schema.json` |
 
 ---
 
-## 8. Estado conocido del repo (2026-08-29; verificado 2026-09-23)
+## 8. Estado conocido del repo (verificado 2026-10-13)
 
-- ✅ audiomind 707 tests · studio tsc + 61 vitest + build ✅ (27-Sep) · eslint 31 errores / 29 warnings, todos preexistentes y verificados sin regresiones · contrato live_params congelado (dormido)
-- ✅ HumanMidi **removido del producto** (2026-09-11) — ver `../archive/HUMANMIDI_REMOVAL_REPORT.md`; bridge y simulator **removidos** también — ver `../ESTADO_PROYECTO.md` §5 (el Live Engine fue eliminado)
-- ⚠️ Convex: deployment de David `proper-scorpion-625` (WaveIA) — el del equipo llega cuando Tomás comparta el suyo
-- ⚠️ CI inexistente — la verificación es manual (sección 6)
+- ✅ audiomind **887 passed, 0 failed** · studio vitest **8 archivos / 72 tests** · eslint **0 errores / 33 warnings** (no funcionales) · build OK (Next 16.2.11)
+- ✅ HumanMidi **removido** (2026-09-11) — el reporte `archive/HUMANMIDI_REMOVAL_REPORT.md` que esta línea citaba **no existe** en el repo; HumanMidi, bridge y simulator **removidos**; Live Engine eliminado (`ba3b4a6`); contrato `live_params` **dormido** — ver `../ESTADO_PROYECTO.md` §5
+- ✅ Convex **eliminado** — sin scaffold, sin deps, sin referencias en el studio
+- ✅ **CI activa**: `.github/workflows/studio-ci.yml` (bun) — lint + build bloqueantes; ver `../ESTADO_PROYECTO.md` §6.2
+- ✅ i18n real: hook `useTranslation()` + `apps/studio/src/i18n/locales/{es,en}.json` (765 claves hoja, paridad)

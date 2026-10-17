@@ -1,0 +1,115 @@
+[
+  {
+    "id": "eq-bombo",
+    "question": "¿En qué frecuencias está el golpe y el peso del bombo?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [32, 32]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [368, 370]}
+    ]
+  },
+  {
+    "id": "eq-caja",
+    "question": "La caja me suena a 'boing', ¿dónde corto?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [32, 32]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [368, 370]}
+    ]
+  },
+  {
+    "id": "eq-platillos",
+    "question": "¿Qué frecuencia le da brillo a los platillos y al hi-hat?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [32, 32]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [368, 370]}
+    ]
+  },
+  {
+    "id": "eq-voz-aire",
+    "question": "¿Dónde está el aire de la voz para que suene más abierta?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [32, 33]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [368, 370]}
+    ]
+  },
+  {
+    "id": "eq-embarrado",
+    "question": "Mi mezcla suena embarrada, ¿qué frecuencias corto?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [32, 33]}
+    ]
+  },
+  {
+    "id": "delay-bpm",
+    "question": "¿Cómo calculo el tiempo del delay según el tempo de la canción?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [39, 41]},
+      {"book_id": "owsinski-meh-1e-en", "pages": [216, 217]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [399, 408]}
+    ]
+  },
+  {
+    "id": "reverb-predelay",
+    "question": "¿Cuánto pre-delay le pongo a la reverb para que respire con el tempo?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [41, 42]}
+    ]
+  },
+  {
+    "id": "seis-elementos",
+    "question": "¿Cuáles son los elementos que debe tener una buena mezcla?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [8, 10]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [128, 134]}
+    ]
+  },
+  {
+    "id": "alto-profundo-ancho",
+    "question": "¿Qué significa que una mezcla sea alta, profunda y ancha?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [8, 9]},
+      {"book_id": "owsinski-meh-5e-es", "pdf_pages": [130, 132]}
+    ]
+  },
+  {
+    "id": "elemento-importante",
+    "question": "¿Qué instrumento debo resaltar según el género de la canción?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [58, 60]}
+    ]
+  },
+  {
+    "id": "compresor-tiempos",
+    "question": "¿Cómo ajusto el ataque y el release del compresor para que respire con la canción?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [55, 57]}
+    ]
+  },
+  {
+    "id": "bus-bateria",
+    "question": "¿Cómo hago que la batería suene más gorda comprimiéndola en grupo?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [52, 53]}
+    ]
+  },
+  {
+    "id": "paneo-base",
+    "question": "¿Dónde coloco el bajo, el bombo y la voz en el paneo?",
+    "expected": [
+      {"book_id": "owsinski-meh-1e-en", "pages": [19, 23]}
+    ]
+  },
+  {
+    "id": "gibson-espacio",
+    "question": "¿Cómo puedo imaginar el volumen y la ubicación de los sonidos entre los altavoces?",
+    "expected": [
+      {"book_id": "gibson-art-of-mixing-es", "pages": [9, 12]}
+    ]
+  },
+  {
+    "id": "gibson-altura",
+    "question": "¿Por qué los agudos se sienten arriba y los graves abajo en la mezcla?",
+    "expected": [
+      {"book_id": "gibson-art-of-mixing-es", "pages": [13, 17]}
+    ]
+  }
+]

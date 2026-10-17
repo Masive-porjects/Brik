@@ -6,7 +6,7 @@ Registro estructurado, reproducible y auditable de experimentos DSP, ML, UX y pr
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 

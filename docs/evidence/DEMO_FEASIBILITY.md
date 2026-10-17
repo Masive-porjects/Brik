@@ -5,6 +5,8 @@
 **HEAD:** `f36f747` (chore: pin audiomind uv.lock)
 **Base:** `origin/main`
 
+> ⚠️ **Informe HISTÓRICO (2026-09-11).** Refleja el estado de esa rama y ese HEAD, no el actual. Desde entonces: el **Live Engine fue eliminado** (`ba3b4a6`, 27-Sep) — `LiveView.tsx` ya no existe; **HumanMidi fue removido** (`apps/humanmidi/` no está en el repo); y el scaffolding de Convex fue eliminado. Los hallazgos y gaps de abajo se conservan como evidencia de la auditoría original, sin reescribir.
+
 ---
 
 ## 1. ARQUITECTURA ENCONTRADA

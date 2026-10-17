@@ -62,7 +62,11 @@ def check_supabase(env: dict[str, str]) -> None:
         # PGRST125 "Invalid path specified in request URL" for `/sessions/`,
         # which looks exactly like a missing table and is not one.
         print("\n  [1] columnas reales de public.sessions")
-        response = client.get(f"{rest}/sessions", headers={**headers, "Prefer": "count=exact"}, params={"select": "*", "limit": "1"})
+        response = client.get(
+            f"{rest}/sessions",
+            headers={**headers, "Prefer": "count=exact"},
+            params={"select": "*", "limit": "1"},
+        )
         print(f"      HTTP {response.status_code}")
         if response.status_code == 200:
             rows = response.json()
@@ -77,7 +81,11 @@ def check_supabase(env: dict[str, str]) -> None:
 
         # 2. What the backend actually asks for.
         print("\n  [2] lo que pide el backend: select('session_id')")
-        response = client.get(f"{rest}/sessions", headers=headers, params={"select": "session_id", "limit": "1"})
+        response = client.get(
+            f"{rest}/sessions",
+            headers=headers,
+            params={"select": "session_id", "limit": "1"},
+        )
         print(f"      HTTP {response.status_code}")
         if response.status_code == 200:
             print("      OK: la columna session_id existe")
@@ -88,15 +96,112 @@ def check_supabase(env: dict[str, str]) -> None:
 
         # 3. The other column the read path needs.
         print("\n  [3] lo que pide el backend: select('session_id, payload')")
-        response = client.get(f"{rest}/sessions", headers=headers, params={"select": "session_id,payload", "limit": "1"})
+        response = client.get(
+            f"{rest}/sessions",
+            headers=headers,
+            params={"select": "session_id,payload", "limit": "1"},
+        )
         print(f"      HTTP {response.status_code}")
         if response.status_code != 200:
             print(f"      FAIL: {response.text[:300]}")
 
         # 4. dsp_jobs sanity, for contrast.
         print("\n  [4] contraste: public.dsp_jobs")
-        response = client.get(f"{rest}/dsp_jobs", headers=headers, params={"select": "job_id", "limit": "1"})
-        print(f"      select('job_id') -> HTTP {response.status_code} ({'OK' if response.status_code == 200 else 'FAIL'})")
+        response = client.get(
+            f"{rest}/dsp_jobs",
+            headers=headers,
+            params={"select": "job_id", "limit": "1"},
+        )
+        verdict = "OK" if response.status_code == 200 else "FAIL"
+        print(f"      select('job_id') -> HTTP {response.status_code} ({verdict})")
+
+
+def check_projects(env: dict[str, str]) -> None:
+    """Probe the four project tables the multi-tenant flow depends on.
+
+    For each table, first read one row (``select=*``) to prove it exists and
+    to print the columns that carry data, then re-read a critical column to
+    prove the schema the backend queries is really there.
+
+    IMPORTANT: this uses the service_role key, which BYPASSES RLS. A 200 here
+    proves the table and its columns exist, but NOT that the row-level
+    policies are correct. Verifying the policies themselves requires a
+    separate anon/scoped probe with a user token (non-blocking, out of scope
+    for this read-only smoke test).
+    """
+    print()
+    print("=" * 70)
+    print("PROJECT TABLES")
+    print("=" * 70)
+
+    url = pick(env, "AUDIOMIND_SUPABASE_URL", "SUPABASE_URL")
+    key = pick(
+        env,
+        "AUDIOMIND_SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_SERVICE_KEY",
+    )
+    if not url or not key:
+        print("  FAIL: missing SUPABASE_URL or service_role key in .env")
+        return
+
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+    rest = f"{url}/rest/v1"
+
+    # Table -> a column the backend actually selects, used to prove the
+    # schema and not only the table's existence.
+    critical_columns: dict[str, str] = {
+        "projects": "id",
+        "audio_assets": "id",
+        "project_states": "project_id",
+        "project_documents": "project_id",
+    }
+
+    with httpx.Client(timeout=20.0) as client:
+        for table, column in critical_columns.items():
+            print(f"\n  [{table}]")
+            response = client.get(
+                f"{rest}/{table}",
+                headers={**headers, "Prefer": "count=exact"},
+                params={"select": "*", "limit": "1"},
+            )
+            ok = response.status_code == 200
+            status_verdict = "OK" if ok else "FAIL"
+            print(
+                f"      select('*')          -> HTTP {response.status_code} "
+                f"({status_verdict})"
+            )
+            if ok:
+                rows = response.json()
+                if rows:
+                    print(f"      columns with data: {sorted(rows[0].keys())}")
+                else:
+                    print(
+                        "      (empty table: existence verified, no rows to "
+                        "infer columns)"
+                    )
+                count = response.headers.get("content-range", "")
+                print(f"      content-range: {count!r}  (empty = 0 rows)")
+            else:
+                print(f"      {response.text[:300]}")
+
+            column_response = client.get(
+                f"{rest}/{table}",
+                headers=headers,
+                params={"select": column, "limit": "1"},
+            )
+            column_ok = column_response.status_code == 200
+            print(
+                f"      select({column!r}) -> HTTP {column_response.status_code} "
+                f"({'OK' if column_ok else 'FAIL'})"
+            )
+            if not column_ok:
+                print(f"      {column_response.text[:300]}")
+
+    print("\n  NOTE: service_role bypasses RLS. These probes prove the tables")
+    print("        and columns exist, NOT that the row-level policies are")
+    print("        correct; policy verification needs a separate anon/scoped")
+    print("        probe with a user token.")
 
 
 def check_r2(env: dict[str, str]) -> None:
@@ -108,11 +213,20 @@ def check_r2(env: dict[str, str]) -> None:
     endpoint = pick(env, "AUDIOMIND_R2_ENDPOINT", "R2_ENDPOINT")
     access = pick(env, "AUDIOMIND_R2_ACCESS_KEY_ID", "R2_ACCESS_KEY_ID")
     secret = pick(env, "AUDIOMIND_R2_SECRET_ACCESS_KEY", "R2_SECRET_ACCESS_KEY")
-    bucket = pick(env, "AUDIOMIND_R2_BUCKET", "AUDIOMIND_R2_BUCKET_NAME", "R2_BUCKET_NAME", "R2_BUCKET")
+    bucket = pick(
+        env,
+        "AUDIOMIND_R2_BUCKET",
+        "AUDIOMIND_R2_BUCKET_NAME",
+        "R2_BUCKET_NAME",
+        "R2_BUCKET",
+    )
 
     print(f"  endpoint : {endpoint or '(vacio)'}")
     print(f"  bucket   : {bucket or '(vacio)'}")
-    print(f"  access   : {access[:6]}... ({len(access)} chars)" if access else "  access   : (vacio)")
+    if access:
+        print(f"  access   : {access[:6]}... ({len(access)} chars)")
+    else:
+        print("  access   : (vacio)")
 
     if not all([endpoint, access, secret, bucket]):
         print("  FAIL: faltan credenciales R2 en .env")
@@ -166,6 +280,7 @@ def main() -> int:
         return 1
     env = load_env()
     check_supabase(env)
+    check_projects(env)
     check_r2(env)
     print()
     print("Esto es solo lectura. No modifico nada.")

@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
+import {
+  createProject,
+  presignAsset,
+  completeAsset,
+  getAssetDownloadUrl,
+} from "@/adapters/api/client";
 import type { PaginationParams, PaginatedResult } from "@/shared/types/pagination";
 import type {
   Track,
@@ -88,31 +94,110 @@ export async function extractAudioMetadata(file: File): Promise<AudioMetadata> {
   }
 }
 
+/** Prefijo con el que `tracks.storage_path` marca un original guardado en R2. */
+export const R2_PATH_PREFIX = "r2:";
+
+/** Envuelve un `r2_key` en el `storage_path` que espera `public.tracks`. */
+export function toR2StoragePath(r2Key: string): string {
+  return `${R2_PATH_PREFIX}${r2Key}`;
+}
+
 /**
- * Uploads an original audio file directly to Supabase Storage in the user's isolated folder.
+ * Extrae `project_id` y `asset_id` de un `r2_key` determinista.
+ *
+ * Formato: `projects/{project_id}/{kind}/{asset_id}.{ext}`. Devuelve `null` en
+ * vez de lanzar porque un `storage_path` corrupto en la base no debe tumbar la
+ * lista de la librería; el llamador decide qué hacer con el nulo.
  */
-export async function uploadOriginalAudio(
-  userId: string,
+export function parseR2Key(
+  r2Key: string
+): { projectId: string; assetId: string } | null {
+  const parts = r2Key.split("/");
+  if (parts.length < 4 || parts[0] !== "projects") return null;
+  const projectId = parts[1];
+  const file = parts[3];
+  const assetId = file.includes(".")
+    ? file.slice(0, file.lastIndexOf("."))
+    : file;
+  if (!projectId || !assetId) return null;
+  return { projectId, assetId };
+}
+
+/** SHA-256 en hex del archivo, para `audio_assets.media_hash`. */
+async function sha256Hex(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Resultado de subir un original al flujo nuevo de R2. */
+export interface UploadOriginalResult {
+  /** Valor para `public.tracks.storage_path`, con prefijo `r2:`. */
+  storagePath: string;
+  /** Proyecto creado como contenedor del asset. */
+  projectId: string;
+  /** Fila de `audio_assets` que representa el original. */
+  assetId: string;
+  /** Nombre original tal cual quedó guardado en la base. */
+  originalFilename: string;
+}
+
+/**
+ * Guarda el original directo en R2: presign → PUT → PATCH.
+ *
+ * Reemplaza la copia en Supabase Storage del flujo de tracks. La clave de R2 es
+ * determinista (`projects/{project_id}/{kind}/{asset_id}.{ext}`), así que el
+ * nombre legible vive únicamente en `audio_assets.original_filename` y la UI lo
+ * lee de ahí: la base es la fuente de verdad del nombre.
+ *
+ * El PUT reusa el `Content-Type` exacto con el que se firmó el presign; si
+ * difiere, R2 rechaza la firma.
+ */
+export async function uploadOriginalToR2(
   file: File,
-  trackId: string
-): Promise<{ storagePath: string }> {
-  const supabase = createClient();
-  const ext = file.name.split(".").pop()?.toLowerCase() || "wav";
-  const storagePath = `${userId}/${trackId}.${ext}`;
+  meta?: AudioMetadata,
+  opts?: { projectName?: string; signal?: AbortSignal }
+): Promise<UploadOriginalResult> {
+  const contentType = file.type || "audio/wav";
+  const projectName =
+    opts?.projectName || file.name.replace(/\.[^/.]+$/, "") || "Proyecto";
 
-  const { data, error } = await supabase.storage
-    .from("audio-originals")
-    .upload(storagePath, file, {
-      cacheControl: "3600",
-      upsert: true,
-      contentType: file.type || `audio/${ext}`,
-    });
+  const project = await createProject(projectName);
 
-  if (error) {
-    throw new Error(`Error uploading audio to Supabase Storage: ${error.message}`);
+  const presigned = await presignAsset(project.id, {
+    kind: "original",
+    originalFilename: file.name,
+    contentType,
+  });
+
+  const put = await fetch(presigned.putUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: file,
+    signal: opts?.signal,
+  });
+  if (!put.ok) {
+    throw new Error(`Error subiendo el audio a R2 (HTTP ${put.status})`);
   }
 
-  return { storagePath: data.path };
+  const mediaHash = await sha256Hex(file);
+  await completeAsset(project.id, presigned.assetId, {
+    durationSeconds: meta?.duration,
+    sampleRate: meta?.sampleRate,
+    channels: meta?.channels,
+    format: meta?.format,
+    sizeBytes: file.size,
+    mediaHash,
+  });
+
+  return {
+    storagePath: toR2StoragePath(presigned.r2Key),
+    projectId: project.id,
+    assetId: presigned.assetId,
+    originalFilename: file.name,
+  };
 }
 
 /**
@@ -205,6 +290,18 @@ export async function getOriginalSignedUrl(
   storagePath: string,
   expiresInSeconds = 3600
 ): Promise<string> {
+  // Los originales nuevos viven en R2: el backend firma la descarga y aplica su
+  // propia expiración, así que `expiresInSeconds` no viaja en esta rama.
+  if (storagePath.startsWith(R2_PATH_PREFIX)) {
+    const parsed = parseR2Key(storagePath.slice(R2_PATH_PREFIX.length));
+    if (!parsed) {
+      throw new Error(`Ruta de R2 inválida en storage_path: ${storagePath}`);
+    }
+    const download = await getAssetDownloadUrl(parsed.projectId, parsed.assetId);
+    return download.downloadUrl;
+  }
+
+  // Filas legacy: siguen resolviéndose por Supabase Storage.
   const supabase = createClient();
   const { data, error } = await supabase.storage
     .from("audio-originals")
@@ -247,8 +344,10 @@ export async function deleteTrack(
     }
   }
 
-  // 2. Delete original audio file
-  if (storagePath) {
+  // 2. Delete original audio file. Los originales en R2 no se borran desde acá
+  //    (todavía no hay endpoint de borrado): se omite la llamada a Supabase en
+  //    vez de intentar remover una clave que no existe en ese bucket.
+  if (storagePath && !storagePath.startsWith(R2_PATH_PREFIX)) {
     const cleanOrig = storagePath.replace(/^audio-originals:/, "");
     await supabase.storage.from("audio-originals").remove([cleanOrig]);
   }
