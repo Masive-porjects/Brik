@@ -1,8 +1,8 @@
 # 08 — Prompt de Implementación para LLM: crear midiMastering completo
 
-> **⚠️ 2026-09-11 · ACTUALIZADO:** El prompt originalmente incluía HumanMidi (gestos → MIDI). HumanMidi fue **removido del producto**; las fases de visión/cámara/gestos de este prompt no deben implementarse. El resto (WaveAI mastering + Live Engine + Bridge MIDI + Simulator) sigue vigente. Ver `../../archive/HUMANMIDI_REMOVAL_REPORT.md`.
+> **⚠️ 2026-10-13 · PARCIALMENTE HISTÓRICO — LEE ESTO ANTES DE USAR ESTE DOCUMENTO:** sobrevive como **vigente** únicamente el **backend de mastering (WaveAI)** — §5 (cadena DSP de 13 etapas, presets, `MasteringParameters`, API) — y el **contrato** `live_params.schema.json` (§4.1), que quedó **dormido** (sin consumidores en el repo). Todo lo demás **fue eliminado del producto y NO debe implementarse**: FASE 3 HumanMidi/gestos (§6), FASE 4 Bridge MIDI (§7), FASE 5 Live Engine Web Audio (§8.3–8.4, retirado el 27-Sep en `ba3b4a6`) y FASE 6 Simulator (§9.1). El §11 conserva criterios de éxito que ya no aplican. Estado real, evidencia y commits: `docs/ESTADO_PROYECTO.md` §3.3 y §5.
 
-> **Qué es este documento:** un prompt de implementación autocontenido para que un agente de código (Claude Code, Codex, OpenCode, etc.) genere el proyecto **midiMastering** completo: mastering offline (WaveAI) + Live Engine Web Audio + bridge de gestos (HumanMidi → FX en vivo).
+> **Qué es este documento:** un prompt de implementación históricamente autocontenido para que un agente de código (Claude Code, Codex, OpenCode, etc.) genere el proyecto **midiMastering** completo: mastering offline (WaveAI) + Live Engine Web Audio + bridge de gestos (HumanMidi → FX en vivo). **De esos tres bloques hoy solo existe el primero: el backend de mastering.**
 >
 > **Cómo usarlo:** copia este archivo como prompt inicial del agente, junto con la ruta al repo donde trabajar. El agente DEBE leer los documentos fuente antes de escribir código (sección 0).
 
@@ -255,6 +255,8 @@ curl -s localhost:8000/api/session/{id}/audio/mastered -o m.wav && file m.wav   
 
 ## 6. FASE 3 — HumanMidi (Python, gestos → MIDI)
 
+> ⚠️ **HISTÓRICO — NO IMPLEMENTAR.** HumanMidi fue removido del producto: no existe `apps/humanmidi/` en el repo.
+
 **Si el repo actual ya tiene `humanmidi/` funcional: migrarlo a `apps/humanmidi/` (estructura interna intacta) y verificar sus 26 tests. NO reescribir lo que funciona.**
 
 **Si hay que recrearlo (mínimo funcional):**
@@ -298,6 +300,8 @@ pytest tests/ -v                   # 26 tests (o los equivalentes recreados) ver
 ---
 
 ## 7. FASE 4 — Bridge (Python: MIDI → LiveParams → WebSocket)
+
+> ⚠️ **HISTÓRICO — NO IMPLEMENTAR.** `apps/bridge/` no existe en el repo.
 
 ### 7.1 Archivos y lógica
 
@@ -355,6 +359,8 @@ Presets identity: universal `#ff3b30/#ff6b35`, fuego `#ff6b00/#ff3b30`, claridad
 
 ### 8.3 Live Engine (Web Audio) — `lib/live/`
 
+> ⚠️ **HISTÓRICO — NO IMPLEMENTAR.** El Live Engine fue retirado el 27-Sep (`ba3b4a6`).
+
 `audioGraph.ts` — cadena EXACTA de nodos:
 ```
 source (AudioBufferSourceNode, master WAV, loop)
@@ -386,6 +392,9 @@ Reglas NO negociables:
 `recorder.ts`: `AudioContext.captureStream()` + MediaRecorder → descarga WAV/webm.
 
 ### 8.4 Pestaña Live (`components/live/`)
+
+> ⚠️ **HISTÓRICO — NO IMPLEMENTAR.** Los componentes `live/*` fueron eliminados con el Live Engine.
+
 - `LiveView.tsx`: 3 columnas — cámara (`CameraOverlay`, getUserMedia) | cadena FX (`FxSlotPanel` con 4 slots, cada uno con Knob3D + `GestureBadge` "pulgar derecho → Filtro") | meters + estado (`LiveMeters`, badge de conexión, botón grabar).
 - Knobs también operables con mouse/teclado (accesibilidad; funciona sin gestos).
 - Empty states: sin master → "Sube un audio para masterizar" (CTA → Estudio); bridge caído → banner con "Sigue con el mouse".
@@ -402,6 +411,9 @@ npm run build && npm run lint
 ## 9. FASE 6 — Simulador y E2E
 
 ### 9.1 `simulator/main.py`
+
+> ⚠️ **HISTÓRICO — NO IMPLEMENTAR.** El módulo `simulator` ya no existe en el repo.
+
 Emite `LiveParams` sintéticos por WS a `localhost:8765` (o directo al navegador):
 - `--scenario sweep`: barre `filter_cutoff` 200→12000 en 10 s.
 - `--scenario presets`: cicla clean→dub→big_room→radio cada 3 s.
@@ -409,6 +421,9 @@ Emite `LiveParams` sintéticos por WS a `localhost:8765` (o directo al navegador
 Útil para desarrollar el Live Engine y para la demo sin cámara.
 
 ### 9.2 `e2e/tests/master_to_live.spec.ts` (Playwright)
+
+> ⚠️ **HISTÓRICO.** Ese spec fue eliminado con el Live Engine; el e2e vivo es `e2e/tests/demo_flow.spec.ts`.
+
 1. Subir WAV demo → esperar masterización → ver A/B player.
 2. Abrir pestaña Live → ver cadena FX renderizada.
 3. Lanzar simulador `presets` → verificar que los knobs cambian (estado visible) y el badge de conexión.
@@ -417,6 +432,8 @@ Emite `LiveParams` sintéticos por WS a `localhost:8765` (o directo al navegador
 ---
 
 ## 10. Orden de implementación recomendado (fases bloqueantes)
+
+> ⚠️ Solo las FASE 1 y FASE 2 son ejecutables hoy; las FASE 3–6 corresponden a componentes eliminados.
 
 ```
 FASE 1 contracts (schema + protocolo)      ← hacer primero, todo depende de esto
@@ -433,6 +450,8 @@ Puedes paralelizar FASE 2, 3 y 4 después de FASE 1 (no dependen entre sí). FAS
 
 ## 11. Criterios de éxito finales (todos deben cumplirse)
 
+> ⚠️ Los criterios 2, 4, 5, 6, 7 y 8 dependen de HumanMidi, Bridge, Live Engine o Simulator, todos eliminados: **no aplican**. Siguen válidos el 1 y el 3.
+
 1. `curl localhost:8000/health` → ok; upload → process → download WAV válido.
 2. `pytest apps/humanmidi/tests -v` verde (26 tests) y `pytest apps/bridge/tests -q` verde.
 3. `npm run build` en studio verde; página carga sin errores de consola.
@@ -443,6 +462,8 @@ Puedes paralelizar FASE 2, 3 y 4 después de FASE 1 (no dependen entre sí). FAS
 8. Demo reproducible: track → master → performance en vivo → grabación de salida.
 
 ## 12. Pitfalls (NO ignorar)
+
+> ⚠️ Solo aplican los pitfalls del backend de mastering (sesiones en memoria, limiter 8×, corrida de presets). Los de HumanMidi, bridge, Live Engine y gestos son históricos.
 
 - `mediapipe==0.10.14` pin. 0.10.21+ depreca `mp.solutions.hands` (eliminado en 0.10.35); 0.10.9 no tiene wheels Python 3.12+.
 - Entry point HumanMidi SIEMPRE `run.py` (sys.path).

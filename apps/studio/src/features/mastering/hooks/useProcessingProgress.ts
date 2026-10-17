@@ -27,6 +27,8 @@ export function useProcessingProgress({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollingRef = useRef(false);
   const completedRef = useRef(false);
+  const pollIntervalRef = useRef(500); // Exponential backoff: starts at 500ms
+  const MAX_POLL_INTERVAL = 10000; // Cap at 10s
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
 
@@ -47,6 +49,7 @@ export function useProcessingProgress({
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
+    pollIntervalRef.current = 500; // Reset backoff on clear
   }, []);
 
   const completeProgress = useCallback(() => {
@@ -59,11 +62,16 @@ export function useProcessingProgress({
     clearTimers();
     progressRef.current = 0;
     completedRef.current = false;
+    pollIntervalRef.current = 500; // Reset backoff
     setProgress(0);
 
-    intervalRef.current = setInterval(async () => {
+    const tick = async () => {
       if (!sessionId) return;
-      if (pollingRef.current) return;
+      if (pollingRef.current) {
+        // Reschedule with current interval
+        intervalRef.current = setTimeout(tick, pollIntervalRef.current);
+        return;
+      }
       pollingRef.current = true;
       try {
         const p = await getProcessingProgress(sessionId);
@@ -79,6 +87,7 @@ export function useProcessingProgress({
           closeTimerRef.current = setTimeout(() => {
             onCompleteRef.current?.();
           }, 1200);
+          return;
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
@@ -89,8 +98,18 @@ export function useProcessingProgress({
         }
       } finally {
         pollingRef.current = false;
+        // Exponential backoff: increase interval up to max
+        pollIntervalRef.current = Math.min(
+          pollIntervalRef.current * 1.5,
+          MAX_POLL_INTERVAL
+        );
+        // Schedule next tick
+        intervalRef.current = setTimeout(tick, pollIntervalRef.current);
       }
-    }, 500);
+    };
+
+    // Start first tick
+    intervalRef.current = setTimeout(tick, pollIntervalRef.current);
   }, [sessionId, clearTimers]);
 
   const resetProgress = useCallback(() => {

@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Globe } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { BASE_PATH } from "@/lib/basePath";
 import { GitHubIcon, LinkedInIcon } from "@/features/auth/components/SocialIcons";
 import { FOUNDERS_LIST } from "./data";
 
@@ -35,7 +37,7 @@ export default function LandingFounders() {
 
   return (
     <section
-      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[#0d0e12] border-t border-white/[0.04] relative overflow-hidden"
+      className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[var(--bg-glass-elevated)] border-t border-[var(--border-subtle)] relative overflow-hidden"
       id="equipo-fundador"
     >
       {/* Ambient background glow */}
@@ -50,10 +52,10 @@ export default function LandingFounders() {
           <span className="font-label-technical text-primary text-[10px] uppercase tracking-widest">
             {t("landing.founders.badge", "Arquitectos del Sonido")}
           </span>
-          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[#e3e2e8] font-bold">
+          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[var(--text-primary)] font-bold">
             {t("landing.founders.title", "El Aquelarre Técnico — Equipo Fundador de Brik")}
           </h2>
-          <p className="font-body-md text-[#bcc9c7] text-sm sm:text-base leading-relaxed">
+          <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
             {t(
               "landing.founders.subtitle",
               "Las 3 mentes que combinan ciencia acústica, algoritmos neuronales y experiencia de software para masterizar con fidelidad espectral."
@@ -75,18 +77,19 @@ export default function LandingFounders() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className="flex flex-col bg-[#1a1b20] rounded-2xl overflow-hidden shadow-2xl border border-white/5 hover:border-white/15 transition-all duration-300 hover:-translate-y-1.5 h-full"
+                className="flex flex-col bg-[var(--bg-glass)] rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-all duration-300 hover:-translate-y-1.5 h-full"
               >
                 {/* Photo Viewport */}
-                <div className="w-full h-80 relative overflow-hidden bg-[#292a2e]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={founder.image}
+                <div className="w-full h-80 relative overflow-hidden bg-[var(--surface-active)]">
+                  <Image
+                    src={`${BASE_PATH}${founder.image}`}
                     alt={founder.alt}
-                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover transition-transform duration-500 hover:scale-105"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1a1b20] via-[#1a1b20]/30 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-glass)] to-transparent" />
                   <div className="absolute top-4 left-4 z-10">
                     <span
                       className={`font-label-technical text-[10px] px-3 py-1 rounded-full backdrop-blur-md font-semibold border ${founder.badgeClass}`}
@@ -100,7 +103,7 @@ export default function LandingFounders() {
                 <div className="p-6 sm:p-7 xl:p-8 flex flex-col justify-between flex-1 gap-5 -mt-6 z-10">
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                     <h3
-                      className="font-headline-md text-base sm:text-lg xl:text-xl font-bold text-[#e3e2e8] whitespace-nowrap overflow-hidden text-ellipsis tracking-tight"
+                      className="font-headline-md text-base sm:text-lg xl:text-xl font-bold text-[var(--text-primary)] whitespace-nowrap overflow-hidden text-ellipsis tracking-tight"
                       title={founder.name}
                     >
                       {founder.name}
@@ -131,7 +134,7 @@ export default function LandingFounders() {
                               `Perfil de LinkedIn de ${founder.name}`
                             )}
                             title={t("landing.founders.social.titleLinkedin", "LinkedIn")}
-                            className="size-8 rounded-lg bg-white/[0.04] hover:bg-primary/20 text-[#bcc9c7] hover:text-primary border border-white/10 hover:border-primary/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            className="size-8 rounded-lg bg-[var(--surface-hover)] hover:bg-primary/20 text-[var(--text-secondary)] hover:text-primary border border-[var(--border-subtle)] hover:border-primary/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/50"
                           >
                             <LinkedInIcon className="size-4" fill="currentColor" />
                           </a>
@@ -148,7 +151,7 @@ export default function LandingFounders() {
                               `Perfil de GitHub de ${founder.name}`
                             )}
                             title={t("landing.founders.social.titleGithub", "GitHub")}
-                            className="size-8 rounded-lg bg-white/[0.04] hover:bg-primary/20 text-[#bcc9c7] hover:text-primary border border-white/10 hover:border-primary/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            className="size-8 rounded-lg bg-[var(--surface-hover)] hover:bg-primary/20 text-[var(--text-secondary)] hover:text-primary border border-[var(--border-subtle)] hover:border-primary/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/50"
                           >
                             <GitHubIcon className="size-4" />
                           </a>
@@ -168,7 +171,7 @@ export default function LandingFounders() {
                               "landing.founders.social.titleWebsite",
                               "Portafolio / Web"
                             )}
-                            className="size-8 rounded-lg bg-white/[0.04] hover:bg-primary/20 text-[#bcc9c7] hover:text-primary border border-white/10 hover:border-primary/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            className="size-8 rounded-lg bg-[var(--surface-hover)] hover:bg-primary/20 text-[var(--text-secondary)] hover:text-primary border border-[var(--border-subtle)] hover:border-primary/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/50"
                           >
                             <Globe className="size-4" aria-hidden="true" />
                           </a>
@@ -176,15 +179,15 @@ export default function LandingFounders() {
                       </div>
                     )}
 
-                    <p className="font-body-sm text-xs text-[#bcc9c7] mt-3 leading-relaxed flex-1">
+                    <p className="font-body-sm text-xs text-[var(--text-secondary)] mt-3 leading-relaxed flex-1">
                       {founder.bio}
                     </p>
                   </div>
 
                   <div
-                    className={`mt-auto p-4 rounded-xl bg-[#292a2e]/80 border-l-2 ${founder.quoteBorder} shadow-inner`}
+                    className={`mt-auto p-4 rounded-xl bg-[var(--surface-active)]/80 border-l-2 ${founder.quoteBorder} shadow-inner`}
                   >
-                    <p className="font-body-md text-xs italic text-[#e3e2e8]">
+                    <p className="font-body-md text-xs italic text-[var(--text-primary)]">
                       {founder.quote}
                     </p>
                   </div>

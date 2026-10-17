@@ -1,4 +1,5 @@
 import { API_BASE } from "./config";
+import { createClient } from "@/lib/supabase/client";
 
 /** Thrown when an API call fails. Carries the HTTP status code. */
 export class ApiError extends Error {
@@ -351,6 +352,34 @@ export function licenseHeaders(): Record<string, string> {
   return key ? { "X-License-Key": key } : {};
 }
 
+/**
+ * Headers for the authenticated `/projects/*` endpoints.
+ *
+ * Extends {@link licenseHeaders} with the Supabase bearer token the backend
+ * requires (`api/auth.py` `get_user_context`); in production the token is what
+ * resolves the caller to a user, and without it every `/projects/*` call is a
+ * 401. `getSession()` reads the stored session and works outside React.
+ *
+ * Never throws: when Supabase is not configured (local dev) or there is no
+ * session, it returns only the license headers so the call still reaches the
+ * backend and the dev fallback applies.
+ */
+export async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { ...licenseHeaders() };
+  try {
+    const {
+      data: { session },
+    } = await createClient().auth.getSession();
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+  } catch {
+    // No browser client (env missing) or getSession failed: proceed without
+    // auth rather than breaking the call, matching the dev/no-session path.
+  }
+  return headers;
+}
+
 export interface LicenseStatus {
   licensed: boolean;
   message: string;
@@ -460,6 +489,9 @@ export interface MixResult {
   /** T5 — manual stem faders report (backend, only when a trim ≠ 0 is
    *  sent). Shape: { gains: {*_db}, applied }. */
   trim_report?: unknown;
+  /** P5 — character stage report (backend, only when character ran).
+   *  Shape: { profile, seed, ... }. */
+  character_report?: unknown;
 }
 
 /**
@@ -483,6 +515,7 @@ export async function mixTracks(
     dimensionEnabled?: boolean;
     autoBalance?: boolean;
     stemTrims?: Record<string, number>;
+    character?: string | null;
   },
 ): Promise<{ audioUrl: string; audioBlob: Blob; result: MixResult | null }> {
   const body: Record<string, unknown> = {
@@ -493,6 +526,7 @@ export async function mixTracks(
     Object.entries(options?.stemTrims ?? {}).filter(([, db]) => db !== 0),
   );
   if (Object.keys(stemTrims).length > 0) body.stem_trims = stemTrims;
+  if (options?.character) body.character = options.character;
   const res = await fetch(`${API_BASE}/session/${sessionId}/mix`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...licenseHeaders() },
@@ -578,6 +612,7 @@ export async function submitMixJob(
     dimensionEnabled?: boolean;
     autoBalance?: boolean;
     stemTrims?: Record<string, number>;
+    character?: string | null;
   },
   signal?: AbortSignal,
 ): Promise<MixJobAccepted> {
@@ -589,6 +624,7 @@ export async function submitMixJob(
     Object.entries(options?.stemTrims ?? {}).filter(([, db]) => db !== 0),
   );
   if (Object.keys(stemTrims).length > 0) body.stem_trims = stemTrims;
+  if (options?.character) body.character = options.character;
 
   const res = await fetch(`${API_BASE}/jobs/mix/${sessionId}`, {
     method: "POST",
@@ -835,5 +871,548 @@ export async function getMasterJobStatus(jobId: string): Promise<AsyncJobStatus>
   }
 
   return res.json();
+}
+
+/* ── Project Document & State (WU3) ───────────────────────────────── */
+
+/**
+ * The four Demucs stems, in the engine's order. Mirrors the backend
+ * `StemName` literal (`models/project_document.py`).
+ */
+export type StemName = "drums" | "bass" | "other" | "vocals";
+
+/** Identity/presentation of one stem (no audio, no gain). Mirrors backend `StemNode`. */
+export interface StemNode {
+  display_name: string;
+  /** 0..3, mirrors the engine order. */
+  order: number;
+  group_id?: string | null;
+  color_token?: string | null;
+  hidden: boolean;
+}
+
+/** A UI grouping of stems. Mirrors backend `Group`. */
+export interface Group {
+  id: string;
+  display_name: string;
+  order: number;
+  color_token?: string | null;
+}
+
+/**
+ * A pending intent change proposed by the Intelligence. Never audible on its
+ * own: it becomes sound only when applied to `project_states` by the user.
+ * Mirrors backend `Proposal`.
+ */
+export interface Proposal {
+  /** UUID. */
+  id: string;
+  kind: "fader" | "toggle" | "master";
+  payload: Record<string, unknown>;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+  rationale?: string | null;
+  decided_at?: string | null;
+}
+
+/** The musical intent of the mix. Mirrors backend `MixIntent`. */
+export interface MixIntent {
+  genre?: string | null;
+  character?: string | null;
+  proposals: Proposal[];
+}
+
+/** Delivery intent for the master job. Mirrors backend `MasterIntent`. */
+export interface MasterIntent {
+  preset_id:
+    | "universal"
+    | "fuego"
+    | "claridad"
+    | "cinta"
+    | "natural"
+    | "espacial"
+    | "cinematico"
+    | "empuje"
+    | null;
+  /** 7-value payload set (NOT the 5-value `MasteringParameters.platform_target`). */
+  platform_target:
+    | "spotify"
+    | "apple_music"
+    | "youtube"
+    | "tidal"
+    | "club"
+    | "cd"
+    | "custom"
+    | null;
+  format: "wav" | "mp3";
+  /** 16..32. */
+  output_bit_depth: number;
+  master_name?: string | null;
+  parameters?: Record<string, unknown> | null;
+}
+
+/**
+ * V1 project document: intention + structure of one project. Mirrors the
+ * backend `ProjectDocument` and the JSON Schema in
+ * `docs/reference/specs/project_document_v1_spec.md` §3, field for field.
+ */
+export interface ProjectDocumentV1 {
+  schema_version: 1;
+  structure: {
+    stems: Record<StemName, StemNode>;
+    groups: Group[];
+  };
+  mix_intent: MixIntent;
+  master_intent: MasterIntent;
+  updated_by: "user" | "intelligence" | "system";
+  updated_at: string | null;
+}
+
+/** GET/PUT /projects/{id}/document response, normalized to camelCase. */
+export interface ProjectDocumentResponse {
+  projectId: string;
+  version: number;
+  document: ProjectDocumentV1;
+  updatedAt: string | null;
+}
+
+/** PUT /projects/{id}/document payload. `expected_version` is snake_case
+ *  because the backend `DocumentPut` model has `extra="forbid"`. */
+export interface PutDocumentPayload {
+  document: ProjectDocumentV1;
+  expected_version: number;
+}
+
+/** A single snapshot of the live mix for undo/redo. */
+export interface MixSnapshot {
+  faders: Record<string, number>;
+  toggles: Record<string, unknown>;
+  timestamp: number;
+}
+
+/** PATCH /projects/{id}/state request body (snake_case, backend contract). */
+export interface MixStatePayload {
+  state: {
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+  };
+  undo_stack: MixSnapshot[];
+}
+
+/** GET/PATCH /projects/{id}/state response, normalized to camelCase. */
+export interface MixStateResponse {
+  projectId: string;
+  state: {
+    faders: Record<string, number>;
+    toggles: Record<string, unknown>;
+  };
+  undoStack: MixSnapshot[];
+  updatedAt: string | null;
+}
+
+/** POST /projects/{id}/jobs/{mix,master} response, normalized to camelCase. */
+export interface ProjectJobAccepted {
+  jobId: string;
+  pollUrl: string;
+}
+
+/** Raw wire shape of a project document row (snake_case from the backend). */
+interface RawProjectDocumentResponse {
+  project_id: string;
+  version: number;
+  document: ProjectDocumentV1;
+  updated_at: string | null;
+}
+
+/** Raw wire shape of the mix state (snake_case from the backend). */
+interface RawMixStateResponse {
+  project_id: string;
+  state: MixStateResponse["state"];
+  undo_stack: MixSnapshot[];
+  updated_at: string | null;
+}
+
+/** Raw wire shape of a project job submit (snake_case from the backend). */
+interface RawProjectJobResponse {
+  job_id: string;
+  poll_url: string;
+}
+
+/** Normalizes a raw project document row to camelCase (B2). */
+function toProjectDocumentResponse(
+  raw: RawProjectDocumentResponse,
+): ProjectDocumentResponse {
+  return {
+    projectId: raw.project_id,
+    version: raw.version,
+    document: raw.document,
+    updatedAt: raw.updated_at,
+  };
+}
+
+/** Normalizes a raw mix state row to camelCase (B2). */
+function toMixStateResponse(raw: RawMixStateResponse): MixStateResponse {
+  return {
+    projectId: raw.project_id,
+    state: raw.state,
+    undoStack: raw.undo_stack ?? [],
+    updatedAt: raw.updated_at,
+  };
+}
+
+/** Fetches the V1 project document (bootstrap if none). */
+export async function getProjectDocument(
+  projectId: string
+): Promise<ProjectDocumentResponse> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("Failed to fetch project document", res.status);
+  return toProjectDocumentResponse(await res.json());
+}
+
+/** Writes the V1 project document with OCC. */
+export async function putProjectDocument(
+  projectId: string,
+  payload: PutDocumentPayload
+): Promise<ProjectDocumentResponse> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new ApiError("Failed to write project document", res.status);
+  return toProjectDocumentResponse(await res.json());
+}
+
+/** Deletes the project document (resets to bootstrap). */
+export async function deleteProjectDocument(projectId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+    method: "DELETE",
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("Failed to delete project document", res.status);
+}
+
+/** Fetches the live mix state. */
+export async function getProjectMixState(
+  projectId: string
+): Promise<MixStateResponse> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("Failed to fetch mix state", res.status);
+  return toMixStateResponse(await res.json());
+}
+
+/** Updates the live mix state (debounced by caller). The request body stays
+ *  snake_case (`{ state, undo_stack }`) because the backend requires it. */
+export async function patchProjectMixState(
+  projectId: string,
+  payload: MixStatePayload
+): Promise<MixStateResponse> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new ApiError("Failed to update mix state", res.status);
+  return toMixStateResponse(await res.json());
+}
+
+/** Submits a mix job for a project (returns job id + poll URL). */
+export async function submitProjectMixJob(
+  projectId: string,
+  signal?: AbortSignal
+): Promise<ProjectJobAccepted> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/mix`, {
+    method: "POST",
+    headers: { ...(await authHeaders()) },
+    signal,
+  });
+  if (!res.ok) throw new ApiError("Failed to submit mix job", res.status);
+  const raw = (await res.json()) as RawProjectJobResponse;
+  return { jobId: raw.job_id, pollUrl: raw.poll_url };
+}
+
+/** Submits a mastering job for a project (returns job id + poll URL). */
+export async function submitProjectMasterJob(
+  projectId: string,
+  signal?: AbortSignal
+): Promise<ProjectJobAccepted> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/master`, {
+    method: "POST",
+    headers: { ...(await authHeaders()) },
+    signal,
+  });
+  if (!res.ok) throw new ApiError("Failed to submit mastering job", res.status);
+  const raw = (await res.json()) as RawProjectJobResponse;
+  return { jobId: raw.job_id, pollUrl: raw.poll_url };
+}
+
+/* ── Project assets (subida directa a R2) ─────────────────────────────── */
+
+/** Tipos de asset aceptados por el backend (literal `AssetKind`). */
+export type AssetKind = "original" | "stem" | "master";
+
+/** Una fila de `projects`, normalizada a camelCase. Espeja `ProjectOut`. */
+export interface ProjectOut {
+  id: string;
+  userId: string;
+  name: string;
+  bpm: number | null;
+  musicalKey: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+/** Cuerpo de `POST /projects/{id}/assets/presign` (snake_case en el cable). */
+export interface PresignAssetInput {
+  kind: AssetKind;
+  stemName?: string;
+  originalFilename?: string;
+  contentType?: string;
+}
+
+/** Respuesta de `POST /projects/{id}/assets/presign`, normalizada. */
+export interface PresignedAsset {
+  assetId: string;
+  projectId: string;
+  r2Key: string;
+  putUrl: string;
+  contentType: string;
+  expiresIn: number;
+}
+
+/** Cuerpo de `PATCH /projects/{id}/assets/{asset_id}` (snake_case). */
+export interface AssetCompleteInput {
+  durationSeconds?: number;
+  sampleRate?: number;
+  channels?: number;
+  format?: string;
+  sizeBytes?: number;
+  mediaHash?: string;
+}
+
+/** Una fila de `audio_assets`, normalizada. Espeja `AssetOut`. */
+export interface ProjectAsset {
+  id: string;
+  projectId: string;
+  userId: string;
+  kind: string;
+  stemName: string | null;
+  r2Key: string;
+  mediaHash: string | null;
+  originalFilename: string | null;
+  durationSeconds: number | null;
+  sampleRate: number | null;
+  channels: number | null;
+  format: string | null;
+  sizeBytes: number | null;
+  createdAt: string | null;
+}
+
+/** Respuesta de `GET /projects/{id}/assets/{asset_id}/download`, camelCase. */
+export interface AssetDownload {
+  projectId: string;
+  assetId: string;
+  r2Key: string;
+  originalFilename: string | null;
+  downloadUrl: string;
+  expiresIn: number;
+}
+
+/** Forma cruda (snake_case) de un proyecto. */
+interface RawProjectOut {
+  id: string;
+  user_id: string;
+  name: string;
+  bpm: number | null;
+  musical_key: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Forma cruda (snake_case) de la respuesta de presign. */
+interface RawPresignedAsset {
+  asset_id: string;
+  project_id: string;
+  r2_key: string;
+  put_url: string;
+  content_type: string;
+  expires_in: number;
+}
+
+/** Forma cruda (snake_case) de un asset. */
+interface RawProjectAsset {
+  id: string;
+  project_id: string;
+  user_id: string;
+  kind: string;
+  stem_name: string | null;
+  r2_key: string;
+  media_hash: string | null;
+  original_filename: string | null;
+  duration_seconds: number | null;
+  sample_rate: number | null;
+  channels: number | null;
+  format: string | null;
+  size_bytes: number | null;
+  created_at: string | null;
+}
+
+/** Forma cruda (snake_case) de la respuesta de descarga. */
+interface RawAssetDownload {
+  project_id: string;
+  asset_id: string;
+  r2_key: string;
+  original_filename: string | null;
+  download_url: string;
+  expires_in: number;
+}
+
+function toProjectOut(raw: RawProjectOut): ProjectOut {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    name: raw.name,
+    bpm: raw.bpm,
+    musicalKey: raw.musical_key,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function toPresignedAsset(raw: RawPresignedAsset): PresignedAsset {
+  return {
+    assetId: raw.asset_id,
+    projectId: raw.project_id,
+    r2Key: raw.r2_key,
+    putUrl: raw.put_url,
+    contentType: raw.content_type,
+    expiresIn: raw.expires_in,
+  };
+}
+
+function toProjectAsset(raw: RawProjectAsset): ProjectAsset {
+  return {
+    id: raw.id,
+    projectId: raw.project_id,
+    userId: raw.user_id,
+    kind: raw.kind,
+    stemName: raw.stem_name,
+    r2Key: raw.r2_key,
+    mediaHash: raw.media_hash,
+    originalFilename: raw.original_filename,
+    durationSeconds: raw.duration_seconds,
+    sampleRate: raw.sample_rate,
+    channels: raw.channels,
+    format: raw.format,
+    sizeBytes: raw.size_bytes,
+    createdAt: raw.created_at,
+  };
+}
+
+function toAssetDownload(raw: RawAssetDownload): AssetDownload {
+  return {
+    projectId: raw.project_id,
+    assetId: raw.asset_id,
+    r2Key: raw.r2_key,
+    originalFilename: raw.original_filename,
+    downloadUrl: raw.download_url,
+    expiresIn: raw.expires_in,
+  };
+}
+
+/** Crea un proyecto del llamador. */
+export async function createProject(
+  name: string,
+  opts?: { bpm?: number; musicalKey?: string }
+): Promise<ProjectOut> {
+  const body: Record<string, unknown> = { name };
+  if (opts?.bpm !== undefined) body.bpm = opts.bpm;
+  if (opts?.musicalKey !== undefined) body.musical_key = opts.musicalKey;
+  const res = await fetch(`${API_BASE}/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("No se pudo crear el proyecto", res.status);
+  return toProjectOut(await res.json());
+}
+
+/** Lista los proyectos del llamador, más recientes primero. */
+export async function listProjects(): Promise<ProjectOut[]> {
+  const res = await fetch(`${API_BASE}/projects`, {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("No se pudieron listar los proyectos", res.status);
+  const raw = (await res.json()) as RawProjectOut[];
+  return raw.map(toProjectOut);
+}
+
+/** Registra el asset y devuelve la URL firmada de subida a R2. */
+export async function presignAsset(
+  projectId: string,
+  input: PresignAssetInput
+): Promise<PresignedAsset> {
+  const body: Record<string, unknown> = { kind: input.kind };
+  if (input.stemName !== undefined) body.stem_name = input.stemName;
+  if (input.originalFilename !== undefined) {
+    body.original_filename = input.originalFilename;
+  }
+  if (input.contentType !== undefined) body.content_type = input.contentType;
+  const res = await fetch(`${API_BASE}/projects/${projectId}/assets/presign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("No se pudo firmar la subida del archivo", res.status);
+  return toPresignedAsset(await res.json());
+}
+
+/** Registra los metadatos del asset después del PUT directo a R2. */
+export async function completeAsset(
+  projectId: string,
+  assetId: string,
+  input: AssetCompleteInput
+): Promise<ProjectAsset> {
+  const body: Record<string, unknown> = {};
+  if (input.durationSeconds !== undefined) body.duration_seconds = input.durationSeconds;
+  if (input.sampleRate !== undefined) body.sample_rate = input.sampleRate;
+  if (input.channels !== undefined) body.channels = input.channels;
+  if (input.format !== undefined) body.format = input.format;
+  if (input.sizeBytes !== undefined) body.size_bytes = input.sizeBytes;
+  if (input.mediaHash !== undefined) body.media_hash = input.mediaHash;
+  const res = await fetch(`${API_BASE}/projects/${projectId}/assets/${assetId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("No se pudieron registrar los metadatos", res.status);
+  return toProjectAsset(await res.json());
+}
+
+/** Lista los archivos de un proyecto (original, stems, masters). */
+export async function listAssets(projectId: string): Promise<ProjectAsset[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/assets`, {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!res.ok) throw new ApiError("No se pudieron listar los archivos", res.status);
+  const raw = (await res.json()) as RawProjectAsset[];
+  return raw.map(toProjectAsset);
+}
+
+/** Pide una URL firmada de descarga para reproducir un asset desde la librería. */
+export async function getAssetDownloadUrl(
+  projectId: string,
+  assetId: string
+): Promise<AssetDownload> {
+  const res = await fetch(
+    `${API_BASE}/projects/${projectId}/assets/${assetId}/download`,
+    { headers: { ...(await authHeaders()) } }
+  );
+  if (!res.ok) throw new ApiError("No se pudo obtener el enlace de descarga", res.status);
+  return toAssetDownload(await res.json());
 }
 

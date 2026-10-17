@@ -2,7 +2,7 @@
 
 > Plan de arquitectura, roles, contratos y UX/UI para construir el ecosistema completo (WaveAI + Live Engine + HumanMidi) con **5 desarrolladores** en el marco del hackaton (7 días), aplicando **SOLID** en el código y en la organización misma.
 >
-> **⚠️ 2026-09-11 · DOCUMENTO HISTÓRICO:** HumanMidi (Dev 4, visión/gestos) fue removido del producto. El rol del bridge Python y el Live Engine se mantienen; ver `../../archive/HUMANMIDI_REMOVAL_REPORT.md`.
+> **⚠️ 2026-09-11 · DOCUMENTO HISTÓRICO:** HumanMidi (Dev 4, visión/gestos) fue removido del producto. El rol del bridge Python y el Live Engine que este banner daba por vigentes también desaparecieron (`ba3b4a6`, `92c79bf`, `38c1246`); ver `../../ESTADO_PROYECTO.md` §3.3 y §5.
 
 ## 1. Principio rector: dividir por DOMINIO, no por capa
 

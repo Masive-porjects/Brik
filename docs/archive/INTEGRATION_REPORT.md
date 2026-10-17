@@ -3,7 +3,7 @@
 > **Branch:** `test/integration-midimastering`  
 > **Date:** 2026-08-25  
 > **Status:** ✅ Complete — All blocks delivered, build passing, 7 semantic commits ready for PR
-> **Update 2026-09-11:** **HumanMidi fue removido del producto** (baja definitiva). Ver `HUMANMIDI_REMOVAL_REPORT.md`. Este reporte conserva la estructura histórica con la sección Block B marcada como removed.
+> **Update 2026-09-11:** **HumanMidi fue removido del producto** (baja definitiva). El reporte de remoción citado antes nunca se commiteó: ver `../ESTADO_PROYECTO.md` §3.3 y §5. Este reporte conserva la estructura histórica con la sección Block B marcada como removed.
 
 ---
 
@@ -207,7 +207,7 @@ WaveAI/
 
 ## Block B — HumanMidi (removed)
 
-> **❌ Removido del producto el 2026-09-11.** HumanMidi (visión por cámara, MediaPipe, hand tracking, gestos → MIDI) dejó de pertenecer a WaveAI. El directorio `apps/humanmidi/`, sus tests, configs y dependencias (`mediapipe`, `cv2` legacy) fueron eliminados; `CameraOverlay` y `GestureBadge` salieron del Live Engine; todos los scripts de arranque/verificación fueron limpiados. Detalle completo: `HUMANMIDI_REMOVAL_REPORT.md`.
+> **❌ Removido del producto el 2026-09-11.** HumanMidi (visión por cámara, MediaPipe, hand tracking, gestos → MIDI) dejó de pertenecer a WaveAI. El directorio `apps/humanmidi/`, sus tests, configs y dependencias (`mediapipe`, `cv2` legacy) fueron eliminados; `CameraOverlay` y `GestureBadge` salieron del Live Engine; todos los scripts de arranque/verificación fueron limpiados. Detalle completo: `../ESTADO_PROYECTO.md` §3.3 y §5.
 
 ### Lo que era (histórico)
 

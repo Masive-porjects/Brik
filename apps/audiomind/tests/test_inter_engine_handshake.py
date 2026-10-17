@@ -3,7 +3,6 @@
 import pytest
 import numpy as np
 from pydantic import ValidationError
-from pathlib import Path
 
 # ─── Fixtures ────────────────────────────────────────────────────────────
 

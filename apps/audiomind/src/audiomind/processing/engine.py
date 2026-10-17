@@ -4,11 +4,9 @@ def _match_peak(ref, tgt):
     return tgt*(np.max(np.abs(ref))/np.max(np.abs(tgt)))
 
 from audiomind.processing.loudness import measure_lra
-from audiomind.processing.truepeak import measure_true_peak
 def measure_correlation(*args, **kwargs): return 0.0
 
 from audiomind.processing.truepeak import compute_codec_safe_ceiling
-import numpy as np
 from audiomind.processing.loudness import integrated_loudness
 measure_lufs = integrated_loudness
 
@@ -30,7 +28,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import soundfile as sf
 import pedalboard
 from pedalboard import (
@@ -50,6 +47,7 @@ Pedalboard = pedalboard.Pedalboard
 
 from audiomind.analysis.analyzer import (
     TARGET_BANDS_HZ,
+    _detect_already_mastered,
     analyze_band_energies,
     get_genre_target_profile,
 )
@@ -92,9 +90,6 @@ from audiomind.processing.stereo_imaging import (
     apply_stereo_imaging,
 )
 from audiomind.processing.tape import TapeParams, tape_saturate
-from audiomind.processing.truepeak import true_peak_limit
-from audiomind.processing.loudness import integrated_loudness, true_peak_db
-measure_lufs = integrated_loudness
 # ── Gain Staging ──────────────────────────────────────────────────────
 
 
@@ -196,6 +191,258 @@ def gain_stage(
     return audio * gain_linear, gain_db
 
 
+# ── P4 texture recipe: read, report, cohere (spec S2–S8) ──────────────
+# The mix engine (P3) bakes a DELIBERATE texture into the principal render
+# (slapback vocal, wow/flutter chorus, parallel bass saturation, hiss/crackle
+# bed) and measures its effect into a ``texture_recipe`` (S1). Mastering
+# receives that render and, without the recipe, reads the noise as a defect.
+# Everything below is the master half of that handshake: a lenient reader (S2)
+# and the bounded adaptations (S4–S7) that stop the chain correcting texture.
+
+#: Recipe schema this reader accepts. Any other value discards the recipe
+#: WHOLE (never a partial application) and warns (mirrors
+#: ``texture_recipe.RECIPE_SCHEMA``).
+TEXTURE_RECIPE_SCHEMA = 1
+
+#: Band-centre split (Hz) at/above which the match EQ's measured energy is
+#: reduced by the recipe's declared HF excess, so the matcher judges the
+#: program instead of the deliberate top-end texture (S4.1).
+MATCH_EQ_HF_BAND_HZ = 6000.0
+
+#: The match EQ's own per-band authority (±2 dB). The HF texture offset is
+#: clamped to it: texture-awareness narrows what the matcher sees and never
+#: grants extra cut (S4.1).
+MATCH_EQ_HF_OFFSET_LIMIT_DB = 2.0
+
+#: Margin (dB) above the declared bed level at which a boothed HF stage
+#: threshold is placed so the bed sits BELOW it (S4).
+BED_THRESHOLD_MARGIN_DB = 3.0
+
+#: Warning names appended to ``warnings`` when a present recipe is discarded.
+TEXTURE_WARNING_UNKNOWN_SCHEMA = "texture_recipe_unknown_schema"
+TEXTURE_WARNING_MALFORMED = "texture_recipe_malformed"
+
+
+def _as_number(value: object) -> float | None:
+    """Return ``value`` as a float, or None when it is not a real number.
+
+    ``bool`` is an ``int`` subclass; a bool is not a number here, so a recipe
+    that smuggled one in is rejected as malformed rather than silently read as
+    0/1.
+
+    Neither is ``NaN``/``±Inf`` a measurement, and ``isinstance`` alone cannot
+    tell: they are floats, so the reader accepted them as valid (review findings
+    ``R3-as-number-nan-inf`` / ``R4-recipe-nonfinite-values``). What that
+    acceptance actually did, measured on the pre-fix revision rather than
+    reasoned about:
+
+    * a non-finite value is not inert. ``measured.loudness_delta_lu = inf``
+      moved the applied loudness compensation to its ``+6 dB`` clamp and
+      ``measured.hf_excess_db = inf`` drove the HF withdrawal to its full ±2 dB
+      bound and the clarity shelf to ``0.0`` — the render changed, and neither
+      number is what the peer could have meant;
+    * it reaches the RETURNED payload: the same run reported
+      ``loudness_compensation_lu: nan``, and ``NaN`` is not valid JSON, so the
+      response the Studio parses breaks;
+    * and it is silent: no warning, and a recipe reported as applied.
+
+    Rejecting it here discards the recipe WHOLE with
+    ``texture_recipe_malformed`` (S2) — the route every other wrong-typed value
+    already takes. The emitter floors its meters today, so today's payload is
+    finite; the reader's contract is that the recipe is DATA from another
+    service (S2), and "the peer is correct" is not a type check.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        number = float(value)
+        if np.isfinite(number):
+            return number
+    return None
+
+
+def _read_texture_recipe(
+    mix_metadata: Any,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Read and validate the P4 texture recipe once, at the top of the chain.
+
+    Lenient by contract (spec S2): the recipe is data from another service, not
+    configuration, so a bad one degrades with an explicit report instead of
+    raising. It is accepted only when ``recipe_schema == 1`` and every consumed
+    value has the expected type; on ANY failure the recipe is discarded WHOLE
+    (never partially applied) and the returned reason string names why. The
+    reader consumes only the keys the master chain uses — ``profile``, ``seed``,
+    ``bed`` and ``measured`` — and returns a normalised copy of them.
+
+    Args:
+        mix_metadata: The mix handshake payload — a dict (the real path, from
+            ``session.mix_metadata``) or a ``MixMetadata`` instance, or None.
+
+    Returns:
+        ``(recipe, None)`` when a valid recipe is present, ``(None, None)`` when
+        none is present, and ``(None, reason)`` when one is present but rejected
+        (``texture_recipe_unknown_schema`` / ``texture_recipe_malformed``).
+    """
+    if mix_metadata is None:
+        return None, None
+    if isinstance(mix_metadata, dict):
+        raw = mix_metadata.get("texture_recipe")
+    else:
+        raw = getattr(mix_metadata, "texture_recipe", None)
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict) or "recipe_schema" not in raw:
+        return None, TEXTURE_WARNING_MALFORMED
+    schema = raw["recipe_schema"]
+    if not isinstance(schema, int) or isinstance(schema, bool):
+        return None, TEXTURE_WARNING_MALFORMED
+    if schema != TEXTURE_RECIPE_SCHEMA:
+        return None, TEXTURE_WARNING_UNKNOWN_SCHEMA
+
+    profile = raw.get("profile")
+    seed = raw.get("seed")
+    bed = raw.get("bed")
+    measured_raw = raw.get("measured")
+    if not isinstance(profile, str):
+        return None, TEXTURE_WARNING_MALFORMED
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        return None, TEXTURE_WARNING_MALFORMED
+    if not isinstance(bed, dict) or not isinstance(measured_raw, dict):
+        return None, TEXTURE_WARNING_MALFORMED
+
+    bed_applied = bed.get("applied")
+    bed_transient = bed.get("transient")
+    hiss_dbfs = _as_number(bed.get("hiss_dbfs"))
+    crackle_dbfs = _as_number(bed.get("crackle_dbfs"))
+    crackle_rate = _as_number(bed.get("crackle_rate_per_s"))
+    if not isinstance(bed_applied, bool) or not isinstance(bed_transient, bool):
+        return None, TEXTURE_WARNING_MALFORMED
+    if hiss_dbfs is None or crackle_dbfs is None or crackle_rate is None:
+        return None, TEXTURE_WARNING_MALFORMED
+
+    loudness_delta = _as_number(measured_raw.get("loudness_delta_lu"))
+    hf_excess = _as_number(measured_raw.get("hf_excess_db"))
+    crest_delta = _as_number(measured_raw.get("crest_delta_db"))
+    centroid_delta = _as_number(measured_raw.get("centroid_delta_hz"))
+    band_limited = measured_raw.get("band_limited_vocal")
+    if (
+        loudness_delta is None
+        or hf_excess is None
+        or crest_delta is None
+        or centroid_delta is None
+    ):
+        return None, TEXTURE_WARNING_MALFORMED
+    if not isinstance(band_limited, bool):
+        return None, TEXTURE_WARNING_MALFORMED
+
+    return {
+        "profile": profile,
+        "seed": int(seed),
+        "bed": {
+            "applied": bed_applied,
+            "transient": bed_transient,
+            "hiss_dbfs": hiss_dbfs,
+            "crackle_dbfs": crackle_dbfs,
+            "crackle_rate_per_s": crackle_rate,
+        },
+        "measured": {
+            "loudness_delta_lu": loudness_delta,
+            "hf_excess_db": hf_excess,
+            "crest_delta_db": crest_delta,
+            "centroid_delta_hz": centroid_delta,
+            "band_limited_vocal": band_limited,
+        },
+    }, None
+
+
+def _recipe_hf_excess_db(recipe: dict[str, Any] | None) -> float:
+    """The declared HF texture excess (dB), never negative (S4.1 / S4.3).
+
+    Texture-awareness may only WITHDRAW (a smaller boost, a narrower matcher
+    view); a measured negative excess (the character removed top) is clamped to
+    zero so a recipe can never make the chain brighten or cut more than today.
+    """
+    if recipe is None:
+        return 0.0
+    return max(0.0, float(recipe["measured"]["hf_excess_db"]))
+
+
+def _texture_corrected_analysis(
+    analysis: AnalysisResult | None,
+    recipe: dict[str, Any] | None,
+) -> AnalysisResult | None:
+    """Correct the two bed-biased analysis numbers the gate consumers read (S7).
+
+    The bed inflates ``spectral_centroid`` and deflates ``crest_factor_db``, and
+    both ``_detect_already_mastered`` and ``decide_smart_gate`` read those two.
+    The declared deltas are undone here — at the call site — and
+    ``is_already_mastered`` is re-derived with the analyzer's own detector, so
+    the gate judges the PROGRAM. ``analyzer.py``/``smart_gate.py`` are not
+    touched and keep their single responsibility. With no analysis or no recipe
+    the original object is returned untouched (neutral = bypass).
+    """
+    if analysis is None or recipe is None:
+        return analysis
+    measured = recipe["measured"]
+    corrected_centroid = analysis.spectral_centroid - measured["centroid_delta_hz"]
+    corrected_crest = analysis.crest_factor_db + measured["crest_delta_db"]
+    is_mastered, confidence = _detect_already_mastered(
+        analysis.integrated_lufs,
+        analysis.true_peak_db,
+        analysis.dynamic_range_db,
+        corrected_centroid,
+        crest_factor_db=corrected_crest,
+    )
+    return analysis.model_copy(
+        update={
+            "spectral_centroid": corrected_centroid,
+            "crest_factor_db": corrected_crest,
+            "is_already_mastered": is_mastered,
+            "mastering_confidence": confidence,
+        }
+    )
+
+
+def _bed_high_band_threshold_db(
+    existing_threshold_db: float, recipe: dict[str, Any] | None
+) -> float:
+    """Raise an HF-band threshold so the declared bed sits BELOW it (S4).
+
+    The recipe declares the bed's absolute level in dBFS (``hiss_dbfs`` /
+    ``crackle_dbfs``); the loudest component is what can drive a per-band
+    detector. The threshold is raised to that level plus
+    ``BED_THRESHOLD_MARGIN_DB`` — never LOWERED, so a bed can only stop a stage
+    responding to it, never make one respond more — and stays a valid ≤ 0 dBFS
+    threshold. With no recipe, or a bed that never ran, the threshold is
+    returned unchanged.
+
+    Note: for the default −20 dBFS thresholds and a realistic bed (the profile
+    declares ≈ −48 dBFS hiss), this is deliberately a no-op — the bed is
+    already below the default threshold and the report says so.
+    """
+    if recipe is None or not recipe["bed"]["applied"]:
+        return existing_threshold_db
+    bed = recipe["bed"]
+    bed_level_dbfs = max(float(bed["hiss_dbfs"]), float(bed["crackle_dbfs"]))
+    required = bed_level_dbfs + BED_THRESHOLD_MARGIN_DB
+    return float(
+        np.clip(max(existing_threshold_db, required), -60.0, 0.0)
+    )
+
+
+def _report_threshold_decision(
+    report: dict[str, Any] | None,
+    key: str,
+    base_db: float,
+    new_db: float,
+) -> None:
+    """Record an HF-threshold raise (S4, boothed stages) only when it moved."""
+    if report is None or new_db == base_db:
+        return
+    report[key] = {
+        "threshold_db": round(new_db, 2),
+        "offset_db": round(new_db - base_db, 2),
+    }
+
+
 # ── Match EQ (Genre Target Profiles) ──────────────────────────────────
 
 
@@ -210,6 +457,7 @@ def build_match_eq(
     eq_bands: list[dict[str, Any]],
     analysis_result: AnalysisResult | None = None,
     intensity_multiplier: float = 1.8,
+    hf_texture_offset_db: float = 0.0,
 ) -> list[PeakFilter]:
     """Build EQ chain using genre target profiles (Match EQ).
 
@@ -232,6 +480,15 @@ def build_match_eq(
         eq_bands: List of preset EQ band dicts (kept for structural
                   compatibility; used for frequency/Q reference).
         analysis_result: Optional analysis result with detected genre.
+        intensity_multiplier: Corrective authority scaler.
+        hf_texture_offset_db: The recipe's declared HF texture excess (S4.1).
+                  It is added to the shape delta of every band whose centre is
+                  ≥ ``MATCH_EQ_HF_BAND_HZ``, so the matcher judges the program
+                  instead of the deliberate bed while every other band's gain
+                  stays bit-identical. Clamped to the matcher's own ±2 dB
+                  authority (``MATCH_EQ_HF_OFFSET_LIMIT_DB``); the neutral
+                  default (0.0) leaves every existing caller and test
+                  byte-for-byte unchanged.
 
     Returns:
         List of Pedalboard PeakFilter plugins.
@@ -255,6 +512,23 @@ def build_match_eq(
     mono = np.mean(audio, axis=0) if audio.ndim == 2 else audio
     current_energies = analyze_band_energies(mono, sample_rate, TARGET_BANDS_HZ)
 
+    # S4.1: the declared HF texture excess is applied to the DELTA of every band
+    # whose centre is at/above the HF split (in the two delta sites below),
+    # never to the energy before the mean. Subtracting it from the energy moved
+    # the mean and shifted EVERY band's gain — adding cut to non-HF bands the
+    # texture never touched; adding it to the HF delta is the same HF effect
+    # while leaving every other band's gain bit-identical to offset 0.0. The
+    # offset is clamped to the matcher's own ±2 dB authority so texture-
+    # awareness narrows what it sees and never grants extra cut. With no recipe
+    # (offset 0.0) the energies and every delta are untouched.
+    hf_offset_db = float(
+        np.clip(
+            hf_texture_offset_db,
+            -MATCH_EQ_HF_OFFSET_LIMIT_DB,
+            MATCH_EQ_HF_OFFSET_LIMIT_DB,
+        )
+    )
+
     # Convert current energies to a relative offset from the average level
     # This gives us the SHAPE of the spectrum, not the absolute level
     avg_energy = np.mean(current_energies) if current_energies else -40.0
@@ -276,6 +550,13 @@ def build_match_eq(
 
         # Delta: what we need to add to get from current to target
         delta = (target_offset - current_offset) * intensity_multiplier
+
+        # S4.1: HF bands gain the declared texture excess in their delta (the
+        # matcher stops reading the deliberate top as material to cut). Only
+        # bands at/above the HF split are touched, so non-HF gains are
+        # bit-identical to the offset-0.0 run.
+        if hf_offset_db != 0.0 and band_freq >= MATCH_EQ_HF_BAND_HZ:
+            delta += hf_offset_db
 
         # Scale by the preset's max_gain_db as a confidence/authority factor
         preset_authority = band.get("max_gain_db", 3.0)
@@ -316,6 +597,11 @@ def build_match_eq(
         target_offset = target_profile[i]
         current_offset = current_shape[i]
         delta = (target_offset - current_offset) * intensity_multiplier
+
+        # S4.1: HF bands gain the declared texture excess (same rule as the
+        # preset loop above) so the uncovered-band matcher judges the program.
+        if hf_offset_db != 0.0 and band_freq >= MATCH_EQ_HF_BAND_HZ:
+            delta += hf_offset_db
 
         # Gentle correction for uncovered bands (±2 dB max)
         gain = np.clip(delta, -2.0, 2.0)
@@ -380,16 +666,30 @@ def build_character_eq(
 # ── Final Stages ──────────────────────────────────────────────────────
 
 
-def target_lufs(audio: np.ndarray, sample_rate: int, target: float) -> np.ndarray:
+def target_lufs(
+    audio: np.ndarray,
+    sample_rate: int,
+    target: float,
+    loudness_delta_lu: float = 0.0,
+) -> np.ndarray:
     """
     Adjust gain to hit target LUFS (BS.1770-4 measurement).
     Capped at -12/+6 dB to avoid excessive limiting or attenuation.
+
+    ``loudness_delta_lu`` (P4, S5) is the recipe's declared texture loudness
+    contribution. When present it is REMOVED from the measurement before the
+    gain is computed — ``gain_db = clamp(target − (measure − delta), −12, +6)``
+    — so the PROGRAM, not the bed, lands on ``target``. The stated consequence:
+    the final integrated LUFS then reads higher than ``target`` by exactly
+    ``loudness_delta_lu``, because the bed is legitimately part of the program.
+    The default (0.0) is bit-identical to the original behaviour and every
+    existing caller is unchanged.
 
     Robust to silence/empty input: the compliant meter floors at -70 LKFS,
     so the gain is always finite and clamped — never NaN/inf.
     """
     current = measure_lufs(audio, sample_rate)
-    gain_db = target - current
+    gain_db = target - (current - loudness_delta_lu)
     if not np.isfinite(gain_db):
         gain_db = 6.0  # never emit NaN gain
     gain_db = max(-12, min(6, gain_db))
@@ -441,13 +741,19 @@ def measure_dynamic_range(audio: np.ndarray, sr: int) -> float:
     return float(np.max(rms_db) - np.min(rms_db))
 
 
-def _multiband_params_from_mastering(p: MasteringParameters) -> MultibandParams:
+def _multiband_params_from_mastering(
+    p: MasteringParameters, recipe: dict[str, Any] | None = None
+) -> MultibandParams:
     """Map the MasteringParameters multiband fields onto the DSP stage config.
 
     Knee, attack and release use the module defaults; makeup is automatic
     (each band's average gain reduction is compensated so the master does
     not audibly "shrink"). The neutral defaults (ratio 1.0) keep the stage
     a bit-exact no-op even when enabled.
+
+    ``recipe`` (P4, S4): with a bed declared the HIGH band's threshold is
+    raised so the bed sits below it instead of driving the stage. With no
+    recipe the parameters are exactly today's.
     """
     return MultibandParams(
         crossover_low_hz=p.multiband_crossover_low_hz,
@@ -462,7 +768,9 @@ def _multiband_params_from_mastering(p: MasteringParameters) -> MultibandParams:
                 ratio=p.multiband_mid_ratio,
             ),
             BandParams(
-                threshold_db=p.multiband_high_threshold_db,
+                threshold_db=_bed_high_band_threshold_db(
+                    p.multiband_high_threshold_db, recipe
+                ),
                 ratio=p.multiband_high_ratio,
             ),
         ),
@@ -470,12 +778,18 @@ def _multiband_params_from_mastering(p: MasteringParameters) -> MultibandParams:
     )
 
 
-def _dyn_eq_params_from_mastering(p: MasteringParameters) -> DynEqParams:
+def _dyn_eq_params_from_mastering(
+    p: MasteringParameters, recipe: dict[str, Any] | None = None
+) -> DynEqParams:
     """Map the MasteringParameters dynamic-EQ fields onto the DSP stage config.
 
     Detector time constants use the module defaults (imported from the
     Sprint 4 multiband module). The neutral defaults (ratio 1.0) keep the
     stage a bit-exact no-op even when enabled.
+
+    ``recipe`` (P4, S4): with a bed declared the HF band's (band 3) threshold
+    is raised so the bed sits below it instead of driving the stage. With no
+    recipe the parameters are exactly today's.
     """
     return DynEqParams(
         bands=(
@@ -494,7 +808,9 @@ def _dyn_eq_params_from_mastering(p: MasteringParameters) -> DynEqParams:
             DynEqBandParams(
                 freq_hz=p.dyn_eq_band3_freq_hz,
                 q=p.dyn_eq_band3_q,
-                threshold_db=p.dyn_eq_band3_threshold_db,
+                threshold_db=_bed_high_band_threshold_db(
+                    p.dyn_eq_band3_threshold_db, recipe
+                ),
                 ratio=p.dyn_eq_band3_ratio,
             ),
         )
@@ -659,6 +975,8 @@ def _process_transparent(
     already_mastered: bool,
     report: Callable[[float], None],
     warnings: list[str],
+    texture_recipe: dict[str, Any] | None = None,
+    texture_adaptation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Transparent delivery mode — no tone shaping whatsoever.
 
@@ -676,6 +994,13 @@ def _process_transparent(
     is a pure passthrough (samples untouched beyond the PCM quantization
     of the writer). Output always goes through the explicit-subtype PCM
     writer (default 24-bit).
+
+    ``texture_recipe`` (P4, S5): when a recipe is present its declared
+    ``loudness_delta_lu`` is removed from the loudness measurement exactly as
+    in the main path — the PROGRAM, not the bed, lands on ``target_lufs_db``,
+    so a textured transparent master is not quieter than a neutral one. The
+    ``texture_adaptation`` report (profile/seed + the compensation actually
+    applied) is attached to the returned dict ONLY when a recipe was read.
     """
     input_sr = sr
     resolved_sr = _resolve_output_sr(params.output_sr, input_sr)
@@ -687,12 +1012,20 @@ def _process_transparent(
         audio = np.clip(audio, -1.0, 1.0)
     report(30)
 
+    loudness_delta_lu = (
+        texture_recipe["measured"]["loudness_delta_lu"]
+        if texture_recipe is not None
+        else 0.0
+    )
+
     safe_ceiling: float | None = None
     user_ceiling: float | None = None
     codec_pre_matching = False
     did_loudness = False
     if params.target_lufs_db is not None:
-        audio = target_lufs(audio, sr, params.target_lufs_db)
+        audio = target_lufs(
+            audio, sr, params.target_lufs_db, loudness_delta_lu=loudness_delta_lu
+        )
         report(55)
 
         crest_factor_db = calculate_crest_factor(audio)
@@ -738,7 +1071,7 @@ def _process_transparent(
     lra = measure_lra(audio, sr)
     stereo_correlation = measure_stereo_correlation(audio)
 
-    return {
+    result: dict[str, Any] = {
         "output_path": str(output_path),
         "sample_rate": sr,
         "channels": audio.shape[0],
@@ -760,6 +1093,14 @@ def _process_transparent(
             round(stereo_correlation, 3) if stereo_correlation is not None else None
         ),
     }
+    # S3/S5: this path reports the recipe too, but ONLY when one was read, and
+    # it records only the compensation actually applied (the loudness stage ran
+    # whenever a target was set). No recipe ⇒ no key ⇒ exactly today's dict.
+    if texture_adaptation is not None:
+        if loudness_delta_lu != 0.0 and did_loudness:
+            texture_adaptation["loudness_compensation_lu"] = loudness_delta_lu
+        result["texture_adaptation"] = texture_adaptation
+    return result
 
 
 def process_audio(
@@ -808,9 +1149,34 @@ def process_audio(
     # the delivery report.
     warnings = _run_input_qc(audio, sr, params.strict_mode)
 
+    # ── P4 texture recipe (S2): parse ONCE, here, at the top of the chain ──
+    # The de-esser runs far above the existing mix_metadata adaptation block
+    # (stage 7, near the spatial block), so the recipe is read here. The reader
+    # is lenient by contract: an unknown schema or a malformed value discards
+    # the recipe WHOLE and appends a named warning; the render is then exactly
+    # the one it produces today. It never raises and never half-applies.
+    texture_recipe, texture_warning = _read_texture_recipe(mix_metadata)
+    if texture_warning is not None:
+        warnings.append(texture_warning)
+
+    # S7: the bed biases two analysis numbers (inflated spectral centroid,
+    # deflated crest factor) and both gate consumers read them. Correct them
+    # HERE, at the call sites, so analyzer.py / smart_gate.py keep their single
+    # responsibility. With no recipe this is the very same object (neutral).
+    effective_analysis = _texture_corrected_analysis(analysis_result, texture_recipe)
+
+    # The report gains ``texture_adaptation`` only when a recipe is present;
+    # each decision below fills its entry. Absent key ⇒ nothing to say.
+    texture_adaptation: dict[str, Any] | None = None
+    if texture_recipe is not None:
+        texture_adaptation = {
+            "profile": texture_recipe["profile"],
+            "seed": texture_recipe["seed"],
+        }
+
     # Reduce intensity for already-mastered audio (only kicks in at score ≥ 0.8)
     already_mastered = (
-        analysis_result.is_already_mastered if analysis_result else False
+        effective_analysis.is_already_mastered if effective_analysis else False
     )
     am_factor = 0.8 if already_mastered else 1.0
 
@@ -820,7 +1186,15 @@ def process_audio(
     # below is left untouched for existing clients.
     if params.processing_mode == "transparent":
         return _process_transparent(
-            audio, sr, params, output_path, already_mastered, report, warnings
+            audio,
+            sr,
+            params,
+            output_path,
+            already_mastered,
+            report,
+            warnings,
+            texture_recipe=texture_recipe,
+            texture_adaptation=texture_adaptation,
         )
 
     # ── Sample-rate conversion ──────────────────────────────────────
@@ -900,13 +1274,24 @@ def process_audio(
     # spatial, mono-compat, loudness, soft-clip, limiter, dither).
     smart_gate = decide_smart_gate(
         params,
-        analysis_result,
+        effective_analysis,
         effective_ceiling_db=_user_limiter_ceiling(
             params.limiter_ceiling_db, already_mastered
         ),
     )
     smart_gate_active = bool(smart_gate["applied"])
     intensity_scales = smart_gate["intensity_scales"]
+
+    if (
+        texture_adaptation is not None
+        and effective_analysis is not analysis_result
+        and texture_recipe is not None
+    ):
+        _measured = texture_recipe["measured"]
+        texture_adaptation["gate_correction"] = {
+            "crest_delta_db": _measured["crest_delta_db"],
+            "centroid_delta_hz": _measured["centroid_delta_hz"],
+        }
 
     def module_intensity(module: str, apply_am_factor: bool = True) -> float:
         """Effective strength for an advisory-scalable stage.
@@ -943,8 +1328,34 @@ def process_audio(
     #     bypass; material below the detector threshold also passes through
     #     bit-exactly (deesser_gain stays at exactly 0 dB).
     deesser_params = _deesser_params_from_mastering(params)
-    if params.deesser_enabled and not deesser_params.is_neutral():
+    # S3: a report must name a decision that was actually taken. The de-esser
+    # is only "skipped" when it would OTHERWISE have run — enabled AND an
+    # engaged (non-neutral) amount. With it disabled or at amount 0.0 the
+    # render is the baseline and no skip happened, so nothing is reported.
+    deesser_would_run = (
+        params.deesser_enabled and not deesser_params.is_neutral()
+    )
+    deesser_skip_reason: str | None = None
+    if deesser_would_run and texture_recipe is not None:
+        _bed = texture_recipe["bed"]
+        if _bed["applied"] and _bed["transient"]:
+            # S4.2: crackle ticks are program, and the spike gate cannot tell
+            # them from sibilance — the de-esser would cut deliberate content.
+            deesser_skip_reason = "crackle_bed"
+        elif texture_recipe["measured"]["band_limited_vocal"]:
+            # A telephone-band vocal has nothing inside 3-8 kHz to act on.
+            deesser_skip_reason = "band_limited_vocal"
+    if deesser_would_run and deesser_skip_reason is None:
         audio = deesser(audio, sr, deesser_params)
+    if (
+        texture_adaptation is not None
+        and deesser_would_run
+        and deesser_skip_reason is not None
+    ):
+        texture_adaptation["deesser"] = {
+            "skipped": True,
+            "reason": deesser_skip_reason,
+        }
 
     # ── Build Pedalboard chain ──────────────────────────────────────
     board = Pedalboard()
@@ -959,11 +1370,19 @@ def process_audio(
     #    control.
     eq_plugins = []
     match_eq_intensity = module_intensity("match_eq", apply_am_factor=True)
+    hf_texture_offset_db = _recipe_hf_excess_db(texture_recipe)
     if match_eq_intensity > _ADVISORY_MIN_INTENSITY:
         eq_plugins = build_match_eq(
-            audio, sr, [], analysis_result,
+            audio, sr, [], effective_analysis,
             intensity_multiplier=intensity_multiplier * match_eq_intensity,
+            hf_texture_offset_db=hf_texture_offset_db,
         )
+        if texture_adaptation is not None and hf_texture_offset_db > 0.0:
+            texture_adaptation["match_eq_hf"] = {
+                "hf_offset_db": float(
+                    min(MATCH_EQ_HF_OFFSET_LIMIT_DB, hf_texture_offset_db)
+                ),
+            }
     for p in eq_plugins:
         board.append(p)
 
@@ -986,11 +1405,29 @@ def process_audio(
         params.clarity_brightness_db != 0
         and clarity_intensity > _ADVISORY_MIN_INTENSITY
     ):
-        board.append(PeakFilter(
-            cutoff_frequency_hz=8000,
-            gain_db=params.clarity_brightness_db * clarity_intensity,
-            q=0.6,
-        ))
+        clarity_requested_db = params.clarity_brightness_db * clarity_intensity
+        clarity_applied_db = clarity_requested_db
+        hf_excess_db = _recipe_hf_excess_db(texture_recipe)
+        if clarity_requested_db > 0.0 and hf_excess_db > 0.0:
+            # S4.3: the boost is static and amplifies the deliberate noise floor.
+            # Withdraw it by the declared HF excess, FLOORED at 0.0 dB — the
+            # shelf may stop lifting the top, it may never invert into a cut
+            # (and a requested brightness CUT is a different decision, untouched).
+            clarity_applied_db = max(0.0, clarity_requested_db - hf_excess_db)
+        if clarity_applied_db != 0.0:
+            board.append(PeakFilter(
+                cutoff_frequency_hz=8000,
+                gain_db=clarity_applied_db,
+                q=0.6,
+            ))
+        if (
+            texture_adaptation is not None
+            and clarity_applied_db != clarity_requested_db
+        ):
+            texture_adaptation["clarity_gain_db"] = {
+                "requested": clarity_requested_db,
+                "applied": clarity_applied_db,
+            }
 
     # 5. Module EQ: Cinta — Warmth (high roll-off or air boost at 10 kHz)
     warmth_intensity = module_intensity("warmth_tilt", apply_am_factor=True)
@@ -1058,23 +1495,53 @@ def process_audio(
     #     default (ratio 1:1 = bit-exact bypass), so existing masters are
     #     untouched unless the parameter engages it.
     if params.multiband_enabled:
-        effected = multiband_compress(
-            effected, sr, _multiband_params_from_mastering(params)
+        multiband_params = _multiband_params_from_mastering(
+            params, recipe=texture_recipe
         )
+        _report_threshold_decision(
+            texture_adaptation,
+            "multiband_high",
+            params.multiband_high_threshold_db,
+            multiband_params.bands[2].threshold_db,
+        )
+        effected = multiband_compress(effected, sr, multiband_params)
 
     # 7c. Dynamic EQ (Sprint 5) — fixed bell/Q filters, gain depends on
     #     input energy. Cuts only, only when the problem exists. NEUTRAL by
     #     default (ratio 1:1 = bit-exact bypass).
     if params.dyn_eq_enabled:
-        effected = dynamic_eq(effected, sr, _dyn_eq_params_from_mastering(params))
+        dyn_eq_params = _dyn_eq_params_from_mastering(params, recipe=texture_recipe)
+        _report_threshold_decision(
+            texture_adaptation,
+            "dyn_eq_hf",
+            params.dyn_eq_band3_threshold_db,
+            dyn_eq_params.bands[2].threshold_db,
+        )
+        effected = dynamic_eq(effected, sr, dyn_eq_params)
 
     # 7d. Harmonic exciter (Sprint 6) — parallel harmonic generation per band
     #     (Ozone style: bass/tube/tape/air), restores air/body lost after the
     #     compression stages. NEUTRAL by default (amount 0.0 = bit-exact bypass).
     if params.exciter_enabled:
-        pre_exciter = effected
-        effected = excite(effected, sr, _exciter_params_from_mastering(params))
-        effected = _match_peak(pre_exciter, effected)
+        exciter_params = _exciter_params_from_mastering(params)
+        # S3/S4.4: the exciter is only "held neutral" when it would otherwise
+        # have engaged — every amount at 0.0 is already its neutral path, so
+        # reporting a held decision there would name one that was never taken.
+        exciter_would_engage = any(
+            b.amount != 0.0 for b in exciter_params.bands
+        )
+        if texture_recipe is not None and texture_recipe["bed"]["applied"]:
+            # S4.4: exciter.py has no level gate (its only guard is _is_neutral),
+            # so it would synthesize harmonics FROM the deliberate bed and
+            # corrupt the texture it is meant to sit on top of. Hold it at 0
+            # (the existing neutral path) and report it — but only when it would
+            # otherwise have engaged.
+            if texture_adaptation is not None and exciter_would_engage:
+                texture_adaptation["exciter"] = {"held_neutral": True}
+        else:
+            pre_exciter = effected
+            effected = excite(effected, sr, exciter_params)
+            effected = _match_peak(pre_exciter, effected)
 
     report(30)
 
@@ -1123,6 +1590,19 @@ def process_audio(
     # avoid double-processing what the mix already did.
     if mix_metadata:
         from audiomind.models.mix_metadata import MixMetadata
+        # S2: the recipe is data from another service, not configuration, so a
+        # wrong-typed one must degrade to the ordinary render and never raise.
+        # ``MixMetadata`` types ``texture_recipe`` as a dict since P4, so a
+        # list/str/int payload would otherwise crash this pre-existing parse
+        # site (ValidationError). Sanitize ONLY the field this feature added —
+        # the other MixMetadata fields keep their pre-existing strictness — and
+        # name the reason once (the lenient reader above already appended it),
+        # so the render is exactly the no-recipe path.
+        raw_recipe = mix_metadata.get("texture_recipe")
+        if raw_recipe is not None and not isinstance(raw_recipe, dict):
+            mix_metadata = {**mix_metadata, "texture_recipe": None}
+            if TEXTURE_WARNING_MALFORMED not in warnings:
+                warnings.append(TEXTURE_WARNING_MALFORMED)
         mix_meta = MixMetadata(**mix_metadata)
         params = _adapt_spatial_for_mix_context(params, mix_meta)
 
@@ -1293,7 +1773,19 @@ def process_audio(
         # carrying over-compression and distortion).
         target_lufs_val = -14 + (1.0 - params.limiter_ceiling_db / -0.3) * 6
         target_lufs_val = max(-14, min(-12, target_lufs_val))
-    effected = target_lufs(effected, sr, target_lufs_val)
+    loudness_delta_lu = (
+        texture_recipe["measured"]["loudness_delta_lu"]
+        if texture_recipe is not None
+        else 0.0
+    )
+    effected = target_lufs(
+        effected, sr, target_lufs_val, loudness_delta_lu=loudness_delta_lu
+    )
+    if texture_adaptation is not None and loudness_delta_lu != 0.0:
+        # S5: normalise the PROGRAM, not the noise. The consequence is stated,
+        # not implied: the final integrated LUFS reads higher than the target by
+        # exactly this delta, because the bed is legitimately program now.
+        texture_adaptation["loudness_compensation_lu"] = loudness_delta_lu
     report(70)
 
     # ── Codec Pre-Matching ──────────────────────────────────────────
@@ -1375,7 +1867,7 @@ def process_audio(
     lra = measure_lra(effected, sr)
     stereo_correlation = measure_stereo_correlation(effected)
 
-    return {
+    result: dict[str, Any] = {
         "output_path": str(output_path),
         "sample_rate": sr,
         "channels": effected.shape[0],
@@ -1396,7 +1888,12 @@ def process_audio(
         ),
         "dr_ratio": round(dr_ratio, 3) if dr_ratio is not None else None,
         "smart_gate": smart_gate if smart_gate_active else None,
-}
+    }
+    # S3: the report gains ``texture_adaptation`` ONLY when a recipe was read.
+    # No recipe ⇒ no key ⇒ every key of the returned dict is exactly today's.
+    if texture_adaptation is not None:
+        result["texture_adaptation"] = texture_adaptation
+    return result
     
 
 # ═══════════════════════════════════════════════════════════════
@@ -1561,56 +2058,6 @@ def _clamp_trim(params: MasteringParameters) -> MasteringParameters:
     if hasattr(new_params, 'trim'):
         new_params.trim = max(-20.0, min(20.0, new_params.trim or 0))
     return new_params
-
-
-# ════════════════════════════════════════════════════════════════
-# FASE 4: Reporte JSON — Before vs After
-# ════════════════════════════════════════════════════════════════
-
-import json
-
-
-def generate_report(input_metrics: dict,
-                    output_metrics: dict,
-                    chain_applied: list,
-                    strategy_used: str,
-                    passes_iterated: int,
-                    test_result: dict) -> dict:
-    """Genera un informe JSON estructurado con Before vs After.
-
-    Incluye métricas comparativas, confirmación de seguridad y estado de la
-    suite de pruebas.
-    """
-    confirmation = {
-        "zero_clipped_samples": input_metrics.get("clipped_samples", 0) == 0
-                        and output_metrics.get("clipped_samples", 0) == 0,
-        "lufs_within_tolerance": abs(output_metrics.get("integrated_lufs", 0) - target_lufs) <= TARGET_TOLERANCE_LUFS,
-        "peak_within_limits": output_metrics.get("true_peak_dbtp", 999) <= target_dbtp,
-        "regressions_zero": test_result.get("passed", 0) > 0,
-    }
-
-    report = {
-        "input_metrics": input_metrics,
-        "output_metrics": output_metrics,
-        "chain_applied": chain_applied,
-        "strategy_used": strategy_used,
-        "passes_iterated": passes_iterated,
-        "confirmation": confirmation,
-    }
-    return report
-    """Gain-match ``processed`` to the peak of ``reference`` so that
-    non-linear stages do not push the true-peak limiter into harder limiting.
-
-    Non-linear stages (tape, exciter) add energy and raise the peak. Without
-    compensation the true-peak limiter sees a hotter signal and works harder,
-    which defeats the purpose of the stage. Matching keeps the limiter input
-    consistent with the dry signal.
-    """
-    ref_peak = float(np.max(np.abs(reference)))
-    out_peak = float(np.max(np.abs(processed)))
-    if ref_peak == 0.0 or out_peak == 0.0 or out_peak <= ref_peak:
-        return processed
-    return processed * (ref_peak / out_peak)
 
 
 def _apply_saturation(audio: np.ndarray, drive_db: float, sat_type: str) -> np.ndarray:

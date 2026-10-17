@@ -100,7 +100,7 @@ Se incorporaron las interfaces y funciones de consumo en el adaptador de API de 
 - `getMasterJobStatus(jobId: string): Promise<AsyncJobStatus>`: Sondeo de estado para masterizaciones asíncronas.
 
 ### 4.2 Sincronización de Variables de Entorno
-- Se actualizó [apps/studio/.env.local](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/.env.local) para apuntar al proyecto activo `jbvhqwnkqzfmtrsdllzb` (`https://jbvhqwnkqzfmtrsdllzb.supabase.co`).
+- Se actualizó [apps/studio/.env.local](../../../apps/studio/.env.local) para apuntar al proyecto activo `jbvhqwnkqzfmtrsdllzb` (`https://jbvhqwnkqzfmtrsdllzb.supabase.co`).
 
 ---
 
@@ -134,15 +134,15 @@ Se incorporaron las interfaces y funciones de consumo en el adaptador de API de 
 
 ## 6. Archivos Creados y Modificados
 - **Creados**:
-  - [`apps/audiomind/src/audiomind/services/supabase_client.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/src/audiomind/services/supabase_client.py)
-  - [`apps/audiomind/src/audiomind/services/dsp_worker.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/src/audiomind/services/dsp_worker.py)
-  - [`apps/audiomind/src/audiomind/api/jobs.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/src/audiomind/api/jobs.py)
-  - [`apps/audiomind/tests/test_dsp_worker.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/tests/test_dsp_worker.py)
-  - [`docs/evidence/reports/REPORT_FASE_6.md`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/docs/evidence/reports/REPORT_FASE_6.md)
+  - [`apps/audiomind/src/audiomind/services/supabase_client.py`](../../../apps/audiomind/src/audiomind/services/supabase_client.py)
+  - [`apps/audiomind/src/audiomind/services/dsp_worker.py`](../../../apps/audiomind/src/audiomind/services/dsp_worker.py)
+  - [`apps/audiomind/src/audiomind/api/jobs.py`](../../../apps/audiomind/src/audiomind/api/jobs.py)
+  - [`apps/audiomind/tests/test_dsp_worker.py`](../../../apps/audiomind/tests/test_dsp_worker.py)
+  - [`docs/evidence/reports/REPORT_FASE_6.md`](REPORT_FASE_6.md)
 - **Modificados**:
-  - [`apps/audiomind/src/audiomind/config.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/src/audiomind/config.py)
-  - [`apps/audiomind/src/audiomind/main.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/src/audiomind/main.py)
-  - [`apps/audiomind/src/audiomind/services/__init__.py`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/src/audiomind/services/__init__.py)
-  - [`apps/audiomind/pyproject.toml`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/audiomind/pyproject.toml)
-  - [`apps/studio/src/adapters/api/client.ts`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/src/adapters/api/client.ts)
-  - [`apps/studio/.env.local`](file:///c:/Users/Maria%20Angelica%20Diaz/Desktop/trabajo/brikmanproject/WaveIA/apps/studio/.env.local)
+  - [`apps/audiomind/src/audiomind/config.py`](../../../apps/audiomind/src/audiomind/config.py)
+  - [`apps/audiomind/src/audiomind/main.py`](../../../apps/audiomind/src/audiomind/main.py)
+  - [`apps/audiomind/src/audiomind/services/__init__.py`](../../../apps/audiomind/src/audiomind/services/__init__.py)
+  - [`apps/audiomind/pyproject.toml`](../../../apps/audiomind/pyproject.toml)
+  - [`apps/studio/src/adapters/api/client.ts`](../../../apps/studio/src/adapters/api/client.ts)
+  - [`apps/studio/.env.local`](../../../apps/studio/.env.local)

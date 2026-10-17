@@ -285,6 +285,9 @@ class TestDemoNormalMode:
         """prerender_mode=all -> upload triggers 8-entry prerender cache."""
         import audiomind.api.mastering as mastering_mod
 
+        # Pin the mode: a developer .env may set on_demand, which would skip the
+        # prerender this test exists to verify.
+        monkeypatch.setattr(settings, "prerender_mode", "all")
         monkeypatch.setattr(mastering_mod, "process_audio", _make_process_stub())
         try:
             import audiomind.analysis.analyzer as analyzer_mod

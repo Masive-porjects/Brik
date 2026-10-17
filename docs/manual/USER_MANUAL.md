@@ -21,7 +21,7 @@ Dentro de mastering hay **2 modos de trabajo**: toggle **"Manual" / "Asistente I
 - La clave se guarda en la sesión del navegador y se envía como header `X-License-Key` en cada proceso/descarga.
 - Fallas: **"No se pudo conectar con el servidor de licencias."** (servidor caído) o **"Error al activar la licencia"** (clave inválida).
 - Desarrollo local sin `AUDIOMIND_LICENSE_KEY` configurada → desbloqueado automáticamente.
-- Sin login: la app entra directo (el flujo de autenticación fue removido del frontend).
+- **Acceso**: si el entorno tiene Supabase configurado (`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`), la app pide login y protege las rutas privadas. En el demo sin esas variables, entra directo sin login.
 
 ---
 

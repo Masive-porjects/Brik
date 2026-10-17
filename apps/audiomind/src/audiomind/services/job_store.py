@@ -163,9 +163,18 @@ class JobStore(Protocol):
         stage: str | None = None,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> JobRecord | None: ...
 
     def heartbeat(self, job_id: str) -> None: ...
+
+    def find_completed_separate(
+        self,
+        user_id: str,
+        project_id: str,
+        media_hash: str,
+        exclude_job_id: str,
+    ) -> JobRecord | None: ...
 
 
 class InMemoryJobStore:
@@ -215,6 +224,7 @@ class InMemoryJobStore:
         stage: str | None = None,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> JobRecord | None:
         record = self._jobs.get(job_id)
         if record is None:
@@ -229,6 +239,10 @@ class InMemoryJobStore:
             record.result = {**record.result, **result}
         if error is not None:
             record.error = error
+        if meta is not None:
+            # Shallow merge so a later backfill (e.g. the computed media_hash)
+            # adds to the submit-time context without dropping it.
+            record.meta = {**record.meta, **meta}
         if record.is_terminal:
             # A finished job holds no lease: nothing is left to keep alive.
             record.lease_expires_at = None
@@ -240,6 +254,39 @@ class InMemoryJobStore:
         record = self._jobs.get(job_id)
         if record is not None and not record.is_terminal:
             _with_lease(record)
+
+    def find_completed_separate(
+        self,
+        user_id: str,
+        project_id: str,
+        media_hash: str,
+        exclude_job_id: str,
+    ) -> JobRecord | None:
+        """A finished ``separate`` job for this project + audio bytes, if any.
+
+        The idempotency probe behind stem separation: the same audio must not
+        run Demucs twice. The separation context (``user_id``/``project_id``/
+        ``media_hash``) lives in ``meta`` (see ``separate_jobs``), mirroring how
+        the mastering job stores ``meta={"track_id": ...}``. Scoped to one
+        project on purpose: the stems it would reuse are registered under that
+        project, and reusing them for a different project would hand back
+        assets owned by the wrong document.
+        """
+        for record in self._jobs.values():
+            if (
+                record.kind != "separate"
+                or record.status != JobStatus.COMPLETED
+                or record.job_id == exclude_job_id
+            ):
+                continue
+            meta = record.meta if isinstance(record.meta, dict) else {}
+            if (
+                meta.get("user_id") == user_id
+                and meta.get("project_id") == project_id
+                and meta.get("media_hash") == media_hash
+            ):
+                return record
+        return None
 
 
 class SupabaseJobStore:
@@ -359,6 +406,7 @@ class SupabaseJobStore:
         stage: str | None = None,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> JobRecord | None:
         current = self.get(job_id)
         if current is None:
@@ -375,6 +423,10 @@ class SupabaseJobStore:
             patch["result"] = {**current.result, **result}
         if error is not None:
             patch["error"] = error
+        if meta is not None:
+            # Shallow merge, matching the in-memory store: a later backfill
+            # (e.g. the computed media_hash) adds without dropping context.
+            patch["meta"] = {**current.meta, **meta}
 
         if status is not None and status in TERMINAL_STATUSES:
             patch["lease_expires_at"] = None
@@ -407,6 +459,43 @@ class SupabaseJobStore:
             ).eq("job_id", job_id).execute()
         except Exception as exc:
             logger.warning("Heartbeat for job %s failed: %s", job_id, exc)
+
+    def find_completed_separate(
+        self,
+        user_id: str,
+        project_id: str,
+        media_hash: str,
+        exclude_job_id: str,
+    ) -> JobRecord | None:
+        """A finished ``separate`` job for this project + audio bytes, if any.
+
+        The separation context lives in the ``meta`` jsonb, so the probe is a
+        PostgREST json-path filter (``meta->>user_id``/``project_id``/
+        ``media_hash``). A failure here is not fatal: it only means "no
+        reusable separation found", so the caller proceeds to a fresh
+        separation rather than erroring.
+        """
+        try:
+            response = (
+                self._client.table(self.TABLE)
+                .select("*")
+                .eq("kind", "separate")
+                .eq("status", JobStatus.COMPLETED.value)
+                .neq("job_id", exclude_job_id)
+                .eq("meta->>user_id", user_id)
+                .eq("meta->>project_id", project_id)
+                .eq("meta->>media_hash", media_hash)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not probe for a reusable separation (project=%s): %s",
+                project_id,
+                exc,
+            )
+            return None
+        return self._row(getattr(response, "data", None))
 
 
 _store: JobStore | None = None

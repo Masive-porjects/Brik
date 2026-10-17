@@ -100,7 +100,7 @@ if (Test-Path $envLocal) {
 } elseif (Test-Path $envExample) {
     Copy-Item $envExample $envLocal
     Step-Ok ".env.local creado desde .env.local.example"
-    Step-Info "Convex es opcional: NEXT_PUBLIC_CONVEX_URL queda vacia (la app corre sin auth)"
+    Step-Info "Sin NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY la app corre sin auth (Convex fue eliminado)"
 }
 
 Write-Host ""

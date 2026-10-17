@@ -47,7 +47,7 @@ Documentada en detalle en [`docs/reference/COMPLIANCE_PHASE1.md`](docs/reference
 - **Reporte del motor flotante**: píldora compacta abajo a la izquierda con `LUFS · dBTP · SR · bits` que se expande a la tarjeta completa (`MasteringReportCard`).
 - **Chip de track con género**: en la navbar muestra el **género detectado** (reggaetón, pop, rock…) en vez del UUID interno del archivo.
 - **Marca WaveAI**: textos visibles (navbar, welcome gate, drawer, guía, compartir) — los assets `public/brand/WaveAI.svg` y `WaveAI.png` alimentan la tarjeta de compartir. El favicon/icono es la onda púrpura→cian (`src/app/icon.jpg` + `apple-icon.jpg`, fuente en `public/brand/waveai-logo.jpg`).
-- **Acceso directo sin login**: el studio no tiene flujo de autenticación — entra directo al mastering tras el welcome gate (la ruta `/login`, el middleware y los componentes de auth fueron removidos; `convex/auth.ts` queda disponible para un futuro login real).
+- **Auth con Supabase**: el studio integra Supabase Auth — `/login`, `/register`, `app/auth/callback/route.ts` y `src/middleware.ts` refrescan la sesión y protegen las rutas privadas (sin sesión redirige a `/login?redirect=…`; con sesión, `/login` y `/register` devuelven al studio). **Si `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` no están seteadas, el middleware pasa de largo y la app entra directo al mastering tras el welcome gate** — así corre el demo abierto.
 
 ## Cómo correr localmente
 
@@ -87,7 +87,7 @@ cd apps/studio && npm run lint && npm run build
 npm run e2e                                               # desde apps/studio
 ```
 
-> Nota lint: `eslint src` reporta 0 errores (34 warnings no-funcionales). Los errores históricos fueron corregidos con el patrón de ajuste de estado durante render / lazy init (`useRole.ts` ya no existe — removido junto al flujo de login).
+> Nota lint: `eslint src` reporta 0 errores (33 warnings no-funcionales). Los errores históricos fueron corregidos con el patrón de ajuste de estado durante render / lazy init.
 
 ## Reglas no negociables
 

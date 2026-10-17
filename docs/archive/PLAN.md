@@ -4,7 +4,7 @@
 > Las reglas técnicas no negociables siguen viviendo en [`AGENTS.md`](../../AGENTS.md).
 > Los contratos de datos son la única interfaz entre módulos.
 >
-> **⚠️ 2026-09-11:** HumanMidi (área de David, `apps/humanmidi/`) fue **removido del producto**. Las referencias de este plan quedan como histórico; el Live Engine y el Bridge se mantienen. Ver `HUMANMIDI_REMOVAL_REPORT.md`.
+> **⚠️ 2026-09-11:** HumanMidi (área de David, `apps/humanmidi/`) fue **removido del producto**. Las referencias de este plan quedan como histórico; el Live Engine y el Bridge que este banner daba por vigentes también fueron eliminados (`ba3b4a6`, `92c79bf`, `38c1246`). El reporte de remoción citado antes nunca se commiteó: ver `../ESTADO_PROYECTO.md` §3.3 y §5.
 
 ---
 

@@ -1,12 +1,14 @@
 export { default as LandingScreen } from "./LandingScreen";
 export { default as LandingScrollToTop } from "./LandingScrollToTop";
 export { default as LandingHeader } from "./LandingHeader";
-export { default as LandingHero } from "./LandingHero";
 export { default as LandingPhilosophy } from "./LandingPhilosophy";
 export { default as LandingABPlayer } from "./LandingABPlayer";
 export { default as LandingDSPChain } from "./LandingDSPChain";
 export { default as LandingPresets } from "./LandingPresets";
+export { default as LandingTagline } from "./LandingTagline";
+export { default as LandingPricing } from "./LandingPricing";
 export { default as LandingFounders } from "./LandingFounders";
+export { default as LandingFAQ } from "./LandingFAQ";
 export { default as LandingCTA } from "./LandingCTA";
 export { default as LandingFooter } from "./LandingFooter";
 export * from "./types";

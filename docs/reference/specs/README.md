@@ -1,6 +1,6 @@
 # 🎵 Hackaton midiMastering — Arquitectura del Ecosistema Unificado
 
-> **⚠️ 2026-09-11: HumanMidi fue REMOVIDO del producto.** Esta carpeta queda como registro histórico del diseño original (fase *en vivo* = Live Engine + Bridge/Source MIDI). Ver `../../archive/HUMANMIDI_REMOVAL_REPORT.md`. El Live Engine actual conserva `05` como referencia de arquitectura de audio; ninguna doc de esta carpeta debe leerse como estado vigente de HumanMidi.
+> **⚠️ 2026-09-11: HumanMidi fue REMOVIDO del producto.** Esta carpeta queda como registro histórico del diseño original (fase *en vivo* = Live Engine + Bridge/Source MIDI). El **Live Engine y el bridge también fueron eliminados** (`ba3b4a6`, `92c79bf`, `38c1246`), así que ninguna doc de esta carpeta describe estado vigente — tampoco `05`, que es solo arquitectura de audio histórica. El reporte de remoción citado antes nunca se commiteó: ver `../../ESTADO_PROYECTO.md` §3.3 y §5.
 
 > **Dos ideas, un solo flujo:** WaveAI **masteriza** la canción primero, y el resultado se **toca en vivo** con efectos (reverb, delay, echo, filtro, drive) controlados por un controlador MIDI — todo en una misma interface.
 

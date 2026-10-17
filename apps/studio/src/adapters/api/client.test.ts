@@ -6,7 +6,7 @@
  *    (T2); sin source no manda la query (default smart del backend)
  *  - Sin presetId la URL queda intacta (ruta legacy)
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
   getAudioUrl,
   getDownloadUrl,
@@ -15,12 +15,57 @@ import {
   processAudio,
   submitMixJob,
   getMixJobState,
+  getProjectDocument,
+  putProjectDocument,
+  getProjectMixState,
+  submitProjectMixJob,
+  createProject,
+  listProjects,
+  presignAsset,
+  completeAsset,
+  listAssets,
+  getAssetDownloadUrl,
   DEFAULT_PARAMS,
+  type ProjectDocumentV1,
 } from '@/adapters/api/client';
+
+// Supabase browser singleton stub: `authHeaders()` reads the session from it.
+// `vi.hoisted` lets the module factory below close over the mock.
+const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }));
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({ auth: { getSession: mockGetSession } }),
+}));
 
 // Mismo fallback que config.ts en tests (sin NEXT_PUBLIC_API_URL).
 const API = 'http://localhost:8000/api';
 const SID = 'session-123';
+
+/** A structurally valid V1 document (mirrors backend ProjectDocument). */
+function validDocument(): ProjectDocumentV1 {
+  return {
+    schema_version: 1,
+    structure: {
+      stems: {
+        drums: { display_name: 'Drums', order: 0, group_id: null, color_token: null, hidden: false },
+        bass: { display_name: 'Bass', order: 1, group_id: null, color_token: null, hidden: false },
+        other: { display_name: 'Other', order: 2, group_id: null, color_token: null, hidden: false },
+        vocals: { display_name: 'Vocals', order: 3, group_id: null, color_token: null, hidden: false },
+      },
+      groups: [],
+    },
+    mix_intent: { genre: null, character: null, proposals: [] },
+    master_intent: {
+      preset_id: null,
+      platform_target: null,
+      format: 'wav',
+      output_bit_depth: 24,
+      master_name: null,
+      parameters: null,
+    },
+    updated_by: 'user',
+    updated_at: null,
+  };
+}
 
 describe('getAudioUrl', () => {
   it('mastered con preset appendea ?preset_id', () => {
@@ -448,5 +493,420 @@ describe('getMixJobState', () => {
     await expect(
       getMixJobState('mix_abc123', controller.signal),
     ).rejects.toThrow(/abort/i);
+  });
+});
+
+describe('project endpoints — auth header (B1)', () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function okDocumentFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project_id: 'p1',
+        version: 0,
+        document: validDocument(),
+        updated_at: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('envía Authorization: Bearer cuando hay sesión de Supabase', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      data: { session: { access_token: 'tok-123' } },
+    });
+    const fetchMock = okDocumentFetch();
+
+    await getProjectDocument('p1');
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer tok-123',
+    );
+  });
+
+  it('omite Authorization cuando no hay sesión (no rompe el modo dev)', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: null } });
+    const fetchMock = okDocumentFetch();
+
+    await getProjectDocument('p1');
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it('no rompe la llamada si getSession falla (Supabase sin configurar)', async () => {
+    mockGetSession.mockRejectedValueOnce(new Error('no supabase env'));
+    const fetchMock = okDocumentFetch();
+
+    await getProjectDocument('p1');
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('project endpoints — DTO normalization (B2)', () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('getProjectDocument normaliza project_id/updated_at a camelCase', async () => {
+    const doc = validDocument();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project_id: 'p1',
+        version: 7,
+        document: doc,
+        updated_at: '2026-10-09T00:00:00Z',
+      }),
+    }));
+
+    const res = await getProjectDocument('p1');
+
+    expect(res.projectId).toBe('p1');
+    expect(res.version).toBe(7);
+    expect(res.updatedAt).toBe('2026-10-09T00:00:00Z');
+    expect(res.document).toEqual(doc);
+    expect((res as unknown as { project_id?: unknown }).project_id).toBeUndefined();
+  });
+
+  it('putProjectDocument normaliza la respuesta', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project_id: 'p1',
+        version: 1,
+        document: validDocument(),
+        updated_at: '2026-10-09T00:00:01Z',
+      }),
+    }));
+
+    const res = await putProjectDocument('p1', {
+      document: validDocument(),
+      expected_version: 0,
+    });
+
+    expect(res.projectId).toBe('p1');
+    expect(res.updatedAt).toBe('2026-10-09T00:00:01Z');
+  });
+
+  it('getProjectMixState renombra undo_stack → undoStack', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project_id: 'p1',
+        state: { faders: { drums_db: -3 }, toggles: {} },
+        undo_stack: [{ faders: {}, toggles: {}, timestamp: 1 }],
+        updated_at: '2026-10-09T00:00:00Z',
+      }),
+    }));
+
+    const res = await getProjectMixState('p1');
+
+    expect(res.projectId).toBe('p1');
+    expect(res.undoStack).toHaveLength(1);
+    expect(res.updatedAt).toBe('2026-10-09T00:00:00Z');
+    expect(
+      (res as unknown as { undo_stack?: unknown }).undo_stack,
+    ).toBeUndefined();
+  });
+
+  it('submitProjectMixJob normaliza job_id/poll_url', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'j1',
+        project_id: 'p1',
+        asset_id: 'a1',
+        status: 'processing',
+        poll_url: '/api/jobs/mix/j1',
+      }),
+    }));
+
+    const res = await submitProjectMixJob('p1');
+
+    expect(res.jobId).toBe('j1');
+    expect(res.pollUrl).toBe('/api/jobs/mix/j1');
+  });
+});
+
+describe('project endpoints — PUT body (B3)', () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('envía expected_version (snake_case) y no expectedVersion', async () => {
+    const doc = validDocument();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project_id: 'p1',
+        version: 1,
+        document: doc,
+        updated_at: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await putProjectDocument('p1', { document: doc, expected_version: 3 });
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.expected_version).toBe(3);
+    expect(body.expectedVersion).toBeUndefined();
+    expect(body.document).toEqual(doc);
+  });
+});
+
+describe('project assets — subida directa a R2', () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const p1 = 'p1';
+  const a1 = 'a1';
+
+  function stub(payload: unknown, ok = true, status = 200) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok,
+      status,
+      json: async () => payload,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('createProject hace POST a /projects y normaliza user_id → userId', async () => {
+    const fetchMock = stub({
+      id: 'p1',
+      user_id: 'u1',
+      name: 'Tema',
+      bpm: null,
+      musical_key: null,
+      created_at: null,
+      updated_at: null,
+    });
+
+    const res = await createProject('Tema');
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/projects`);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe('POST');
+    expect(
+      JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string),
+    ).toEqual({ name: 'Tema' });
+    expect(res.userId).toBe('u1');
+    expect(res.musicalKey).toBeNull();
+    expect((res as unknown as { user_id?: unknown }).user_id).toBeUndefined();
+  });
+
+  it('createProject manda musical_key (snake_case) cuando se pasa', async () => {
+    const fetchMock = stub({
+      id: 'p1',
+      user_id: 'u1',
+      name: 'Tema',
+      bpm: 120,
+      musical_key: 'Am',
+      created_at: null,
+      updated_at: null,
+    });
+
+    await createProject('Tema', { bpm: 120, musicalKey: 'Am' });
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.musical_key).toBe('Am');
+    expect(body.musicalKey).toBeUndefined();
+  });
+
+  it('listProjects normaliza cada fila', async () => {
+    stub([
+      {
+        id: 'p1',
+        user_id: 'u1',
+        name: 'A',
+        bpm: null,
+        musical_key: null,
+        created_at: null,
+        updated_at: null,
+      },
+    ]);
+
+    const res = await listProjects();
+
+    expect(res).toHaveLength(1);
+    expect(res[0].userId).toBe('u1');
+  });
+
+  it('presignAsset manda kind/original_filename/content_type y normaliza put_url', async () => {
+    const fetchMock = stub({
+      asset_id: a1,
+      project_id: p1,
+      r2_key: `projects/${p1}/original/${a1}.wav`,
+      put_url: 'https://r2.example/put',
+      content_type: 'audio/wav',
+      expires_in: 900,
+    });
+
+    const res = await presignAsset(p1, {
+      kind: 'original',
+      originalFilename: 'Toma con espacios & signos.wav',
+      contentType: 'audio/wav',
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `${API}/projects/${p1}/assets/presign`,
+    );
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    );
+    // El nombre original viaja tal cual, sin limpiar (S3).
+    expect(body.kind).toBe('original');
+    expect(body.original_filename).toBe('Toma con espacios & signos.wav');
+    expect(body.content_type).toBe('audio/wav');
+    expect(body.originalFilename).toBeUndefined();
+    expect(res.putUrl).toBe('https://r2.example/put');
+    expect(res.r2Key).toBe(`projects/${p1}/original/${a1}.wav`);
+  });
+
+  it('presignAsset omite original_filename/content_type cuando no se pasan', async () => {
+    const fetchMock = stub({
+      asset_id: a1,
+      project_id: p1,
+      r2_key: 'k',
+      put_url: 'u',
+      content_type: 'audio/wav',
+      expires_in: 900,
+    });
+
+    await presignAsset(p1, { kind: 'stem', stemName: 'vocals' });
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body).toEqual({ kind: 'stem', stem_name: 'vocals' });
+  });
+
+  it('completeAsset hace PATCH en snake_case y normaliza la respuesta', async () => {
+    const fetchMock = stub({
+      id: a1,
+      project_id: p1,
+      user_id: 'u1',
+      kind: 'original',
+      stem_name: null,
+      r2_key: 'k',
+      media_hash: 'h',
+      original_filename: 'x.wav',
+      duration_seconds: 3,
+      sample_rate: 44100,
+      channels: 2,
+      format: 'wav',
+      size_bytes: 10,
+      created_at: null,
+    });
+
+    const res = await completeAsset(p1, a1, {
+      durationSeconds: 3,
+      sampleRate: 44100,
+      channels: 2,
+      format: 'wav',
+      sizeBytes: 10,
+      mediaHash: 'h',
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/projects/${p1}/assets/${a1}`);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe('PATCH');
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.duration_seconds).toBe(3);
+    expect(body.media_hash).toBe('h');
+    expect(body.durationSeconds).toBeUndefined();
+    expect(res.originalFilename).toBe('x.wav');
+    expect(res.sizeBytes).toBe(10);
+  });
+
+  it('listAssets normaliza el array', async () => {
+    stub([
+      {
+        id: a1,
+        project_id: p1,
+        user_id: 'u1',
+        kind: 'original',
+        stem_name: null,
+        r2_key: 'k',
+        media_hash: null,
+        original_filename: 'n.wav',
+        duration_seconds: null,
+        sample_rate: null,
+        channels: null,
+        format: null,
+        size_bytes: null,
+        created_at: null,
+      },
+    ]);
+
+    const res = await listAssets(p1);
+
+    expect(res[0].r2Key).toBe('k');
+    expect(res[0].originalFilename).toBe('n.wav');
+  });
+
+  it('getAssetDownloadUrl devuelve la URL firmada y el nombre original', async () => {
+    const fetchMock = stub({
+      project_id: p1,
+      asset_id: a1,
+      r2_key: 'k',
+      original_filename: 'Toma (demo).wav',
+      download_url: 'https://r2.example/get',
+      expires_in: 3600,
+    });
+
+    const res = await getAssetDownloadUrl(p1, a1);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `${API}/projects/${p1}/assets/${a1}/download`,
+    );
+    expect(res.downloadUrl).toBe('https://r2.example/get');
+    expect(res.originalFilename).toBe('Toma (demo).wav');
+    expect(res.expiresIn).toBe(3600);
+  });
+
+  it('presignAsset rechaza cuando el backend falla', async () => {
+    stub({ detail: 'Proyecto no encontrado.' }, false, 404);
+
+    await expect(presignAsset(p1, { kind: 'original' })).rejects.toThrow();
   });
 });

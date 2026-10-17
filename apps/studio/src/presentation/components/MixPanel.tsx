@@ -92,6 +92,7 @@ function formatDuration(seconds: number): string {
    Renderiza SOLO los campos presentes en el payload — nunca
    inventa datos que el backend no midió. */
 function MixAnalysisGrid({ result }: { result: MixResult }) {
+  const { t } = useTranslation();
   const cells: { label: string; value: string }[] = [];
 
   if (typeof result.tempo_bpm === "number") {
@@ -148,6 +149,20 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
   if (trimGainsText) cells.push({ label: "Balance", value: trimGainsText });
   if (balanceGainsText)
     cells.push({ label: "Auto-balance", value: balanceGainsText });
+
+  // P5 — carácter: solo se reporta cuando el stage corrió. El badge muestra
+  // el perfil que el backend aplicó (commercial_alt_pop hoy); el seed queda
+  // fuera de la UI (default determinístico).
+  const characterReport = result.character_report as
+    | { profile?: string | null }
+    | null
+    | undefined;
+  if (characterReport?.profile) {
+    cells.push({
+      label: t("mezcla.characterReport"),
+      value: characterReport.profile,
+    });
+  }
 
   if (cells.length === 0 && !qc) return null;
 
@@ -333,6 +348,12 @@ export default function MixPanel({
   const [autoBalance, setAutoBalance] = useState(false);
   const [faderValues, setFaderValues] =
     useState<Record<string, number>>(FADER_DEFAULTS);
+  // P5 — carácter analógico (textura commercial_alt_pop). Elección por
+  // mezcla, no persistida (igual que dimensión/auto-balance). Apagado =
+  // render neutral (sin character_report). Solo el render principal se
+  // texturiza; las versiones alternativas y variantes creativas quedan
+  // limpias por construcción.
+  const [characterEnabled, setCharacterEnabled] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   // Watchdog del submit + polling: si el job nunca resuelve en
@@ -428,7 +449,7 @@ export default function MixPanel({
       );
       const accepted = await submitMixJob(
         sessionId,
-        { dimensionEnabled, autoBalance, stemTrims },
+        { dimensionEnabled, autoBalance, stemTrims, character: characterEnabled ? "commercial_alt_pop" : undefined },
         controller.signal,
       );
 
@@ -489,7 +510,7 @@ export default function MixPanel({
       if (pollAbortRef.current === pollController) pollAbortRef.current = null;
       setMixing(false);
     }
-  }, [sessionId, mixing, clearWatchdog, dimensionEnabled, autoBalance, faderValues, onMixSettled, t]);
+  }, [sessionId, mixing, clearWatchdog, dimensionEnabled, autoBalance, faderValues, characterEnabled, onMixSettled, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -806,6 +827,62 @@ export default function MixPanel({
           El anillo avanza con `progressPct` (interpolado por etapas; nunca
           llega a 100 hasta la respuesta real del backend). El feed
           secuencial de etapas DSP (MixStatusStream) vive debajo del anillo. */}
+      {/* ── Carácter: textura analógica (P5). Elección por mezcla (no
+          persistida); apagado = render neutral (sin character_report). El
+          perfil soportado hoy es commercial_alt_pop (Twenty One Pilots /
+          post-punk moderno); el seed queda oculto (default determinístico
+          del backend). Se deshabilita mientras corre el POST /mix. */}
+      <div
+        className="mt-3 border-t px-4 pt-3"
+        style={{ borderColor: "var(--border-subtle)" }}
+      >
+        <p
+          className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {t("mezcla.characterLabel")}
+        </p>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={characterEnabled}
+            aria-label={t("mezcla.characterLabel")}
+            onClick={() => setCharacterEnabled((v) => !v)}
+            disabled={mixing}
+            className="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+            style={{
+              background: characterEnabled
+                ? "var(--accent-primary)"
+                : "var(--surface-active)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <span
+              className="absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200"
+              style={{
+                transform: characterEnabled ? "translateX(1rem)" : "translateX(0)",
+              }}
+            />
+          </button>
+          <div className="min-w-0">
+            <p
+              className="text-xs font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {t("mezcla.characterLabel")}
+            </p>
+            <p
+              className="text-[10px] leading-relaxed"
+              style={{ color: "var(--text-muted)" }}
+              title={t("mezcla.characterHint")}
+            >
+              {t("mezcla.characterHint")}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {mixing && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}

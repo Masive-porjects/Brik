@@ -163,6 +163,40 @@ def presigned_url(key: str, expires_in: int = 3600) -> str:
         raise StorageError(f"Could not presign {key!r}: {exc}") from exc
 
 
+def presigned_put_url(
+    key: str,
+    content_type: str = "audio/wav",
+    expires_in: int = 900,
+) -> str:
+    """Time-limited upload (PUT) URL for a browser direct-to-R2 upload.
+
+    This is the write twin of :func:`presigned_url`. The Studio browser sends
+    the audio bytes straight to R2 with an HTTP PUT instead of routing a
+    60 MB WAV through the FastAPI container, which on Railway Free (512 MB)
+    is what pushed the OOM killer into the mastering path. The key is chosen
+    by the caller (deterministic, e.g. ``projects/{id}/originals/{asset}.wav``)
+    so the follow-up "register asset" call can name the same object without
+    the server ever seeing the bytes.
+
+    ``ContentType`` is part of the signature, so the browser must PUT with the
+    exact same header it was presigned for or R2 rejects the request.
+    """
+    client = get_s3_client()
+    try:
+        url: str = client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": settings.r2_bucket,
+                "Key": key,
+                "ContentType": content_type,
+            },
+            ExpiresIn=expires_in,
+        )
+        return url
+    except Exception as exc:
+        raise StorageError(f"Could not presign PUT for {key!r}: {exc}") from exc
+
+
 def download_to(key: str, local_path: str) -> str:
     """Fetch an object from R2 to a local path and return it."""
     client = get_s3_client()
