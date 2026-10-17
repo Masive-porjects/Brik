@@ -489,6 +489,9 @@ export interface MixResult {
   /** T5 — manual stem faders report (backend, only when a trim ≠ 0 is
    *  sent). Shape: { gains: {*_db}, applied }. */
   trim_report?: unknown;
+  /** P5 — character stage report (backend, only when character ran).
+   *  Shape: { profile, seed, ... }. */
+  character_report?: unknown;
 }
 
 /**
@@ -512,6 +515,7 @@ export async function mixTracks(
     dimensionEnabled?: boolean;
     autoBalance?: boolean;
     stemTrims?: Record<string, number>;
+    character?: string | null;
   },
 ): Promise<{ audioUrl: string; audioBlob: Blob; result: MixResult | null }> {
   const body: Record<string, unknown> = {
@@ -522,6 +526,7 @@ export async function mixTracks(
     Object.entries(options?.stemTrims ?? {}).filter(([, db]) => db !== 0),
   );
   if (Object.keys(stemTrims).length > 0) body.stem_trims = stemTrims;
+  if (options?.character) body.character = options.character;
   const res = await fetch(`${API_BASE}/session/${sessionId}/mix`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...licenseHeaders() },
@@ -607,6 +612,7 @@ export async function submitMixJob(
     dimensionEnabled?: boolean;
     autoBalance?: boolean;
     stemTrims?: Record<string, number>;
+    character?: string | null;
   },
   signal?: AbortSignal,
 ): Promise<MixJobAccepted> {
@@ -618,6 +624,7 @@ export async function submitMixJob(
     Object.entries(options?.stemTrims ?? {}).filter(([, db]) => db !== 0),
   );
   if (Object.keys(stemTrims).length > 0) body.stem_trims = stemTrims;
+  if (options?.character) body.character = options.character;
 
   const res = await fetch(`${API_BASE}/jobs/mix/${sessionId}`, {
     method: "POST",
