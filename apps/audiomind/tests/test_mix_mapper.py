@@ -46,6 +46,7 @@ class TestFaders:
         [
             ("punch", "drums_db"),
             ("bass_weight", "bass_db"),
+            ("vocal_focus", "vocals_db"),
         ],
     )
     def test_axis_extremes_hit_the_anchors(self, axis, key):
@@ -57,6 +58,7 @@ class TestFaders:
         [
             ("punch", "drums_db"),
             ("bass_weight", "bass_db"),
+            ("vocal_focus", "vocals_db"),
         ],
     )
     def test_fader_is_monotonic(self, axis, key):
@@ -73,18 +75,30 @@ class TestFaders:
         trims = map_intent_to_mix(IntentProfile(punch=0.75)).stem_trims
         assert trims == {"drums_db": 1.5}
 
-    def test_no_vocal_fader_is_ever_emitted(self):
-        """The vocal axis went away with the Vocal Chain: the voice stays put."""
+    def test_vocal_fader_is_silent_until_the_axis_moves(self):
+        """The voice stays at 0 dB while ``vocal_focus`` sits at neutral."""
         for value in (0.0, 0.25, 0.5, 0.75, 1.0):
             trims = map_intent_to_mix(
                 IntentProfile(punch=value, bass_weight=value)
             ).stem_trims
             assert "vocals_db" not in (trims or {})
 
+    def test_vocal_focus_moves_only_the_voice(self):
+        """The axis was unreachable after the Vocal Chain removal: "voz al
+        frente" moved nothing. It drives the vocal fader again."""
+        assert map_intent_to_mix(IntentProfile(vocal_focus=1.0)).stem_trims == {
+            "vocals_db": 3.0
+        }
+        assert map_intent_to_mix(IntentProfile(vocal_focus=0.0)).stem_trims == {
+            "vocals_db": -3.0
+        }
+
     def test_combined_intent_moves_each_stem(self):
-        trims = map_intent_to_mix(IntentProfile(punch=0.8, bass_weight=0.2)).stem_trims
+        trims = map_intent_to_mix(
+            IntentProfile(punch=0.8, bass_weight=0.2, vocal_focus=0.9)
+        ).stem_trims
         assert trims is not None
-        assert "vocals_db" not in trims
+        assert trims["vocals_db"] > 0.0
         assert trims["drums_db"] > 0.0
         assert trims["bass_db"] < 0.0
         assert "other_db" not in trims
