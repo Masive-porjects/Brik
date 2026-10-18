@@ -32,7 +32,7 @@ from typing import Any
 
 from audiomind.config import settings
 from audiomind.processing import agentic_loop
-from audiomind.processing.agentic_loop import AgentState
+from audiomind.processing.agentic_loop import AgentState, ToolResult
 from audiomind.services import demo_guard, storage
 from audiomind.services.job_store import JobRecord, JobStatus, get_job_store
 
@@ -222,7 +222,7 @@ def build_agent_result(
         # A report only exists when a render did; `bus_metrics` on a missing
         # render would describe a bus nobody built.
         "mix_metrics": agentic_loop.bus_metrics(state) if state.render else None,
-        "master_metrics": master_runs[-1].payload if master_runs else None,
+        "master_metrics": _master_metrics(master_runs[-1]) if master_runs else None,
         "tools_executed": [
             {
                 "tool": result.tool,
@@ -234,6 +234,22 @@ def build_agent_result(
             for result in state.tool_log
         ],
         "audio": assets,
+    }
+
+
+#: Keys of the ``send_to_master`` payload that describe where the file sat, not
+#: how it measures. They are ephemeral on Railway and already delivered as an
+#: asset, so advertising them inside the metrics is the same mistake the mix job
+#: avoids by dropping ``mix_path``.
+_MASTER_LOCATION_KEYS = frozenset({"master_path", "source_path"})
+
+
+def _master_metrics(result: ToolResult) -> dict[str, Any]:
+    """The measured numbers from a successful master, without its locations."""
+    return {
+        key: value
+        for key, value in result.payload.items()
+        if key not in _MASTER_LOCATION_KEYS
     }
 
 

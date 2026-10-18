@@ -414,6 +414,30 @@ class TestBuildAgentResult:
             "true_peak_db": -1.1,
         }
 
+    def test_master_metrics_carry_no_ephemeral_local_paths(self):
+        """S5: a redeploy turns those paths into lies, and they are not metrics."""
+        state = al.AgentState(session_id="s", input_path=Path("x.wav"))
+        state.tool_log.append(
+            al.ToolResult(
+                ok=True,
+                tool="send_to_master",
+                detail="Master listo.",
+                payload={
+                    "source": "mix",
+                    "source_path": "C:/tmp/mix.wav",
+                    "master_path": "C:/tmp/master.wav",
+                    "integrated_lufs": -14.0,
+                },
+            )
+        )
+
+        result = agent_jobs.build_agent_result(state, {"mix": None, "master": None})
+
+        assert result["master_metrics"] == {
+            "source": "mix",
+            "integrated_lufs": -14.0,
+        }
+
     def test_a_failed_master_is_not_reported_as_master_metrics(self):
         state = al.AgentState(session_id="s", input_path=Path("x.wav"))
         state.tool_log.append(
