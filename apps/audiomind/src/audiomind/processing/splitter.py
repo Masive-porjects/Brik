@@ -16,6 +16,7 @@ tests that stub the model). ``split_audio`` keeps its signature either way.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import subprocess
@@ -32,6 +33,89 @@ logger = logging.getLogger(__name__)
 
 STEM_NAMES = ("drums", "bass", "other", "vocals")
 
+#: Stems cache. Separation costs ~28 s per 10 s of audio (measured), and
+#: ``build_mix`` calls ``split_audio`` on EVERY render — without this, each
+#: iteration of an agentic mix loop pays Demucs again from scratch.
+_MANIFEST_NAME = "_stems_manifest.json"
+
+
+def _sha256_file(path: Path) -> str:
+    """Content hash of the input, chunked so a big file never lands in RAM."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _cached_result(
+    input_path: Path, output_dir: Path, model: str
+) -> dict[str, Any] | None:
+    """Return a stored separation, or ``None`` when it cannot be trusted.
+
+    Every doubt answers ``None``: absent or corrupt manifest, a different
+    model or precision, a different input, or a stem that vanished from disk.
+    Handing back another song's stems would be silent corruption, so the cache
+    proves identity rather than assuming it from the output directory.
+    """
+    if not input_path.is_file():
+        # Let the separator raise its own, better error.
+        return None
+
+    manifest_file = output_dir / _MANIFEST_NAME
+    if not manifest_file.is_file():
+        return None
+
+    try:
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.warning("Manifiesto de stems ilegible, se recalcula: %s", manifest_file)
+        return None
+
+    if manifest.get("model") != model:
+        return None
+    if manifest.get("precision") != settings.demucs_precision:
+        return None
+
+    # Cheap check before the hash so an unrelated large file is rejected fast.
+    if manifest.get("input_size") != input_path.stat().st_size:
+        return None
+    if manifest.get("input_sha256") != _sha256_file(input_path):
+        return None
+
+    stems = manifest.get("stems") or {}
+    for name in STEM_NAMES:
+        if not (stems.get(name) and Path(stems[name]).is_file()):
+            return None
+
+    logger.info(
+        "Stem cache HIT en %s: se reusan los 4 stems, Demucs NO vuelve a correr",
+        output_dir,
+    )
+    return {**manifest, "cache_hit": True}
+
+
+def _write_manifest(
+    output_dir: Path, input_path: Path, model: str, result: dict[str, Any]
+) -> None:
+    """Record what was separated, from what, and with which settings."""
+    manifest = {
+        **result,
+        "model": model,
+        "precision": settings.demucs_precision,
+        "input_path": str(input_path),
+        "input_size": input_path.stat().st_size,
+        "input_sha256": _sha256_file(input_path),
+    }
+    manifest.pop("cache_hit", None)
+    try:
+        (output_dir / _MANIFEST_NAME).write_text(
+            json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError:
+        # A cache we cannot persist is a slow run, not a failed one.
+        logger.warning("No se pudo escribir el manifiesto de stems en %s", output_dir)
+
 
 def split_audio(
     input_path: str | Path,
@@ -39,6 +123,10 @@ def split_audio(
     model: str = "htdemucs",
 ) -> dict[str, Any]:
     """Run Demucs source separation on an audio file.
+
+    A previous separation is reused when the manifest proves it came from the
+    same audio with the same model and precision; the returned dict then
+    carries ``cache_hit: True``.
 
     Args:
         input_path: Path to the audio file to separate.
@@ -55,10 +143,22 @@ def split_audio(
             "duration_seconds": 123.0,
             "stem_audio_dir": "<path>",
         }``
+        plus ``"cache_hit": True`` on a reuse.
     """
+    source = Path(input_path)
+    target = _resolve_output_dir(source, output_dir)
+
+    cached = _cached_result(source, target, model)
+    if cached is not None:
+        return cached
+
     if not settings.demucs_isolated:
-        return _split_audio_in_process(input_path, output_dir, model)
-    return _split_audio_isolated(input_path, output_dir, model)
+        result = _split_audio_in_process(source, target, model)
+    else:
+        result = _split_audio_isolated(source, target, model)
+
+    _write_manifest(target, source, model, result)
+    return result
 
 
 def _resolve_output_dir(input_path: str | Path, output_dir: str | Path | None) -> Path:
