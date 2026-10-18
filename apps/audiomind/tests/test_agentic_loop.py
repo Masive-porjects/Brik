@@ -42,10 +42,14 @@ class StubTransport:
         self.script = list(script)
         self.phases: list[str] = []
         self.tools_seen: list[list[str]] = []
+        #: Snapshot of the transcript as each phase saw it. Copied because the
+        #: loop mutates the real list in place.
+        self.transcripts: list[list[dict]] = []
 
     def turn(self, *, phase, system, transcript, tools):
         self.phases.append(phase)
         self.tools_seen.append([t["name"] for t in tools])
+        self.transcripts.append(list(transcript))
         if not self.script:
             raise AssertionError("el guion se quedó sin turnos")
         assert system  # every phase ships a system prompt
@@ -401,6 +405,98 @@ class TestPhaseMachine:
         )
         assert transcript[0]["function_call"]["name"] == "render_mix"
         assert transcript[1]["role"] == "tool"
+
+
+class TestToolLog:
+    """S2 — "las herramientas ejecutadas" se REGISTRAN, no se deducen.
+
+    Deducir "se separó" de que ``state.stems`` tiene 4 entradas es una
+    inferencia; el ``ToolResult`` es la evidencia de qué corrió y cómo salió.
+    """
+
+    def test_every_executed_tool_is_recorded_in_order(self, cheap_tools):
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe", input_path=Path("x.wav"), transport=transport
+        )
+        assert [r.tool for r in state.tool_log] == [
+            "analyze_original_audio",
+            "trigger_stem_separation",
+            "adjust_stem_parameters",
+            "render_mix",
+            "analyze_mix_bus",
+            "send_to_master",
+        ]
+
+    def test_a_failed_tool_is_recorded_with_its_error(self):
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+        result = al.dispatch(state, "search_knowledge", {"query": "x"})
+
+        assert result.ok is False
+        assert [r.tool for r in state.tool_log] == ["search_knowledge"]
+        assert state.tool_log[0].ok is False
+        assert state.tool_log[0].error
+
+    def test_an_unknown_tool_is_recorded_too(self):
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+        al.dispatch(state, "no_existe", {})
+        assert [r.tool for r in state.tool_log] == ["no_existe"]
+
+    def test_a_rejected_argument_set_is_recorded(self):
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+        al.dispatch(state, "adjust_stem_parameters", {"intent": "no-es-un-perfil"})
+        assert [r.tool for r in state.tool_log] == ["adjust_stem_parameters"]
+        assert state.tool_log[0].ok is False
+
+
+class TestUserPrompt:
+    """S7 — un prompt que se recibe y no llega al modelo es decorativo."""
+
+    def test_the_prompt_reaches_the_first_user_turn(self, cheap_tools):
+        transport = StubTransport(_script())
+        al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            prompt="quiero la voz más al frente",
+        )
+
+        first = transport.transcripts[0][0]
+        assert first["role"] == "user"
+        assert "quiero la voz más al frente" in first["text"]
+
+    def test_without_a_prompt_the_initial_turn_is_unchanged(self, cheap_tools):
+        transport = StubTransport(_script())
+        al.run(session_id="probe", input_path=Path("x.wav"), transport=transport)
+        assert transport.transcripts[0][0]["text"] == "Mezclar y masterizar: x.wav"
+
+    def test_a_blank_prompt_does_not_add_an_empty_directive(self, cheap_tools):
+        transport = StubTransport(_script())
+        al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            prompt="   ",
+        )
+        assert transport.transcripts[0][0]["text"] == "Mezclar y masterizar: x.wav"
+
+
+class TestBusMetrics:
+    def test_bus_metrics_are_the_single_source_for_the_tool_payload(
+        self, cheap_tools
+    ):
+        """La herramienta y el armado del resultado HTTP deben coincidir.
+
+        Si la lista de campos se duplicara, el frontend vería métricas que la
+        herramienta nunca midió y nada fallaría.
+        """
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe", input_path=Path("x.wav"), transport=transport
+        )
+
+        recorded = next(r for r in state.tool_log if r.tool == "analyze_mix_bus")
+        assert al.bus_metrics(state) == recorded.payload
 
 
 class TestPromptContext:

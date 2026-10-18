@@ -287,6 +287,12 @@ class AgentState:
     mix_path: str | None = None
     master_path: str | None = None
 
+    #: Todo ``ToolResult`` que pasó por ``dispatch``, en orden de ejecución.
+    #: Es la evidencia de "qué corrió y cómo salió": se registra, no se deduce
+    #: del estado resultante (deducir "se separó" de que hay 4 stems es una
+    #: inferencia, no un hecho medido).
+    tool_log: list[ToolResult] = field(default_factory=list)
+
     @property
     def stems_dir(self) -> Path:
         """Debe coincidir EXACTAMENTE con `mix_engine.py:741`, o se pierde."""
@@ -435,6 +441,26 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
     )
 
 
+def bus_metrics(state: AgentState) -> dict[str, Any]:
+    """Métricas del bus del último render. Fuente ÚNICA de esta lista de campos.
+
+    La consumen la herramienta ``analyze_mix_bus`` y el armado del resultado
+    HTTP del job. Duplicar los campos dejaría al frontend viendo métricas que la
+    herramienta nunca midió, y nada fallaría.
+    """
+    render = state.render or {}
+    return {
+        "qc_report": render.get("qc_report") or {},
+        "balance_report": render.get("balance_report"),
+        "trim_report": render.get("trim_report"),
+        "stem_presence": render.get("stem_presence"),
+        "stem_lufs": (render.get("mix_metadata") or {}).get("stem_lufs"),
+        "tempo_bpm": render.get("tempo_bpm"),
+        "genre": render.get("genre"),
+        "iteration": state.iteration,
+    }
+
+
 def _analyze_mix_bus(state: AgentState, args: AnalyzeMixBusArgs) -> ToolResult:
     """S2.3 — lectura pura de los reportes del último render. Cero side effects.
 
@@ -446,18 +472,8 @@ def _analyze_mix_bus(state: AgentState, args: AnalyzeMixBusArgs) -> ToolResult:
             "analyze_mix_bus", "no hay render previo: llamar render_mix primero."
         )
 
-    qc_report = state.render.get("qc_report") or {}
-    payload = {
-        "qc_report": qc_report,
-        "balance_report": state.render.get("balance_report"),
-        "trim_report": state.render.get("trim_report"),
-        "stem_presence": state.render.get("stem_presence"),
-        "stem_lufs": (state.render.get("mix_metadata") or {}).get("stem_lufs"),
-        "tempo_bpm": state.render.get("tempo_bpm"),
-        "genre": state.render.get("genre"),
-        "iteration": state.iteration,
-    }
-    flagged = (qc_report.get("summary") or {}).get("flagged", [])
+    payload = bus_metrics(state)
+    flagged = _flagged(payload)
 
     return ToolResult(
         ok=True,
@@ -610,6 +626,18 @@ PHASE_GATE: dict[str, str] = {
 
 
 def dispatch(state: AgentState, tool: str, raw_args: dict[str, Any]) -> ToolResult:
+    """Ejecuta la herramienta y la registra en ``state.tool_log``.
+
+    Punto ÚNICO de paso: las cuatro fases entran por acá (por diseño, ver
+    ``phase1_diagnose``), así que el log tampoco puede perder el camino de
+    argumentos inválidos ni el de herramienta desconocida.
+    """
+    result = _dispatch(state, tool, raw_args)
+    state.tool_log.append(result)
+    return result
+
+
+def _dispatch(state: AgentState, tool: str, raw_args: dict[str, Any]) -> ToolResult:
     """Valida argumentos contra el modelo Pydantic y ejecuta la herramienta.
 
     Un argumento inválido no explota: vuelve como `ToolResult.fail` para que el
@@ -742,7 +770,10 @@ def _record_exchange(
 
 def _flagged(payload: dict[str, Any]) -> list[str]:
     """Lo que el QC marcó en el último render. Lista vacía = limpio."""
-    return ((payload.get("qc_report") or {}).get("summary") or {}).get("flagged", [])
+    flagged = (
+        (payload.get("qc_report") or {}).get("summary") or {}
+    ).get("flagged") or []
+    return [str(item) for item in flagged]
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -894,6 +925,7 @@ def run(
     input_path: str | Path,
     transport: ModelTransport | None = None,
     rag: RAGQuery | None = None,
+    prompt: str | None = None,
     **transport_kwargs: Any,
 ) -> AgentState:
     """Corre el flujo completo: diagnóstico -> desmontaje -> bucle -> cierre.
@@ -901,14 +933,20 @@ def run(
     ``transport`` es inyectable (tests sin red). Si se omite, se construye el
     transporte real según ``LLM_PROVIDER``; sin credencial utilizable eso levanta
     ``TransportUnavailableError`` en vez de seguir a ciegas.
+
+    ``prompt`` es el pedido en lenguaje natural del usuario. Viaja en el turno
+    inicial, que las cuatro fases reciben, así que tanto el diagnóstico como el
+    bucle lo ven. ``None`` o vacío deja ese turno EXACTAMENTE como estaba antes
+    de que el parámetro existiera.
     """
     if transport is None:
         transport = default_transport(**transport_kwargs)
 
     state = AgentState(session_id=session_id, input_path=Path(input_path), rag=rag)
-    transcript: list[dict[str, Any]] = [
-        {"role": "user", "text": f"Mezclar y masterizar: {state.input_path}"}
-    ]
+    instruction = f"Mezclar y masterizar: {state.input_path}"
+    if prompt and prompt.strip():
+        instruction = f"{instruction}\n\nPedido del usuario: {prompt.strip()}"
+    transcript: list[dict[str, Any]] = [{"role": "user", "text": instruction}]
 
     phase1_diagnose(state, transport, transcript)
     phase2_separate(state, transport, transcript)
