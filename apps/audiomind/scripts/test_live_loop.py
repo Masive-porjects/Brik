@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import shutil
 import sys
 import time
@@ -37,10 +36,7 @@ import soundfile as sf
 from audiomind.config import settings
 from audiomind.processing import agentic_loop as al
 from audiomind.processing import splitter
-from audiomind.processing.gemini_transport import (
-    GeminiTransport,
-    GeminiUnavailableError,
-)
+from audiomind.processing.agentic_loop import TransportUnavailableError
 
 #: La consola de Windows suele venir en cp1252, donde los acentos y los glifos
 #: de caja no encodifican: sin esto el script muere con UnicodeEncodeError.
@@ -269,9 +265,10 @@ def _parse_args() -> argparse.Namespace:
         choices=("gemini", "scripted"),
         default="gemini",
         help=(
-            "gemini = prueba real (necesita GEMINI_API_KEY). "
+            "gemini = el transporte REAL que elige LLM_PROVIDER en "
+            "apps/audiomind/.env (necesita credencial). "
             "scripted = dry-run del pipeline con herramientas REALES y un guion "
-            "fijo, para validar el cableado sin key. No reemplaza a gemini."
+            "fijo, para validar el cableado sin key. No reemplaza al real."
         ),
     )
     parser.add_argument(
@@ -302,17 +299,31 @@ def main() -> int:
         print(f"\nERROR: el audio no existe: {source}")
         return 2
 
-    if args.transport == "gemini" and not os.environ.get("GEMINI_API_KEY"):
-        print(
-            "\nERROR: falta GEMINI_API_KEY en el entorno, así que el bucle no"
-            " puede correr.\n"
-            "  PowerShell : $env:GEMINI_API_KEY = 'tu-key'\n"
-            "  bash       : export GEMINI_API_KEY='tu-key'\n\n"
-            "El transporte levanta GeminiUnavailableError en vez de inventar un"
-            " diagnóstico, y este script no fabrica logs.\n"
-            "Para validar el cableado sin key: --transport scripted."
-        )
-        return 2
+    # El transporte real sale del registro: `LLM_PROVIDER` en el `.env` decide
+    # entre Gemini, cualquier endpoint OpenAI-compatible (DeepSeek, Ollama) y
+    # Anthropic. Se construye ACÁ, antes de preparar el snippet, para que una
+    # credencial faltante falle en un segundo y no después de todo el trabajo.
+    #
+    # La credencial se lee de `settings`, no de `os.environ`: el `.env` del
+    # backend llega a pydantic-settings y NO al entorno del proceso, así que
+    # mirar `os.environ` rechazaba una key correctamente configurada.
+    live_transport: Any = None
+    if args.transport == "gemini":
+        try:
+            live_transport = al.default_transport()
+        except TransportUnavailableError as exc:
+            print(f"\nERROR: el transporte no puede arrancar.\n\n{exc}\n")
+            print(
+                "Cargá la credencial en apps/audiomind/.env, sin prefijo\n"
+                "AUDIOMIND_ (ahí la lee pydantic-settings):\n"
+                "  GEMINI_API_KEY=tu-key   -> LLM_PROVIDER=gemini (default)\n"
+                "  LLM_API_KEY=tu-key      -> openai | deepseek | anthropic\n"
+                "  (Ollama local no pide credencial)\n\n"
+                "El transporte levanta TransportUnavailableError en vez de\n"
+                "inventar un diagnóstico, y este script no fabrica logs.\n"
+                "Para validar el cableado sin key: --transport scripted."
+            )
+            return 2
 
     print("\n  -- 1 | PREPARACIÓN --")
     snippet = prepare_snippet(source, args.max_seconds)
@@ -334,11 +345,15 @@ def main() -> int:
     timed.install()
 
     inner: Any = (
-        GeminiTransport() if args.transport == "gemini" else _scripted_transport()
+        live_transport if live_transport is not None else _scripted_transport()
     )
     transport = NarratedTransport(inner, show_reasoning=not args.quiet_reasoning)
     print(f"  transporte: {args.transport}")
-    print(f"  modelos : {' -> '.join(inner.models)}")
+    chain = getattr(inner, "models", None)
+    if chain:
+        print(f"  modelos : {' -> '.join(chain)}")
+    else:
+        print(f"  modelo  : {getattr(inner, 'model', '?')}")
     if args.transport == "scripted":
         print(
             "  AVISO: guion fijo. Se ejercen Demucs, build_mix y "
@@ -354,15 +369,15 @@ def main() -> int:
             input_path=snippet,
             transport=transport,
         )
-    except GeminiUnavailableError as exc:
+    except TransportUnavailableError as exc:
         elapsed = time.perf_counter() - overall_started
         print(f"\n{RULE}")
-        print(f"EL TRANSPORTE GEMINI FALLÓ tras {elapsed:.2f}s")
+        print(f"EL TRANSPORTE FALLÓ tras {elapsed:.2f}s")
         print(RULE)
         print(str(exc))
         print(
-            "\nLa cadena de modelos se agotó. Revisá el nombre del modelo o el"
-            " estado del servicio; el bucle no siguió a ciegas."
+            "\nRevisá el modelo configurado (AGENT_MODEL_NAME), la credencial"
+            " y el estado del servicio; el bucle no siguió a ciegas."
         )
         return 3
     overall_elapsed = time.perf_counter() - overall_started
