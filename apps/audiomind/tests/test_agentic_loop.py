@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from audiomind.models.audio import MasteringParameters
 from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing import agentic_loop as al
 from audiomind.processing import prompts
@@ -52,8 +53,37 @@ class StubTransport:
 
 
 @pytest.fixture
-def cheap_tools(monkeypatch):
-    """Replace the two tools that would need Demucs / real audio."""
+def fake_engine(monkeypatch, tmp_path):
+    """Reemplaza `engine.process_audio`: acá se prueba el cableado, no el DSP.
+
+    También redirige ``settings.output_dir`` para que el master que estos tests
+    escriben caiga en el tmp de pytest y no en el ``outputs/`` real.
+    """
+    monkeypatch.setattr(al.settings, "output_dir", tmp_path)
+
+    def fake_process_audio(**kwargs):
+        output = Path(kwargs["output_path"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"RIFF")
+        fake_process_audio.calls.append(kwargs)
+        return {
+            "output_path": str(output),
+            "integrated_lufs": -14.0,
+            "true_peak_db": -1.0,
+            "output_bit_depth": kwargs["params"].output_bit_depth,
+        }
+
+    fake_process_audio.calls = []
+    monkeypatch.setattr(al, "process_audio", fake_process_audio)
+    return fake_process_audio.calls
+
+
+@pytest.fixture
+def cheap_tools(monkeypatch, tmp_path, fake_engine):
+    """Replace every tool that would need Demucs, real audio or the DSP engine."""
+
+    mix_file = tmp_path / "mix.wav"
+    mix_file.write_bytes(b"RIFF")
 
     def fake_analyze(state, args):
         return al.ToolResult(
@@ -74,10 +104,10 @@ def cheap_tools(monkeypatch):
 
     def fake_render(state, args):
         state.render = {
-            "mix_path": "out/mix.wav",
+            "mix_path": str(mix_file),
             "qc_report": {"summary": {"flagged": []}},
             "balance_report": None,
-            "mix_metadata": {},
+            "mix_metadata": {"stem_lufs": {"vocals": -18.0}},
         }
         state.pending_settings = None
         state.iteration += 1
@@ -174,9 +204,127 @@ class TestDispatch:
         state = al.AgentState(session_id="t", input_path=Path("x.wav"))
         assert al.dispatch(state, "send_to_master", {"source": "mix"}).ok is False
 
-    def test_mastering_the_original_needs_no_render(self):
-        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
-        assert al.dispatch(state, "send_to_master", {"source": "original"}).ok is True
+    def test_mastering_the_original_needs_no_render(self, tmp_path, fake_engine):
+        source = tmp_path / "original.wav"
+        source.write_bytes(b"RIFF")
+        state = al.AgentState(session_id="t", input_path=source)
+
+        result = al.dispatch(state, "send_to_master", {"source": "original"})
+
+        assert result.ok is True
+        assert result.payload["source_path"] == str(source)
+
+
+class TestMasterWiring:
+    """S2.5 dejó de ser un stub: el bus llega de verdad a `engine.process_audio`."""
+
+    def _rendered_state(self, tmp_path, source_freq: float = 220.0):
+        source = tmp_path / "original.wav"
+        source.write_bytes(b"RIFF")
+        mix = tmp_path / "mix.wav"
+        mix.write_bytes(b"RIFF")
+
+        state = al.AgentState(session_id="t", input_path=source)
+        state.render = {"mix_metadata": {"stem_lufs": {"vocals": -18.0}}}
+        state.mix_path = str(mix)
+        return state
+
+    def test_the_mixed_bus_reaches_the_engine(self, tmp_path, fake_engine):
+        state = self._rendered_state(tmp_path)
+
+        result = al.dispatch(state, "send_to_master", {"source": "mix"})
+
+        assert result.ok is True
+        assert len(fake_engine) == 1
+        assert str(fake_engine[0]["input_path"]) == state.mix_path
+
+    def test_the_mix_metadata_travels_for_the_adaptive_handshake(
+        self, tmp_path, fake_engine
+    ):
+        state = self._rendered_state(tmp_path)
+
+        al.dispatch(state, "send_to_master", {"source": "mix"})
+
+        assert fake_engine[0]["mix_metadata"] == {"stem_lufs": {"vocals": -18.0}}
+
+    def test_mastering_the_original_sends_no_mix_metadata(self, tmp_path, fake_engine):
+        state = self._rendered_state(tmp_path)
+
+        al.dispatch(state, "send_to_master", {"source": "original"})
+
+        assert fake_engine[0]["mix_metadata"] is None
+
+    def test_a_neutral_intent_masters_with_the_default_parameters(
+        self, tmp_path, fake_engine
+    ):
+        """El contrato 'neutral = bypass' tiene que llegar hasta el motor."""
+        state = self._rendered_state(tmp_path)
+
+        al.dispatch(state, "send_to_master", {"source": "mix"})
+
+        assert fake_engine[0]["params"] == MasteringParameters()
+
+    def test_the_mix_intent_moves_the_master_too(self, tmp_path, fake_engine):
+        state = self._rendered_state(tmp_path)
+        state.intent = IntentProfile(vocal_focus=0.8)
+
+        al.dispatch(state, "send_to_master", {"source": "mix"})
+
+        assert fake_engine[0]["params"].dyn_eq_enabled is True
+
+    def test_the_call_overrides_lufs_and_bit_depth(self, tmp_path, fake_engine):
+        state = self._rendered_state(tmp_path)
+
+        result = al.dispatch(
+            state,
+            "send_to_master",
+            {"source": "mix", "target_lufs_db": -11.0, "output_bit_depth": 16},
+        )
+
+        params = fake_engine[0]["params"]
+        assert params.target_lufs_db == -11.0
+        assert params.output_bit_depth == 16
+        assert result.payload["output_bit_depth"] == 16
+
+    def test_a_failing_engine_becomes_an_envelope_not_an_exception(
+        self, tmp_path, monkeypatch
+    ):
+        def exploding(**kwargs):
+            raise RuntimeError("limiter explotó")
+
+        monkeypatch.setattr(al, "process_audio", exploding)
+        state = self._rendered_state(tmp_path)
+
+        result = al.dispatch(state, "send_to_master", {"source": "mix"})
+
+        assert result.ok is False
+        assert "limiter explotó" in (result.error or "")
+        assert state.master_path is None
+
+    def test_the_written_master_is_reported(self, tmp_path, fake_engine):
+        state = self._rendered_state(tmp_path)
+
+        result = al.dispatch(state, "send_to_master", {"source": "mix"})
+
+        assert state.master_path == result.payload["master_path"]
+        assert Path(state.master_path).is_file()
+
+    def test_stem_separation_refuses_a_file_that_is_not_the_session_input(
+        self, tmp_path
+    ):
+        """Separar otro archivo pagaría Demucs y no alimentaría el render."""
+        session_input = tmp_path / "session.wav"
+        session_input.write_bytes(b"RIFF")
+        otro = tmp_path / "otro.wav"
+        otro.write_bytes(b"RIFF")
+        state = al.AgentState(session_id="t", input_path=session_input)
+
+        result = al.dispatch(
+            state, "trigger_stem_separation", {"file_path": str(otro)}
+        )
+
+        assert result.ok is False
+        assert "build_mix" in (result.error or "")
 
 
 class TestKnowledgeTool:

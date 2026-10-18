@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,6 +55,8 @@ from audiomind.config import settings
 from audiomind.models.audio import AnalysisResult
 from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing import prompts
+from audiomind.processing.engine import process_audio
+from audiomind.processing.mapper import map_intent_to_mastering
 from audiomind.processing.mix_engine import build_mix
 from audiomind.processing.mix_mapper import MixSettings, map_intent_to_mix
 from audiomind.processing.splitter import STEM_NAMES, split_audio
@@ -324,6 +327,8 @@ def _analyze_original_audio(
             "genre_confidence": a.genre_confidence,
             "is_already_mastered": a.is_already_mastered,
             "mastering_confidence": a.mastering_confidence,
+            # Fase 2 lo necesita tal cual: `build_mix` sólo separa este archivo.
+            "input_path": str(state.input_path),
         },
     )
 
@@ -335,14 +340,36 @@ def _trigger_stem_separation(
 
     No usa `separate_jobs.py`: ese camino es asíncrono, durable y escribe en R2,
     y `build_mix` re-separaría de todos modos (`mix_engine.py:742`). Al escribir
-    en `settings.output_dir/<session_id>/stems` con los mismos argumentos,
-    `splitter` cortocircuita y el render posterior no vuelve a pagar Demucs.
+    en `settings.output_dir/<session_id>/stems` con los mismos argumentos, el
+    manifiesto de `splitter` hace que el render posterior reúse estos stems en
+    vez de volver a pagar Demucs.
     """
+    requested = Path(args.file_path)
+    if requested.resolve() != state.input_path.resolve():
+        # `build_mix` separa SIEMPRE `state.input_path` en `state.stems_dir`.
+        # Separar otro archivo no alimenta el render y paga Demucs en vano; el
+        # manifiesto no matchearía y la caché se perdería en silencio.
+        return ToolResult.fail(
+            "trigger_stem_separation",
+            "file_path debe ser el input de la sesión "
+            f"({state.input_path}), porque build_mix sólo separa ese archivo.",
+        )
+
     try:
+        started = time.perf_counter()
         result = split_audio(args.file_path, output_dir=state.stems_dir)
+        elapsed = time.perf_counter() - started
         state.stems = {name: str(p) for name, p in result["stems"].items()}
     except Exception as exc:  # noqa: BLE001
         return ToolResult.fail("trigger_stem_separation", f"separación falló: {exc}")
+
+    cache_hit = bool(result.get("cache_hit"))
+    log.info(
+        "[TIMING] trigger_stem_separation %.2fs  demucs=%s  -> %s",
+        elapsed,
+        "NO CORRIÓ (cache HIT)" if cache_hit else "CORRIÓ",
+        state.stems_dir,
+    )
 
     missing = [name for name in STEM_NAMES if name not in state.stems]
     if missing:
@@ -353,8 +380,13 @@ def _trigger_stem_separation(
     return ToolResult(
         ok=True,
         tool="trigger_stem_separation",
-        detail=f"4 stems listos en {state.stems_dir}.",
-        payload={"stems": state.stems, "stems_dir": str(state.stems_dir)},
+        detail=f"4 stems listos en {state.stems_dir} ({elapsed:.2f}s).",
+        payload={
+            "stems": state.stems,
+            "stems_dir": str(state.stems_dir),
+            "seconds": round(elapsed, 2),
+            "demucs_ran": not cache_hit,
+        },
     )
 
 
@@ -366,6 +398,7 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
     """
     settings_ = state.pending_settings or MixSettings()
     try:
+        started = time.perf_counter()
         state.render = build_mix(
             session_id=state.session_id,
             input_path=state.input_path,
@@ -373,6 +406,7 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
             auto_balance=settings_.auto_balance,
             with_versions=args.with_versions,
         )
+        render_seconds = time.perf_counter() - started
     except Exception as exc:  # noqa: BLE001
         return ToolResult.fail("render_mix", f"render falló: {exc}")
 
@@ -380,14 +414,22 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
     state.iteration += 1
     state.mix_path = state.render.get("mix_path")
 
+    log.info(
+        "[TIMING] render_mix %.2fs (splitter.py registra arriba si Demucs corrió)",
+        render_seconds,
+    )
+
     return ToolResult(
         ok=True,
         tool="render_mix",
-        detail=f"Bus renderizado (iteración {state.iteration}).",
+        detail=(
+            f"Bus renderizado en {render_seconds:.2f}s (iteración {state.iteration})."
+        ),
         payload={
             "mix_path": state.mix_path,
             "iteration": state.iteration,
             "applied_stem_trims": settings_.stem_trims,
+            "seconds": round(render_seconds, 2),
         },
     )
 
@@ -475,9 +517,10 @@ def _search_knowledge(state: AgentState, args: SearchKnowledgeArgs) -> ToolResul
 def _send_to_master(state: AgentState, args: SendToMasterArgs) -> ToolResult:
     """S2.5 — cierra la mezcla y empuja el bus al mastering engine.
 
-    TODO: `engine.process_audio` no se invoca todavía — falta confirmar su firma
-    exacta y pasar `mix_metadata` para el handshake adaptativo
-    (``MOTOR_DSP_MIX_Y_MASTER.md`` §3 y §5.4).
+    La mezcla final entra a `engine.process_audio`, el mismo motor que sirve a
+    la API de mastering. La intención que movió la mezcla mueve también el
+    master (`map_intent_to_mastering`), y `mix_metadata` viaja al motor para el
+    handshake adaptativo (`MOTOR_DSP_MIX_Y_MASTER.md` §3).
     """
     if args.source == "mix" and not state.can_master:
         return ToolResult.fail(
@@ -488,17 +531,57 @@ def _send_to_master(state: AgentState, args: SendToMasterArgs) -> ToolResult:
     source_path = state.mix_path if args.source == "mix" else str(state.input_path)
     if not source_path:
         return ToolResult.fail("send_to_master", "no hay audio fuente disponible.")
+    if not Path(source_path).is_file():
+        return ToolResult.fail(
+            "send_to_master", f"el audio fuente no existe: {source_path}"
+        )
+
+    params = map_intent_to_mastering(state.intent)
+    if args.target_lufs_db is not None:
+        params.target_lufs_db = args.target_lufs_db
+    params.output_bit_depth = args.output_bit_depth
+
+    output_path = (
+        settings.output_dir / f"{state.session_id}_agentic_mastered.wav"
+    ).resolve()
+
+    try:
+        started = time.perf_counter()
+        result = process_audio(
+            input_path=source_path,
+            output_path=output_path,
+            params=params,
+            analysis_result=state.analysis,
+            # Sólo tiene sentido cuando lo masterizado ES la mezcla.
+            mix_metadata=(
+                (state.render or {}).get("mix_metadata")
+                if args.source == "mix"
+                else None
+            ),
+        )
+        elapsed = time.perf_counter() - started
+    except Exception as exc:  # noqa: BLE001 — el envelope absorbe el fallo
+        return ToolResult.fail("send_to_master", f"mastering falló: {exc}")
+
+    state.master_path = str(result.get("output_path") or output_path)
+    log.info("[TIMING] send_to_master %.2fs -> %s", elapsed, state.master_path)
 
     return ToolResult(
         ok=True,
         tool="send_to_master",
-        detail="Cierre listo. Wiring al mastering engine pendiente.",
+        detail=f"Master listo en {state.master_path} ({elapsed:.2f}s).",
         payload={
             "source": args.source,
             "source_path": source_path,
-            "target_lufs_db": args.target_lufs_db,
-            "output_bit_depth": args.output_bit_depth,
-            "mix_metadata": (state.render or {}).get("mix_metadata"),
+            "master_path": state.master_path,
+            "target_lufs_db": params.target_lufs_db,
+            "output_bit_depth": result.get("output_bit_depth"),
+            "integrated_lufs": result.get("integrated_lufs"),
+            "true_peak_db": result.get("true_peak_db"),
+            "crest_factor_db": result.get("crest_factor_db"),
+            "lra": result.get("lra"),
+            "duration_seconds": result.get("duration_seconds"),
+            "seconds": round(elapsed, 2),
         },
     )
 
