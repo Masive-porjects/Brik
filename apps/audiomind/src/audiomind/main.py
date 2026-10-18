@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from audiomind.api.agent import router as agent_router
 from audiomind.api.batch import router as batch_router
 from audiomind.api.jobs import router as jobs_router
 from audiomind.api.license import router as license_router
@@ -82,6 +83,7 @@ app.include_router(songstarter_router, prefix="/api")
 app.include_router(batch_router, prefix="/api")
 app.include_router(jobs_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
+app.include_router(agent_router, prefix="/api")
 
 
 @app.get("/health")
