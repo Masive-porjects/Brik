@@ -17,7 +17,8 @@
 | **Landing page** | ✅ Nueva, en producción (Vercel) — GSAP, i18n completo, A/B demo local, SEO/JSON-LD · 3 decisiones de producto abiertas (§7 #37) · ver §4.2 |
 | **Frontend y Mobile (web)** | ✅ Studio + landing con variantes mobile propias (`MobileMasteringView`, `MobileDrawer`, strip de presets, menú mobile de la landing) · **sin app nativa, sin PWA** (0 manifest / 0 service worker) · estado por React Context + `useState` (sin zustand/redux) · ver §4.1 y §4.1.1 |
 | **Agent de interpretación (IA)** | 🟡 Compila · `vocal_focus` añadido al contrato (13-Oct) · **llamada real sin probar** (faltan credenciales) |
-| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · **no expuesta por API ni consumida por el agent** |
+| **Productor IA (bucle agéntico, Python)** | 🟡 Bucle de 4 fases + tool calling + transporte model-agnostic · disparable por HTTP en `POST /api/jobs/agent/{session_id}` (polling `GET /api/jobs/agent/{id}`) · **corrida real sin probar** (falta credencial LLM válida) |
+| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · expuesta por `POST /api/agent/rag/search` (rama `feat/agentic-mix-loop`) · el bucle agéntico todavía **no la consume** |
 | **Voz (chat/TTS)** | 🟡 Rutas implementadas · TTS pagado off por defecto (fallback navegador) |
 | **Convex** | ❌ **Eliminado** — el scaffold `convex/` ya no existe (0 archivos trackeados, 0 deps, 0 referencias). El job `deploy-convex` de la CI también fue removido (`3d9f8ae`) |
 | **Bridge MIDI / Simulator Python** | ❌ **Removidos** del repositorio |
@@ -247,7 +248,7 @@ Migración desde sesiones anónimas en memoria a un modelo **por usuario** con "
 - Ingesta con **OCR** para los PDF de `docs/proposals/` (local-only), chunking por capítulo y limpieza.
 - Recuperación **híbrida BM25 + vectores fusionados por RRF** (`SearchMode = bm25 | vector | hybrid`).
 - Embeddings vía **Ollama** local (`http://localhost:11434` por defecto); dependencias pesadas en un extra opcional (`rag`).
-- **Sólo CLI**: `python -m audiomind.intelligence.rag <comando>`. No hay endpoint HTTP ni consumo desde el agent — `intelligence/__init__.py` lo declara explícitamente. Tests: `tests/test_rag_pipeline.py`.
+- **CLI + endpoint de lectura**: `python -m audiomind.intelligence.rag <comando>` y `POST /api/agent/rag/search` (sólo consulta: degrada a BM25 y lo declara en `mode_used`). El bucle agéntico **no** lo consume todavía — `run()` no recibe un `RAGQuery` desde la API, así que la herramienta `search_knowledge` no se le ofrece al modelo. Tests: `tests/test_rag_pipeline.py`.
 - Además, `intelligence/` contiene los **schemas de conocimiento** (genre/preset/experiment/plugin/idea) y plantillas Markdown, que hoy son scaffolding sin consumidores.
 
 ---
