@@ -43,6 +43,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections import defaultdict, deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -647,6 +648,48 @@ class ModelTurn(BaseModel):
     tool_calls: list[ToolCall] = Field(default_factory=list)
 
 
+class TransportUnavailableError(RuntimeError):
+    """Ningún transporte pudo responder. Nunca se sustituye por una adivinanza.
+
+    Todos los proveedores levantan ESTE error, para que quien llame al bucle no
+    necesite saber cuál está configurado.
+    """
+
+
+def assign_call_ids(
+    transcript: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Copia del transcript con un ``id`` por llamada y por su respuesta.
+
+    El formato neutro (ver arriba) no lleva ids, pero OpenAI y Anthropic exigen
+    uno que ligue cada ``function_call`` con su resultado. El id se deriva de la
+    POSICIÓN, no de un contador global: reconstruir el mismo transcript da los
+    mismos ids, así que reintentar un turno no los baraja.
+
+    Una misma herramienta puede llamarse varias veces en el historial; las
+    respuestas se emparejan FIFO con la llamada pendiente más antigua del mismo
+    nombre. Una respuesta sin llamada previa recibe un id propio en vez de
+    romper: que el proveedor decida si eso es un error.
+    """
+    out: list[dict[str, Any]] = []
+    pending: dict[str, deque[str]] = defaultdict(deque)
+
+    for entry in transcript:
+        copied = dict(entry)
+        if "function_call" in copied:
+            call = dict(copied["function_call"])
+            call_id = f"call_{len(out)}"
+            call["id"] = call_id
+            pending[str(call.get("name", ""))].append(call_id)
+            copied["function_call"] = call
+        elif "response" in copied:
+            queue = pending.get(str(copied.get("name", "")))
+            copied["id"] = queue.popleft() if queue else f"call_{len(out)}"
+        out.append(copied)
+
+    return out
+
+
 class ModelTransport(Protocol):
     """Puerto hacia el LLM. Se inyecta para poder testear las fases sin red."""
 
@@ -661,10 +704,15 @@ class ModelTransport(Protocol):
 
 
 def default_transport(**kwargs: Any) -> ModelTransport:
-    """El transporte real (Gemini). Import diferido: evita un ciclo de imports."""
-    from audiomind.processing.gemini_transport import GeminiTransport
+    """El transporte real, elegido por configuración.
 
-    return GeminiTransport(**kwargs)
+    El registro vive en ``transport_factory``: ``LLM_PROVIDER`` en el ``.env``
+    decide entre Gemini, cualquier endpoint OpenAI-compatible (DeepSeek, Ollama)
+    y Anthropic. Import diferido: evita un ciclo de imports.
+    """
+    from audiomind.processing.transport_factory import build_transport
+
+    return build_transport(**kwargs)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -851,8 +899,8 @@ def run(
     """Corre el flujo completo: diagnóstico -> desmontaje -> bucle -> cierre.
 
     ``transport`` es inyectable (tests sin red). Si se omite, se construye el
-    transporte Gemini real; sin ``GEMINI_API_KEY`` eso levanta
-    ``GeminiUnavailableError`` en vez de seguir a ciegas.
+    transporte real según ``LLM_PROVIDER``; sin credencial utilizable eso levanta
+    ``TransportUnavailableError`` en vez de seguir a ciegas.
     """
     if transport is None:
         transport = default_transport(**transport_kwargs)

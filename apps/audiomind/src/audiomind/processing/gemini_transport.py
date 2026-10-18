@@ -28,7 +28,12 @@ from typing import Any
 from google import genai
 from google.genai import types
 
-from audiomind.processing.agentic_loop import ModelTurn, ToolCall
+from audiomind.config import settings
+from audiomind.processing.agentic_loop import (
+    ModelTurn,
+    ToolCall,
+    TransportUnavailableError,
+)
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +45,7 @@ MODEL_FALLBACKS: tuple[str, ...] = ("gemini-3.6-flash", "gemini-3.5-flash")
 DEFAULT_TEMPERATURE = 0.3
 
 
-class GeminiUnavailableError(RuntimeError):
+class GeminiUnavailableError(TransportUnavailableError):
     """The model could not answer. Never substituted with a guess."""
 
 
@@ -116,11 +121,18 @@ class GeminiTransport:
         temperature: float = DEFAULT_TEMPERATURE,
         client: genai.Client | None = None,
     ) -> None:
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        # ``settings`` first: it is the only source that sees the backend's
+        # ``.env`` file. pydantic-settings loads that file into the settings
+        # object and NOT into ``os.environ``, so a key written there was
+        # invisible to this constructor. ``os.environ`` stays as the last
+        # resort for a key exported into the process environment.
+        self.api_key = (
+            api_key or settings.gemini_api_key or os.environ.get("GEMINI_API_KEY")
+        )
         if client is None and not self.api_key:
             raise GeminiUnavailableError(
-                "Falta GEMINI_API_KEY. Completala en apps/studio/.env.local "
-                "o exportala en el entorno del backend."
+                "Falta GEMINI_API_KEY. Completala en apps/audiomind/.env "
+                "(GEMINI_API_KEY=...) o exportala en el entorno del backend."
             )
         self._client = client or genai.Client(api_key=self.api_key)
         primary = model or os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
