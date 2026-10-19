@@ -19,6 +19,7 @@ _TAPE_ENGAGE = 0.55  # warmth / vintage
 _MULTIBAND_ENGAGE = 0.55  # bass_weight
 _EXCITER_ENGAGE = 0.6  # brightness
 _DYN_EQ_ENGAGE = 0.6  # clarity
+_VOCAL_DYN_EQ_ENGAGE = 0.6  # vocal_focus
 
 # Loudness ramp limits. At 0.5 the target is None (engine automatic, which
 # at the neutral ceiling evaluates to -14 LUFS); above 0.5 it ramps toward
@@ -72,6 +73,12 @@ def map_intent_to_mastering(intent: IntentProfile) -> MasteringParameters:
       threshold there is no drive to scale.
     - ``clarity``: engages the dynamic EQ when active and configures band
       2 (2.5 kHz).
+    - ``vocal_focus``: the second owner of the dynamic EQ stage. It engages
+      the stage and configures band 1 (400 Hz), the low-mid congestion that
+      masks the voice. ``clarity`` and ``vocal_focus`` are independent: each
+      writes only its own band, so asking for both yields both curves. The
+      band choice is PROVISIONAL and needs the DSP owner's sign-off; the
+      ramp itself mirrors clarity's.
     - ``punch``: ``adaptive_comp_ratio``/``attack_ms`` are mapped per the
       approved table but ``adaptive_comp_enabled`` stays False on purpose
       — engaging the adaptive module would REPLACE the fixed compressor
@@ -156,8 +163,14 @@ def map_intent_to_mastering(intent: IntentProfile) -> MasteringParameters:
             intent.bass_weight, [(0.5, 0.0), (1.0, 150.0)]
         )
 
-    # ── clarity → dynamic EQ ─────────────────────────────────────────
-    params.dyn_eq_enabled = intent.clarity > _DYN_EQ_ENGAGE
+    # ── clarity / vocal_focus → dynamic EQ ───────────────────────────
+    # Two independent axes share one stage, each on its own band: clarity
+    # owns band 2 (2.5 kHz presence), vocal_focus owns band 1 (400 Hz,
+    # the low-mid congestion that masks the voice). Neither configures the
+    # other's band, so both can be active at once.
+    params.dyn_eq_enabled = (
+        intent.clarity > _DYN_EQ_ENGAGE or intent.vocal_focus > _VOCAL_DYN_EQ_ENGAGE
+    )
     if intent.clarity > _DYN_EQ_ENGAGE:
         # 2.5 kHz band — freq/threshold are the stage defaults, set
         # explicitly so the clarity contract is self-documenting.
@@ -165,6 +178,13 @@ def map_intent_to_mastering(intent: IntentProfile) -> MasteringParameters:
         params.dyn_eq_band2_threshold_db = -20.0
         # dyn_eq_band2_ratio: 1.0 @ 0.5 (default), 2.0 @ 1.0.
         params.dyn_eq_band2_ratio = _lerp(intent.clarity, [(0.5, 1.0), (1.0, 2.0)])
+    if intent.vocal_focus > _VOCAL_DYN_EQ_ENGAGE:
+        # 400 Hz band — a dynamic cut in the region where the accompaniment
+        # masks the voice, so it reads forward without a broadband tilt.
+        params.dyn_eq_band1_freq_hz = 400.0
+        params.dyn_eq_band1_threshold_db = -20.0
+        # dyn_eq_band1_ratio: 1.0 @ 0.5 (default), 2.0 @ 1.0.
+        params.dyn_eq_band1_ratio = _lerp(intent.vocal_focus, [(0.5, 1.0), (1.0, 2.0)])
 
     # ── loudness ────────────────────────────────────────────────────
     # limiter_ceiling_db: -2.5 dB @ 0.0, -1.0 dB @ 0.5 (default), -0.3 @ 1.0.

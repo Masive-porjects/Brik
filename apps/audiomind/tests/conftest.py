@@ -125,6 +125,27 @@ def _cleanup_harness_sessions_dir() -> Iterator[None]:
     shutil.rmtree(_HARNESS_SESSIONS_DIR, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def _never_read_real_llm_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the LLM knobs so a developer's ``.env`` cannot decide the outcome.
+
+    Same class of leak the storage seals above prevent. The LLM settings are real
+    ``Settings`` fields now, so without this a key sitting in
+    ``apps/audiomind/.env`` would reach ``GeminiTransport`` mid-suite and turn
+    "refuses to start without a key" red on a machine that is simply configured.
+    """
+    fields = (
+        "llm_provider",
+        "agent_model_name",
+        "llm_api_key",
+        "llm_base_url",
+        "gemini_api_key",
+    )
+    for field in fields:
+        default = settings.__class__.model_fields[field].default
+        monkeypatch.setattr(settings, field, default)
+
+
 # ─────────────────────────────── per-test stubs ────────────────────────────
 
 

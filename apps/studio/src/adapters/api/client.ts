@@ -1,3 +1,5 @@
+import type { IntentProfile } from "@midimastering/agent";
+
 import { API_BASE } from "./config";
 import { createClient } from "@/lib/supabase/client";
 
@@ -659,6 +661,197 @@ export async function getMixJobState(
       .catch(() => ({ detail: "Mix job status check failed" }));
     throw new ApiError(
       (err as { detail?: string }).detail || "Mix job status check failed",
+      res.status,
+    );
+  }
+  return res.json();
+}
+
+/* ── Agentic producer jobs (Productor IA) ─────────────────── */
+
+/** Job state of a submitted agent run. Same vocabulary as the mix and
+ *  mastering jobs in this file on purpose: one polling client and one UI
+ *  state machine for every job kind. */
+export type AgentJobStatus = "processing" | "completed" | "error";
+
+export interface AgentJobAccepted {
+  job_id: string;
+  session_id: string;
+  status: AgentJobStatus;
+  /** Backend-relative path to poll. Kept for parity with the mix job. */
+  poll_url: string;
+}
+
+/** One tool the loop really executed, in order.
+ *
+ *  Recorded at dispatch time by the backend, never reconstructed from the
+ *  state the run left behind: "it separated stems" is a fact only because the
+ *  tool ran, not because a stem exists. */
+export interface AgentToolExecution {
+  tool: string;
+  ok: boolean;
+  detail: string;
+  /** Raw tool payload. Includes the file paths the tool used, which the
+   *  curated `mix_metrics` / `master_metrics` deliberately drop. */
+  payload: Record<string, unknown>;
+  error: string | null;
+}
+
+/** Bus metrics of the last render (backend: `agentic_loop.bus_metrics`).
+ *
+ *  The same field list the `analyze_mix_bus` tool returns, so the UI cannot
+ *  read a metric the agent never measured. Null when the run never rendered. */
+export interface AgentMixMetrics {
+  qc_report: Record<string, unknown>;
+  balance_report: Record<string, unknown> | null;
+  trim_report: Record<string, unknown> | null;
+  stem_presence: Record<string, boolean> | null;
+  stem_lufs: Record<string, number> | null;
+  tempo_bpm: number | null;
+  genre: string | null;
+  /** How many mix/analyze iterations the loop needed. */
+  iteration: number;
+}
+
+/** Measured numbers of the delivered master.
+ *
+ *  The ephemeral `master_path` / `source_path` are stripped by the backend, so
+ *  only measurements travel here. They remain in `tools_executed[].payload`,
+ *  which is raw evidence. */
+export interface AgentMasterMetrics {
+  source?: "mix" | "original";
+  target_lufs_db?: number | null;
+  output_bit_depth?: number | null;
+  integrated_lufs?: number | null;
+  true_peak_db?: number | null;
+  crest_factor_db?: number | null;
+  lra?: number | null;
+  duration_seconds?: number | null;
+  /** Wall-clock seconds the mastering chain took. */
+  seconds?: number;
+  [key: string]: unknown;
+}
+
+/** Where one agent output can be fetched from.
+ *
+ *  `durable: false` means R2 was unconfigured when the job ran: `url` is null
+ *  and `local_path` points at the backend filesystem, which does not survive a
+ *  redeploy. Render the note, do not hide it. */
+export interface AgentAudioAsset {
+  r2_key: string | null;
+  url: string | null;
+  local_path: string | null;
+  durable: boolean;
+  note: string | null;
+}
+
+/** Payload of a completed agent job: what the agent decided, did, measured
+ *  and left behind. Every field comes from recorded evidence. */
+export interface AgentRunResult {
+  session_id: string;
+  /** The model's own diagnosis, in its own words. Null when the run never got
+   *  past the first turn. */
+  diagnosis: string | null;
+  iterations: number;
+  /** The 9 semantic axes the mapper turned into DSP knobs. */
+  intent: IntentProfile;
+  analysis: AnalysisResult | null;
+  /** Null when the run never rendered a mix. */
+  mix_metrics: AgentMixMetrics | null;
+  /** Null when the run never mastered. */
+  master_metrics: AgentMasterMetrics | null;
+  tools_executed: AgentToolExecution[];
+  audio: {
+    mix: AgentAudioAsset | null;
+    master: AgentAudioAsset | null;
+  };
+}
+
+export interface AgentJobState {
+  job_id: string;
+  kind: string;
+  status: AgentJobStatus;
+  /** 0..100 as reported by the backend. The loop exposes no phase callback
+   *  yet, so this stays 0 until the job finishes: show an indeterminate
+   *  spinner, not a progress bar. */
+  progress: number;
+  stage: string | null;
+  session_id: string | null;
+  /** Present once completed. The audio URLs inside are re-signed per read. */
+  result?: AgentRunResult;
+  error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * Queue the Productor IA for a session and return immediately.
+ *
+ * There is no blocking counterpart: a full run is Demucs plus the mix chain
+ * plus N LLM turns, which an edge proxy answers with 502/504 once it outlasts
+ * the proxy timeout. This returns in milliseconds with a job id to poll.
+ *
+ * `prompt` is the user's own words ("make the vocal sit forward"). It rides on
+ * the loop's first turn, so both the diagnosis and the mix see it. Omitted or
+ * blank keeps the loop's default directive.
+ *
+ * A deployment with no usable LLM credential answers 503 here, at submit time,
+ * instead of starting a job that dies minutes later.
+ */
+export async function submitAgentJob(
+  sessionId: string,
+  prompt?: string,
+  signal?: AbortSignal,
+): Promise<AgentJobAccepted> {
+  const body: Record<string, unknown> = {};
+  const clean = prompt?.trim();
+  if (clean) body.prompt = clean;
+
+  const res = await fetch(
+    `${API_BASE}/jobs/agent/${encodeURIComponent(sessionId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...licenseHeaders() },
+      body: JSON.stringify(body),
+      ...(signal ? { signal } : {}),
+    },
+  );
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Agent job could not be submitted" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail || "Agent job could not be submitted",
+      res.status,
+    );
+  }
+  return res.json();
+}
+
+/**
+ * Read the current state of a submitted agent job.
+ *
+ * Poll this for the player instead of caching a URL from an earlier response:
+ * the backend re-mints each audio URL on every read, so a stored one 403s once
+ * it expires.
+ *
+ * A job whose worker died mid-run reports `error` with an interruption
+ * message, so a dead worker never leaves the UI polling forever.
+ */
+export async function getAgentJobStatus(
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<AgentJobState> {
+  const res = await fetch(`${API_BASE}/jobs/agent/${encodeURIComponent(jobId)}`, {
+    headers: { ...licenseHeaders() },
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Agent job status check failed" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail || "Agent job status check failed",
       res.status,
     );
   }

@@ -223,6 +223,48 @@ class Settings(BaseSettings):
     # libraries decide.
     demucs_threads: int = 4
 
+    # ── Transporte del LLM del bucle agéntico ────────────────────────────
+    # CON CUIDADO: `extra="forbid"` está activo (default de BaseSettings). Una
+    # clave escrita en el `.env` que ningún campo declare NO se ignora — revienta
+    # el arranque con `ValidationError: Extra inputs are not permitted`, en
+    # tiempo de import. Es a propósito (un typo falla fuerte en vez de leerse
+    # como default silencioso), y por eso TODA perilla nueva va acá abajo.
+    #
+    # Cada campo acepta las dos formas del nombre: la pelada (LLM_PROVIDER), que
+    # es la que escribe el operador, y la prefijada (AUDIOMIND_LLM_PROVIDER), que
+    # es la convención del resto del backend.
+    llm_provider: str = Field(
+        default="gemini",
+        validation_alias=AliasChoices("LLM_PROVIDER", "AUDIOMIND_LLM_PROVIDER"),
+    )
+    # Modelo concreto. Vacío = el default del adaptador (Gemini usa su cadena de
+    # retiro). Cambiar SOLO el modelo es una línea de este archivo.
+    agent_model_name: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AGENT_MODEL_NAME",
+            "AUDIOMIND_AGENT_MODEL_NAME",
+        ),
+    )
+    # Credencial de los proveedores que no son Gemini.
+    llm_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("LLM_API_KEY", "AUDIOMIND_LLM_API_KEY"),
+    )
+    # Host del proveedor. Vacío = el default del adaptador.
+    llm_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("LLM_BASE_URL", "AUDIOMIND_LLM_BASE_URL"),
+    )
+    # La key de Gemini, declarada para que el `.env` por fin funcione: el
+    # transporte leía `os.environ` a secas, y pydantic-settings NO copia el
+    # env_file al entorno del proceso, así que una key escrita en el archivo
+    # nunca llegaba al cliente.
+    gemini_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "AUDIOMIND_GEMINI_API_KEY"),
+    )
+
     model_config = {
         "env_prefix": "AUDIOMIND_",
         "env_file": str(_BACKEND_DIR / ".env"),

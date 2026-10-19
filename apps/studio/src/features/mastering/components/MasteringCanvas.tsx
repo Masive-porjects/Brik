@@ -2,6 +2,7 @@
 
 import { RotateCcw } from "lucide-react";
 import ModulePanel from "@/presentation/components/ModulePanel";
+import AgentPanel from "@/features/mastering/components/AgentPanel";
 import StemSplitter, { type StemSplitterState } from "@/presentation/components/StemSplitter";
 import MixPanel from "@/presentation/components/MixPanel";
 import MixGateNotice, {
@@ -196,6 +197,27 @@ export default function MasteringCanvas({
       return (
         <div className="w-full">
           <AlbumMastering />
+        </div>
+      );
+
+    case "productor":
+      if (!session) {
+        return (
+          <p className="text-[var(--text-muted)] text-sm">
+            {t("productor.loadAudioPrompt")}
+          </p>
+        );
+      }
+      return (
+        <div className="w-full">
+          {/* `key` por sesión: al cargar otro track el panel se remonta y el
+              cleanup aborta el polling del anterior, en vez de dejar que un
+              resultado viejo caiga sobre la sesión nueva. */}
+          <AgentPanel
+            key={session.session_id}
+            sessionId={session.session_id}
+            disabled={processing}
+          />
         </div>
       );
 
