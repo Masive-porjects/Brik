@@ -18,11 +18,17 @@ from fastapi import (
     HTTPException,
     status,
 )
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from audiomind.api.license import require_license
 from audiomind.config import settings
+from audiomind.processing.agentic_loop import TransportUnavailableError
 from audiomind.services import demo_guard, storage
+from audiomind.services.agent_jobs import (
+    ensure_transport_available,
+    run_agent_job,
+    submit_agent_job,
+)
 from audiomind.services.dsp_worker import (
     MasterJobPayload,
     execute_master_job,
@@ -361,4 +367,160 @@ def _fresh_stem_urls(record: Any) -> dict[str, Any]:
             logger.warning("Could not re-sign stem url for %s", key, exc_info=True)
             signed.append(stem)
     return {"result": {**result, "stems": signed}}
+
+
+# ── Agent jobs (Productor IA) ─────────────────────────────────────────────
+# Same /jobs/<kind>/{job_id} shape as mastering, mix and stem separation so the
+# frontend keeps one polling client and one state machine for every job kind.
+
+#: Reported when an agent job outlived its lease. Same reason as the mix job: a
+#: worker killed mid-run cannot write the reason itself.
+_STALE_AGENT_ERROR = (
+    "The job was interrupted (the worker stopped before it finished)"
+)
+
+
+class AgentRunRequest(BaseModel):
+    """Optional body of ``POST /jobs/agent/{session_id}``.
+
+    ``prompt`` is the user's own words ("make the vocal sit forward"). It rides
+    on the loop's first turn, so the diagnosis and the mix loop both see it.
+    Omitted keeps the loop's default directive.
+
+    ``extra="forbid"`` on purpose: a typo in a field name must be a 422 now, not
+    a silently ignored instruction later.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str | None = None
+
+
+@router.post(
+    "/agent/{session_id}",
+    summary="Submit an agentic mix+master job and return immediately (202)",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def submit_agent(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    payload: AgentRunRequest | None = None,
+    _: object = Depends(require_license),
+) -> dict[str, Any]:
+    """Queue the Productor IA for a session and return a job id at once.
+
+    Same contract as ``POST /jobs/mix/{id}``: the heavy chain does not hold the
+    HTTP connection, which is what an edge proxy answers with 502/504 once a run
+    outlasts the proxy timeout. A full run is Demucs plus the mix chain plus N
+    LLM turns, so that timeout is not hypothetical.
+
+    The transport is preflighted here: a deployment with no usable LLM
+    credential gets a 503 now instead of a job that dies minutes later.
+    """
+    from audiomind.api.upload import sessions
+
+    session = sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not session.original_path or not Path(session.original_path).exists():
+        raise HTTPException(
+            status_code=400, detail="No audio file found for this session"
+        )
+    if demo_guard.duration_over_limit(
+        session.analysis.duration_seconds if session.analysis else None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=demo_guard.demo_duration_message(
+                settings.demo_max_duration_seconds
+            ),
+        )
+
+    try:
+        ensure_transport_available()
+    except TransportUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+
+    request = payload or AgentRunRequest()
+    record = submit_agent_job(session_id, prompt=request.prompt)
+    background_tasks.add_task(
+        run_agent_job, record.job_id, session_id, request.prompt
+    )
+    return {
+        "job_id": record.job_id,
+        "session_id": session_id,
+        "status": record.status.value,
+        "poll_url": f"/api/jobs/agent/{record.job_id}",
+    }
+
+
+@router.get(
+    "/agent/{job_id}",
+    summary="Query status and result of an agentic mix+master job",
+)
+async def get_agent_job(job_id: str) -> dict[str, Any]:
+    """Report the state of a submitted agent job.
+
+    A job whose worker died mid-run is reported as ``error`` via the lease,
+    exactly like the mix job: otherwise a dead worker leaves a ``processing`` row
+    that the client polls forever.
+
+    On completion the audio URLs are re-minted here, never stored: a presigned
+    URL minted at completion expires, and a stored one would hand the client a
+    403 on a valid job an hour later.
+    """
+    store = get_job_store()
+    record = store.get(job_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent job '{job_id}' not found",
+        )
+    if is_stale(record):
+        return {
+            **public_view(record),
+            "status": "error",
+            "error": _STALE_AGENT_ERROR,
+        }
+    return {**public_view(record), **_fresh_agent_assets(record)}
+
+
+def _fresh_agent_assets(record: Any) -> dict[str, Any]:
+    """Re-sign the agent's audio URLs on every read.
+
+    Same reasoning as ``_fresh_download``: the row keeps the stable ``r2_key``
+    and the URL is minted per request. An asset with no key (R2 was unconfigured
+    when the job ran) passes through untouched, because its ``local_path`` is the
+    honest answer.
+    """
+    if getattr(record, "status", None) != "completed":
+        return {}
+    result = getattr(record, "result", None)
+    if not isinstance(result, dict):
+        return {}
+    audio = result.get("audio")
+    if not isinstance(audio, dict):
+        return {}
+
+    refreshed: dict[str, Any] = {}
+    for kind, asset in audio.items():
+        if not isinstance(asset, dict) or not asset.get("r2_key"):
+            refreshed[kind] = asset
+            continue
+        refreshed[kind] = {**asset, "url": _agent_url(asset["r2_key"])}
+    return {"result": {**result, "audio": refreshed}}
+
+
+def _agent_url(key: str) -> str | None:
+    """Stable public URL when configured, fresh presigned URL otherwise."""
+    if settings.r2_public_url:
+        return f"{settings.r2_public_url.rstrip('/')}/{key}"
+    try:
+        return storage.presigned_url(key)
+    except storage.StorageError:
+        logger.warning("Could not re-sign agent url for %s", key, exc_info=True)
+        return None
+
 

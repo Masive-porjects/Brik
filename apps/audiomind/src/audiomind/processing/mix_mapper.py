@@ -12,8 +12,9 @@ dimension stage. It never reaches into the DSP internals of
 user asked for.
 
 Axes consumed here: ``punch`` → drums fader, ``bass_weight`` → bass
-fader. The remaining axes (warmth, clarity, brightness, width, vintage,
-loudness) are mastering concerns and leave the mix untouched.
+fader, ``vocal_focus`` → vocals fader. The remaining axes (warmth,
+clarity, brightness, width, vintage, loudness) are mastering concerns and
+leave the mix untouched.
 
 Neutrality — scope it precisely. A fully neutral intent emits NO per-stem
 dB offset: every fader is exactly 0 dB, so ``stem_trims`` stays ``None``
@@ -75,9 +76,10 @@ def map_intent_to_mix(intent: IntentProfile) -> MixSettings:
     settings = MixSettings()
 
     trims = {
-        # No vocal fader axis: it was removed together with the Vocal Chain,
-        # so the voice stays pinned at the neutral 0.0 dB.
-        "vocals_db": 0.0,
+        # ``vocal_focus`` drives the vocal fader. It was unreachable while
+        # the Vocal Chain was gone (the axis stayed in the contract but no
+        # mapper read it), which left "voz al frente" moving nothing.
+        "vocals_db": _fader(intent.vocal_focus),
         "drums_db": _fader(intent.punch),
         "bass_db": _fader(intent.bass_weight),
     }

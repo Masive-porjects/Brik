@@ -1,6 +1,6 @@
 # Estado del proyecto WaveAI / BrikMaster2027
 
-> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-10-16 (relevamiento completo sobre `develop` @ `95a90c8`: flujo de proyectos multitenant, landing, frontend y mobile, sesiones durables en Postgres, estabilidad Demucs, RAG local y suites medidas en vivo; ver §3.2.1, §3.4, §4.1.1, §4.2, §6.5 y §6.6).
+> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-10-18 (rama `feat/agentic-mix-loop`: el Productor IA queda disparable por HTTP y montado como módulo del Studio; conteos de ambas suites re-medidos). Antes, 2026-10-16 (relevamiento completo sobre `develop` @ `95a90c8`: flujo de proyectos multitenant, landing, frontend y mobile, sesiones durables en Postgres, estabilidad Demucs, RAG local y suites medidas en vivo; ver §3.2.1, §3.4, §4.1.1, §4.2, §6.5 y §6.6).
 > **Alcance**: repositorio completo — los dos motores vivos (Mastering, Mix), el flujo de proyectos multitenant, landing, Studio, agent de voz/IA, capa de inteligencia, contratos, entorno, ramas y pendientes. El Live Engine se retiró; ver §3.3.
 > **Fuentes**: código (`apps/`, `packages/`, `supabase/`, `e2e/`), documentos ODD (`odd/tasks/`), documentación (`docs/`), estado git real y suites de verificación **ejecutadas el 2026-10-16**.
 
@@ -10,14 +10,15 @@
 
 | Área | Estado |
 |---|---|
-| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional completa · **975 passed, 0 failed** (medido 16-Oct: 206.6 s, 3 warnings) |
+| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional completa · **1,141 passed, 0 failed** (medido 18-Oct: 131.9 s, 1 warning) |
 | **Motor de Mezcla (Mix Engine)** | ✅ Pasos 01–08 (TDD estricto) + Stem Balance T1–T7 · el defecto del camino async está **corregido y commiteado** (`a3fd00c`) · UI "Mezcla de Audio" cerrada · falta prueba manual en la UI |
 | **Flujo de proyectos multitenant ("Moises")** | 🟡 **Backend completo** (WU1–WU5, cerrado 09-Oct) + subida directa a R2 verificada · **UI dormida**: `ProjectContext`/`useProject` y los stores no tienen consumidores · falta cargar tablas y env en producción |
 | **Motor en vivo (Live Engine)** | ❌ **Removido del producto** (`ba3b4a6`, 27-Sep). Queda el schema como contrato dormido |
 | **Landing page** | ✅ Nueva, en producción (Vercel) — GSAP, i18n completo, A/B demo local, SEO/JSON-LD · 3 decisiones de producto abiertas (§7 #37) · ver §4.2 |
 | **Frontend y Mobile (web)** | ✅ Studio + landing con variantes mobile propias (`MobileMasteringView`, `MobileDrawer`, strip de presets, menú mobile de la landing) · **sin app nativa, sin PWA** (0 manifest / 0 service worker) · estado por React Context + `useState` (sin zustand/redux) · ver §4.1 y §4.1.1 |
 | **Agent de interpretación (IA)** | 🟡 Compila · `vocal_focus` añadido al contrato (13-Oct) · **llamada real sin probar** (faltan credenciales) |
-| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · **no expuesta por API ni consumida por el agent** |
+| **Productor IA (bucle agéntico, Python)** | 🟡 Bucle de 4 fases + tool calling + transporte model-agnostic · disparable por HTTP en `POST /api/jobs/agent/{session_id}` (polling `GET /api/jobs/agent/{id}`) · **corrida real sin probar** (falta credencial LLM válida) |
+| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · expuesta por `POST /api/agent/rag/search` (rama `feat/agentic-mix-loop`) · el bucle agéntico todavía **no la consume** |
 | **Voz (chat/TTS)** | 🟡 Rutas implementadas · TTS pagado off por defecto (fallback navegador) |
 | **Convex** | ❌ **Eliminado** — el scaffold `convex/` ya no existe (0 archivos trackeados, 0 deps, 0 referencias). El job `deploy-convex` de la CI también fue removido (`3d9f8ae`) |
 | **Bridge MIDI / Simulator Python** | ❌ **Removidos** del repositorio |
@@ -116,7 +117,7 @@ ae4a202 2026-10-13 docs: sync documentation with verified project state
 
 > ⚠️ **Correcciones respecto de la versión anterior de este documento**: (a) ya **no existe `api/vocal.py`** — la "Vocal chain" se removió (`remove-educational-panels-and-vocal-chain.md`, 28-Sep), así que el conteo de 38 endpoints y las entradas "vocal (2)" estaban stale; (b) existían **rutas duplicadas**: `POST /api/session/new` estaba registrada en `upload.py` **y** en `mastering.py`, igual que `GET /api/session/{id}` — FastAPI emitía `Duplicate Operation ID` al construir el OpenAPI · **corregido el 16-Oct** (`3f5c758`), ver §7 #36.
 
-**Tests**: `apps/audiomind/tests/` — **58 archivos `test_*.py`** (61 `.py` contando `conftest.py`, `__init__.py`, `create_test_wav.py`) · suite **975 passed, 0 failed** (medida 16-Oct).
+**Tests**: `apps/audiomind/tests/` — **68 archivos `test_*.py`** (71 `.py` contando `conftest.py`, `__init__.py`, `create_test_wav.py`) · suite **1,141 passed, 0 failed** (medida 18-Oct: 131.9 s, 1 warning preexistente `StarletteDeprecationWarning`).
 
 #### 3.1.1 Estado de jobs: `JobStore` compartido (30-Sep)
 
@@ -247,7 +248,7 @@ Migración desde sesiones anónimas en memoria a un modelo **por usuario** con "
 - Ingesta con **OCR** para los PDF de `docs/proposals/` (local-only), chunking por capítulo y limpieza.
 - Recuperación **híbrida BM25 + vectores fusionados por RRF** (`SearchMode = bm25 | vector | hybrid`).
 - Embeddings vía **Ollama** local (`http://localhost:11434` por defecto); dependencias pesadas en un extra opcional (`rag`).
-- **Sólo CLI**: `python -m audiomind.intelligence.rag <comando>`. No hay endpoint HTTP ni consumo desde el agent — `intelligence/__init__.py` lo declara explícitamente. Tests: `tests/test_rag_pipeline.py`.
+- **CLI + endpoint de lectura**: `python -m audiomind.intelligence.rag <comando>` y `POST /api/agent/rag/search` (sólo consulta: degrada a BM25 y lo declara en `mode_used`). El bucle agéntico **no** lo consume todavía — `run()` no recibe un `RAGQuery` desde la API, así que la herramienta `search_knowledge` no se le ofrece al modelo. Tests: `tests/test_rag_pipeline.py`.
 - Además, `intelligence/` contiene los **schemas de conocimiento** (genre/preset/experiment/plugin/idea) y plantillas Markdown, que hoy son scaffolding sin consumidores.
 
 ---
@@ -258,16 +259,17 @@ Migración desde sesiones anónimas en memoria a un modelo **por usuario** con "
 
 **Rutas reales** (manifest del build, 16-Oct): `/` (landing), `/mezclas` (estudio), `/upload`, `/lab`, `/login`, `/register`, `/admin`, `/voz`, `/voz/chat`, `/voz/speak`, `/voz/escuchar`, `/auth/callback`, `robots.txt`, `sitemap.xml`.
 
-**Tabs de `/mezclas` — inventario corregido (7, no 10)**: `Mezcla de Audio` · `Masterizar Audio` · `Splitter` · `Beats` · `Análisis` · `Estéreo` · `Álbum`.
+**Tabs de `/mezclas` — inventario corregido (8, no 10)**: `Mezcla de Audio` · `Masterizar Audio` · `Splitter` · `Beats` · `Análisis` · `Estéreo` · `Álbum` · `Productor IA`.
 
 > **Corrección**: "Vocal", "Guía de Géneros" y "Cadena de Master" **ya no son tabs** (remoción de paneles educativos + vocal chain, 28-Sep). La versión anterior de este documento los listaba.
 
 - **Mix UI**: `MixPanel` + `MixWaveformAB` + `MixStatusStream`, con acción "masterize" post-mezcla.
+- **Productor IA UI**: `AgentPanel` (`features/mastering/components/AgentPanel.tsx`) — prompt libre → `submitAgentJob` (`POST /api/jobs/agent/{session_id}`) y polling de `getAgentJobStatus`, ambos en `adapters/api/client.ts`. Renderiza el diagnóstico del modelo, `tools_executed` en el orden real del run, las métricas del bus y del master (sólo los campos que el backend midió) y el reproductor del asset. Montado como tab `productor`; va al final de `DOCK_MODULES` para no correr los dos grupos que separan las tiles de telemetría. **Progreso indeterminado a propósito**: el job reporta `progress: 0` hasta `completed` porque el loop no expone fase.
 - **Polling con backoff exponencial (14-Oct)**: `useProcessingProgress` (base 500 ms) y `useMasteringJob` (base 2500 ms), con reset al progresar y backoff ante error.
 - **Chat/agente**: `ChatPanel` → `/voz/chat` → `interpretIntent` → perfil → preset cards.
 - **Voz**: `/voz/speak` (TTS ElevenLabs opcional, cache `.tts-cache`, tope 400 chars, `204` = fallback a `speechSynthesis`) · `/voz/escuchar` + `useVoiceInput` · `lib/voice/decodeAgentText`.
 - **i18n**: hook `useTranslation()` con `apps/studio/src/i18n/locales/es.json` + `en.json` — **765 claves hoja cada uno, paridad exacta** (recuento recursivo verificado el 16-Oct). Sin microcopy hardcodeado en la UI nueva.
-- **Tests**: vitest **11 archivos / 126 tests passed** · eslint **0 errores / 37 warnings** · build de producción **✓ Compiled successfully, exit 0**.
+- **Tests**: vitest **11 archivos / 134 tests passed** (medido 18-Oct) · eslint **0 errores / 37 warnings** · build de producción **✓ Compiled successfully, exit 0**.
 - **Tabs/file de estado de mezcla**: `MixStatusStream` todavía tiene un `doneLabel` por defecto en español hardcodeado (deuda #24).
 
 **Arquitectura del frontend** (capas y responsabilidades):

@@ -19,6 +19,11 @@ dependencies = [
     "demucs-onnx>=0.3.0",
     "supabase>=2.31.0",
     "boto3>=1.34.0",
+    "google-genai>=2.19.0",
+    # Imported directly by the non-Gemini LLM transports (the OpenAI-compatible
+    # and Anthropic adapters). It already arrived transitively through
+    # google-genai, so this documents a real import instead of adding a wheel.
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]

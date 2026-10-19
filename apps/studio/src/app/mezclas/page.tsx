@@ -41,6 +41,7 @@ const TABS: { key: MasteringTab; label: string }[] = [
   { key: "analysis", label: "Análisis" },
   { key: "stereo", label: "Estéreo" },
   { key: "album", label: "Álbum" },
+  { key: "productor", label: "Productor IA" },
 ];
 
 type MasteringMode = "manual" | "ai";

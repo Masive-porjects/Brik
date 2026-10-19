@@ -109,6 +109,25 @@ class TestCombinationRules:
         assert clarity.dyn_eq_band2_ratio > 1.0
         assert clarity.dyn_eq_band2_freq_hz == 2500.0
 
+    def test_vocal_focus_engages_its_own_dyn_eq_band(self):
+        """``vocal_focus`` owns band 1 (400 Hz); ``clarity`` keeps band 2."""
+        neutral = map_intent_to_mastering(IntentProfile(vocal_focus=0.5))
+        focused = map_intent_to_mastering(IntentProfile(vocal_focus=0.8))
+        assert neutral.dyn_eq_enabled is False
+        assert focused.dyn_eq_enabled is True
+        assert focused.dyn_eq_band1_freq_hz == 400.0
+        assert focused.dyn_eq_band1_ratio > 1.0
+        # Band 2 belongs to clarity: a vocal request never touches it.
+        assert focused.dyn_eq_band2_ratio == 1.0
+        assert focused.dyn_eq_band2_freq_hz == neutral.dyn_eq_band2_freq_hz
+
+    def test_vocal_focus_and_clarity_share_the_stage(self):
+        """Both axes configure their own band without overwriting each other."""
+        both = map_intent_to_mastering(IntentProfile(vocal_focus=0.9, clarity=0.9))
+        assert both.dyn_eq_enabled is True
+        assert both.dyn_eq_band1_ratio > 1.0
+        assert both.dyn_eq_band2_ratio > 1.0
+
 
 class TestValidation:
     def test_out_of_range_axis_rejected_above(self):
