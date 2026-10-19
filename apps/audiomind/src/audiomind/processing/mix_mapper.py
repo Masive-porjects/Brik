@@ -57,6 +57,14 @@ class MixSettings(BaseModel):
     vocal_treatment: bool = False
     auto_balance: bool = False
     stem_trims: dict[str, float] | None = None
+    # The character stage (P3) is not an intent axis: an intent expresses how
+    # MUCH of the material the producer wants, while the character is a
+    # deliberate atmosphere decision ("commercial alt-pop texture") that no
+    # slider maps onto. Mirrored for the same reason as ``vocal_treatment`` —
+    # so an empty intent still produces a valid request body — and deliberately
+    # never set here.
+    character: str | None = None
+    character_seed: int | None = None
 
 
 def _fader(axis: float) -> float:

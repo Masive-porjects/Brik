@@ -324,6 +324,30 @@ class TestMixWorker:
         assert kwargs["auto_balance"] is True
         assert kwargs["stem_trims"] == {"drums_db": -1.0}
 
+    def test_mix_forwards_character_to_build_mix(
+        self, store: InMemoryJobStore, fake_db: _FakeClient, dsp_mix: dict[str, Any]
+    ) -> None:
+        pid, aid = _seed(fake_db)
+        plan = MixPlan(character="commercial_alt_pop")
+        record = jobs_mod.submit_project_mix_job(pid, "user-a", aid, fake_db, plan)
+        jobs_mod.run_project_mix_job(record.job_id)
+
+        assert store.get(record.job_id).status == JobStatus.COMPLETED
+        kwargs = dsp_mix["mix_kwargs"][0]
+        assert kwargs.get("character") == "commercial_alt_pop"
+
+    def test_mix_forwards_no_character_by_default(
+        self, store: InMemoryJobStore, fake_db: _FakeClient, dsp_mix: dict[str, Any]
+    ) -> None:
+        pid, aid = _seed(fake_db)
+        plan = compile(None, StateProjection())
+        record = jobs_mod.submit_project_mix_job(pid, "user-a", aid, fake_db, plan)
+        jobs_mod.run_project_mix_job(record.job_id)
+
+        assert store.get(record.job_id).status == JobStatus.COMPLETED
+        kwargs = dsp_mix["mix_kwargs"][0]
+        assert kwargs.get("character") is None
+
     def test_mix_failure_marks_the_job_error(
         self,
         store: InMemoryJobStore,

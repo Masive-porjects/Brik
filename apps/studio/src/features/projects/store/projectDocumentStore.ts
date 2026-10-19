@@ -172,6 +172,24 @@ export async function rejectProposal(
   });
 }
 
+/** Updates the mix character profile (P5). `null` disables the textured render. */
+export async function updateMixCharacter(
+  projectId: string,
+  character: string | null,
+  currentDoc: ProjectDocumentV1,
+  currentVersion: number
+): Promise<ProjectDocumentResponse> {
+  const updatedDoc: ProjectDocumentV1 = {
+    ...currentDoc,
+    mix_intent: { ...currentDoc.mix_intent, character },
+    updated_by: "user",
+  };
+
+  return putProjectDocument(projectId, {
+    document: updatedDoc,
+    expected_version: currentVersion,
+  });
+}
 /** Updates master intent (preset, platform, format, etc.). */
 export async function updateMasterIntent(
   projectId: string,

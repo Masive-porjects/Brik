@@ -443,7 +443,10 @@
     "gateFailedCta": "Retry mix",
     "jobInterrupted": "Processing was interrupted. Try again.",
     "jobTimeout": "The mix took too long and stopped. Try again.",
-    "jobDone": "Final mix generated successfully"
+    "jobDone": "Final mix generated successfully",
+    "characterLabel": "Analog character",
+    "characterHint": "Commercial alt-pop texture (slapback, wow/flutter, hiss). Principal render only.",
+    "characterReport": "Character applied"
   },
   "mezclas": {
     "trackLoading": "Loading your audio project…",

@@ -443,7 +443,10 @@
     "gateFailedCta": "Reintentar la mezcla",
     "jobInterrupted": "El procesamiento se interrumpió. Vuelve a intentarlo.",
     "jobTimeout": "La mezcla tardó demasiado y se detuvo. Vuelve a intentarlo.",
-    "jobDone": "Mezcla final generada exitosamente"
+    "jobDone": "Mezcla final generada exitosamente",
+    "characterLabel": "Carácter analógico",
+    "characterHint": "Textura comercial alt-pop (slapback, wow/flutter, hiss). Solo el render principal.",
+    "characterReport": "Carácter aplicado"
   },
   "mezclas": {
     "trackLoading": "Cargando tu proyecto de audio…",

@@ -239,6 +239,7 @@ def _execute_mix(job_id: str) -> dict[str, Any]:
                 dimension_profiles=dimension_profiles,
                 auto_balance=bool(plan.get("auto_balance", False)),
                 stem_trims=plan.get("stem_trims"),
+                character=plan.get("character"),
             )
         if not result or not isinstance(result, dict):
             raise RuntimeError("Mix engine produced no result")

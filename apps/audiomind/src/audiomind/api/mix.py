@@ -25,6 +25,7 @@ from pydantic import BaseModel, field_validator
 from audiomind.api.license import require_license
 from audiomind.api.upload import sessions
 from audiomind.config import settings
+from audiomind.processing.character import CHARACTER_PROFILE, is_known_profile
 from audiomind.processing.mix_engine import build_mix
 from audiomind.processing.splitter import STEM_NAMES
 from audiomind.processing.stem_balance import TRIM_STEM_RANGE
@@ -67,12 +68,36 @@ class MixRequest(BaseModel):
     zeros keep the exact previous payload (no ``trim_report`` key,
     bit-identical neutral). Keys outside ``drums_db | bass_db |
     other_db | vocals_db`` or values outside [-6.0, 6.0] → 422.
+
+    ``character`` opts into the CHARACTER stage (P3, feature
+    ``odd/tasks/character-integration.md``): ``None`` (default) keeps the
+    exact previous render (no ``character_report`` key, bit-identical
+    neutral). A known profile name applies that profile's texture to the
+    PRINCIPAL render only — the alternative versions and the creative
+    variants stay clean by construction. An unknown name is a configuration
+    bug, not a silent no-op, so it answers 422.
+    ``character_seed`` seeds the stochastic part (the bed); ``None`` uses
+    the profile's default seed.
     """
 
     dimension_enabled: bool = True
     vocal_treatment: bool = False  # deprecated: accepted and ignored
     auto_balance: bool = False
     stem_trims: dict[str, float] | None = None
+    character: str | None = None
+    character_seed: int | None = None
+
+    @field_validator("character")
+    @classmethod
+    def _validate_character(cls, value: str | None) -> str | None:
+        """Perfil de carácter estricto: solo los perfiles conocidos. Un nombre
+        mal escrito es un bug de configuración, no un no-op silencioso, así que
+        responde 422 en lugar de renderizar un mix sin el carácter pedido."""
+        if value is None or is_known_profile(value):
+            return value
+        raise ValueError(
+            f"character {value!r} not allowed; expected {CHARACTER_PROFILE!r}"
+        )
 
     @field_validator("stem_trims")
     @classmethod
@@ -176,6 +201,8 @@ async def mix_session(
                     request is not None and request.auto_balance
                 ),
                 stem_trims=request.stem_trims if request else None,
+                character=request.character if request else None,
+                character_seed=request.character_seed if request else None,
             )
 
     # The pipeline is about to run: publish the state BEFORE the heavy work

@@ -577,6 +577,23 @@ def variant_is_valid(
     return positional_ok and qc_ok
 
 
+def _rejected_reason(positional_ok: bool, qc_ok: bool) -> str:
+    """Which gate(s) rejected a candidate.
+
+    Recorded because "rejected" on its own is not actionable: a positional
+    rejection is a routing problem (a mono-incompatible or anti-phase sum) and a
+    QC rejection is a deviation, and the operator needs to know which one they
+    are looking at before they can decide anything. When both fired, both are
+    named — a candidate that failed everything must not read like one that
+    failed one thing.
+    """
+    if not positional_ok and not qc_ok:
+        return "positional+qc"
+    if not positional_ok:
+        return "positional"
+    return "qc"
+
+
 def run_creative_mode(
     seed: int,
     creativity: float,
@@ -617,9 +634,19 @@ def run_creative_mode(
           "status": "active",
           "variants": [{"index", "seed", "status": "ok"|"rejected",
                         "params", "qc_ok", "positional_ok",
-                        "non_standard", "path"}],
-          "rejected_count": int, "note": str
+                        "non_standard", "path"}
+                       + {"rejected_reason": "positional"|"qc"|
+                          "positional+qc"} on a rejected entry],
+          "rejected_count": int,
+          "all_rejected": bool,
+          "rejected_reasons": {"positional"|"qc"|"positional+qc": int},
+          "note": str
         }`` — reproducible: same seed → the identical report.
+
+        ``all_rejected`` and ``rejected_reasons`` are the honest half of the
+        contract: the mode never blocks, so the number of rejections and the
+        reason for each one is the only thing that tells the operator the batch
+        produced nothing. Silence here would look exactly like success.
     """
     max_attempts = max(1, int(max_attempts))
     variants: list[dict[str, Any]] = []
@@ -656,10 +683,16 @@ def run_creative_mode(
                 "qc_ok": qc_ok,
                 "positional_ok": positional_ok,
                 "non_standard": manual,
+                "rejected_reason": _rejected_reason(positional_ok, qc_ok),
                 "path": None,
             }
         if rejected is not None and len(variants) <= index:
             variants.append(rejected)
+    rejected_reasons: dict[str, int] = {}
+    for entry in variants:
+        if entry["status"] == "rejected":
+            reason = str(entry["rejected_reason"])
+            rejected_reasons[reason] = rejected_reasons.get(reason, 0) + 1
     return {
         "seed": int(seed),
         "creativity": float(creativity),
@@ -669,5 +702,8 @@ def run_creative_mode(
         "rejected_count": sum(
             1 for entry in variants if entry["status"] == "rejected"
         ),
+        "all_rejected": bool(variants)
+        and all(entry["status"] == "rejected" for entry in variants),
+        "rejected_reasons": rejected_reasons,
         "note": _CREATIVE_NOTE,
     }

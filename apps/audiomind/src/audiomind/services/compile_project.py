@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from audiomind.models.audio import MasteringParameters
 from audiomind.models.project_document import ProjectDocument
+from audiomind.processing.character import is_known_profile
 
 
 class StateProjection(BaseModel):
@@ -36,6 +37,7 @@ class MixPlan(BaseModel):
     stem_trims: dict[str, float] | None = None  # None si todo es 0.0 (neutral)
     dimension_enabled: bool = True  # -> dimension_profiles: None | {}
     auto_balance: bool = False
+    character: str | None = None  # P5: known profile name, or None (neutral)
 
     # ── para MasterJobPayload (services/dsp_worker.py:68) ──
     preset_id: str | None = None  # Literal[8 presets]
@@ -158,6 +160,22 @@ def compile(document: ProjectDocument | None, state: StateProjection) -> MixPlan
     dimension_enabled: bool = state.toggles.get("dimension_enabled", True)
     auto_balance: bool = state.toggles.get("auto_balance", False)
 
+    # 2b. character (P5): publish the document's declared profile, but only if
+    #     it actually names a profile this engine implements. The document field
+    #     is a free-text descriptor (max 256 chars, sibling of genre), so an
+    #     unknown value is a description, not an interrupted instruction, and
+    #     leaves character=None (the neutral render).
+    character: str | None = None
+    if document is not None:
+        mix_intent = getattr(document, "mix_intent", None)
+        declared = (
+            getattr(mix_intent, "character", None)
+            if mix_intent is not None
+            else None
+        )
+        if isinstance(declared, str) and is_known_profile(declared):
+            character = declared
+
     # 3. preset_id, platform_target, format, output_bit_depth, master_name
     #    del master_intent del documento (si existe)
     preset_id: str | None = None
@@ -190,6 +208,7 @@ def compile(document: ProjectDocument | None, state: StateProjection) -> MixPlan
         stem_trims=stem_trims,
         dimension_enabled=dimension_enabled,
         auto_balance=auto_balance,
+        character=character,
         preset_id=preset_id,
         platform_target=platform_target,
         format=fmt,

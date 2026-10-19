@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from audiomind.api.license import require_license
 from audiomind.config import settings
 from audiomind.processing.agentic_loop import TransportUnavailableError
+from audiomind.processing.character import CHARACTER_PROFILE, is_known_profile
 from audiomind.services import demo_guard, storage
 from audiomind.services.agent_jobs import (
     ensure_transport_available,
@@ -136,6 +137,19 @@ class MixJobRequest(BaseModel):
     dimension_enabled: bool = True
     auto_balance: bool = False
     stem_trims: dict[str, float] | None = None
+    character: str | None = None
+    character_seed: int | None = None
+
+    @field_validator("character")
+    @classmethod
+    def _validate_character(cls, value: str | None) -> str | None:
+        """Strict contract, same as ``api.mix.MixRequest``: an unknown profile is
+        a configuration bug, not a silent no-op, so it answers 422."""
+        if value is None or is_known_profile(value):
+            return value
+        raise ValueError(
+            f"character {value!r} not allowed; expected {CHARACTER_PROFILE!r}"
+        )
 
     @field_validator("stem_trims")
     @classmethod
@@ -209,6 +223,8 @@ async def submit_mix(
         dimension_enabled=request.dimension_enabled,
         auto_balance=request.auto_balance,
         stem_trims=request.stem_trims,
+        character=request.character if request else None,
+        character_seed=request.character_seed if request else None,
     )
     record = submit_mix_job(
         session_id, options, original_path=str(session.original_path)

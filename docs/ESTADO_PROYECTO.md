@@ -1,8 +1,8 @@
 # Estado del proyecto WaveAI / BrikMaster2027
 
-> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-10-18 (rama `feat/agentic-mix-loop`: el Productor IA queda disparable por HTTP y montado como módulo del Studio; conteos de ambas suites re-medidos). Antes, 2026-10-16 (relevamiento completo sobre `develop` @ `95a90c8`: flujo de proyectos multitenant, landing, frontend y mobile, sesiones durables en Postgres, estabilidad Demucs, RAG local y suites medidas en vivo; ver §3.2.1, §3.4, §4.1.1, §4.2, §6.5 y §6.6).
+> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-10-19 (reconciliación `develop` → `main`: el Character Stage y el Productor IA conviven en una sola entrega; el boot del API deja de depender de la resolución de rutas del RAG; ambas suites re-medidas sobre la unión). Antes, 2026-10-18 (rama `feat/agentic-mix-loop`: el Productor IA queda disparable por HTTP y montado como módulo del Studio). Antes, 2026-10-17 (P5 integración carácter: backend + frontend; PR #33; ver §3.1.5, §3.2.2, §4.1, §7 #34). Antes, 2026-10-16 (relevamiento completo sobre `develop` @ `95a90c8`; ver §3.2.1, §3.4, §4.1.1, §4.2, §6.5 y §6.6).
 > **Alcance**: repositorio completo — los dos motores vivos (Mastering, Mix), el flujo de proyectos multitenant, landing, Studio, agent de voz/IA, capa de inteligencia, contratos, entorno, ramas y pendientes. El Live Engine se retiró; ver §3.3.
-> **Fuentes**: código (`apps/`, `packages/`, `supabase/`, `e2e/`), documentos ODD (`odd/tasks/`), documentación (`docs/`), estado git real y suites de verificación **ejecutadas el 2026-10-16**.
+> **Fuentes**: código (`apps/`, `packages/`, `supabase/`, `e2e/`), documentos ODD (`odd/tasks/`), documentación (`docs/`), estado git real y suites de verificación **ejecutadas el 2026-10-19**.
 
 ---
 
@@ -10,21 +10,21 @@
 
 | Área | Estado |
 |---|---|
-| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional completa · **1,141 passed, 0 failed** (medido 18-Oct: 131.9 s, 1 warning) |
-| **Motor de Mezcla (Mix Engine)** | ✅ Pasos 01–08 (TDD estricto) + Stem Balance T1–T7 · el defecto del camino async está **corregido y commiteado** (`a3fd00c`) · UI "Mezcla de Audio" cerrada · falta prueba manual en la UI |
+| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional + cohesión textura (P4) + guardia NaN/Inf y fingerprint portable (P5) · **1,410 passed, 0 failed** (medido 19-Oct sobre la unión con `main`: 152.6 s, 1 warning) |
+| **Motor de Mezcla (Mix Engine)** | ✅ Pasos 01–08 (TDD estricto) + Stem Balance T1–T7 + **Character Stage P3** (slapback, wow/flutter, hiss/crackle, sample-level delay comp, HF-droop) + **recipe handshake P4** (texture_recipe v2, measured deltas) + **P5 wiring** (async `/jobs/mix`, proyecto `/projects/{id}/jobs/mix`) · el defecto del camino async está **corregido y commiteado** (`a3fd00c`) · UI "Mezcla de Audio" cerrada, con toggle de carácter · falta prueba manual E2E |
 | **Flujo de proyectos multitenant ("Moises")** | 🟡 **Backend completo** (WU1–WU5, cerrado 09-Oct) + subida directa a R2 verificada · **UI dormida**: `ProjectContext`/`useProject` y los stores no tienen consumidores · falta cargar tablas y env en producción |
 | **Motor en vivo (Live Engine)** | ❌ **Removido del producto** (`ba3b4a6`, 27-Sep). Queda el schema como contrato dormido |
 | **Landing page** | ✅ Nueva, en producción (Vercel) — GSAP, i18n completo, A/B demo local, SEO/JSON-LD · 3 decisiones de producto abiertas (§7 #37) · ver §4.2 |
-| **Frontend y Mobile (web)** | ✅ Studio + landing con variantes mobile propias (`MobileMasteringView`, `MobileDrawer`, strip de presets, menú mobile de la landing) · **sin app nativa, sin PWA** (0 manifest / 0 service worker) · estado por React Context + `useState` (sin zustand/redux) · ver §4.1 y §4.1.1 |
+| **Frontend y Mobile (web)** | ✅ Studio + landing con variantes mobile propias (`MobileMasteringView`, `MobileDrawer`, strip de presets, menú mobile de la landing) · **P5: toggle "Carácter analógico" en MixPanel + badge en MixAnalysisGrid + persistencia proyecto (`updateMixCharacter`)** · sin app nativa, sin PWA (0 manifest / 0 service worker) · estado por React Context + `useState` (sin zustand/redux) · ver §4.1 y §4.1.1 |
 | **Agent de interpretación (IA)** | 🟡 Compila · `vocal_focus` añadido al contrato (13-Oct) · **llamada real sin probar** (faltan credenciales) |
 | **Productor IA (bucle agéntico, Python)** | 🟡 Bucle de 4 fases + tool calling + transporte model-agnostic · disparable por HTTP en `POST /api/jobs/agent/{session_id}` (polling `GET /api/jobs/agent/{id}`) · **corrida real sin probar** (falta credencial LLM válida) |
-| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · expuesta por `POST /api/agent/rag/search` (rama `feat/agentic-mix-loop`) · el bucle agéntico todavía **no la consume** |
+| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · expuesta por `POST /api/agent/rag/search` (ya en `develop`; en el contenedor responde **503** si el índice no está construido) · el bucle agéntico todavía **no la consume** |
 | **Voz (chat/TTS)** | 🟡 Rutas implementadas · TTS pagado off por defecto (fallback navegador) |
 | **Convex** | ❌ **Eliminado** — el scaffold `convex/` ya no existe (0 archivos trackeados, 0 deps, 0 referencias). El job `deploy-convex` de la CI también fue removido (`3d9f8ae`) |
 | **Bridge MIDI / Simulator Python** | ❌ **Removidos** del repositorio |
 | **Deploy (Vercel + Railway + R2 + Supabase)** | 🚀 **Ejecutado y verificado** (02-Oct), con trabajo posterior: originales subidos a R2 por presigned URL (14-Oct). Ver §6.6 |
 | **Sesiones del backend** | ✅ **Durables en Postgres** (`sessions`, backend `auto`) con fallback a archivo — reemplaza el "dict en memoria + espejo best-effort" de la versión anterior de este documento |
-| **Suites de verificación (16-Oct)** | Backend **975 passed / 0 failed** (206 s) → **977 passed / 0 failed** tras el saneamiento · Studio vitest **11 archivos / 126 tests** · eslint **0 errores / 37 warnings** · build Next **✓ Compiled successfully (exit 0)** · ruff backend **524 → 483** (clases `F401`/`F811`/`F821` en 0, **sin gate en CI**: §7 #34) · e2e no ejecutado |
+| **Suites de verificación (19-Oct)** | Backend **1,410 passed / 0 failed** (152.6 s, 1 warning) · Studio vitest **11 archivos / 134 tests** · eslint **0 errores / 37 warnings** · `tsc --noEmit` limpio · build Next **✓ Compiled successfully (exit 0)** · ruff backend **482** (`ruff check .`; clases `F401`/`F811`/`F821` en 0, **sin gate en CI**: §7 #34) · e2e no ejecutado |
 
 ---
 
@@ -113,11 +113,11 @@ ae4a202 2026-10-13 docs: sync documentation with verified project state
 
 **Features adicionales**: demo mode (pool gated + TTL + janitor + `/api/demo/stats`), prerender por preset, referencia externa (upload + `compare-reference`), álbum (`negotiate` + `process`), splitter Demucs, SongStarter/Beats, `LicenseGuard`.
 
-**Endpoints — inventario corregido (18-Oct)**: **60 operaciones HTTP** sobre **55 paths únicos**, contadas desde el schema OpenAPI que arma el app (no a mano) = **58 decoradores en 10 routers** (`api/`: `agent`, `batch`, `jobs`, `license`, `mastering`, `mix`, `projects`, `songstarter`, `splitter`, `upload`; montados en `main.py:73-86`) + **2 rutas de nivel app** (`/health`, `/api/demo/stats`). Reparto por router: mastering 15, **projects 15**, jobs 8, songstarter 7, splitter 3, upload 3, batch 2, license 2, mix 2, agent 1. Reparto por prefijo de URL — **no es el mismo corte**, `batch` y `upload` publican bajo `/api/session`: `session` 23, `projects` 15, `jobs` 8, `beat` 4, `album` 2, `license` 2, `agent` 1, `beats` 1, `master` 1, `upload` 1, `demo` 1, `health` 1.
+**Endpoints — inventario corregido (19-Oct, re-medido sobre la unión `develop` + `main`)**: **60 operaciones HTTP** sobre **55 paths únicos** (el merge **no agregó rutas**: el P5 de carácter reusa las existentes), contadas desde el schema OpenAPI que arma el app (no a mano) = **58 decoradores en 10 routers** (`api/`: `agent`, `batch`, `jobs`, `license`, `mastering`, `mix`, `projects`, `songstarter`, `splitter`, `upload`; montados en `main.py:73-86`) + **2 rutas de nivel app** (`/health`, `/api/demo/stats`). Reparto por router: mastering 15, **projects 15**, jobs 8, songstarter 7, splitter 3, upload 3, batch 2, license 2, mix 2, agent 1. Reparto por prefijo de URL — **no es el mismo corte**, `batch` y `upload` publican bajo `/api/session`: `session` 23, `projects` 15, `jobs` 8, `beat` 4, `album` 2, `license` 2, `agent` 1, `beats` 1, `master` 1, `upload` 1, `demo` 1, `health` 1.
 
 > ⚠️ **Correcciones respecto de la versión anterior de este documento**: (a) ya **no existe `api/vocal.py`** — la "Vocal chain" se removió (`remove-educational-panels-and-vocal-chain.md`, 28-Sep), así que el conteo de 38 endpoints y las entradas "vocal (2)" estaban stale; (b) existían **rutas duplicadas**: `POST /api/session/new` estaba registrada en `upload.py` **y** en `mastering.py`, igual que `GET /api/session/{id}` — FastAPI emitía `Duplicate Operation ID` al construir el OpenAPI · **corregido el 16-Oct** (`3f5c758`), ver §7 #36; (c) `api/auth.py` **nunca fue un router**: expone dependencias (`UserContext`, `get_user_context`, `require_user`, que `projects.py` consume vía `Depends`) y no declara un solo endpoint — el router que faltaba en esa lista era **`agent`** (`POST /api/agent/rag/search`); (d) el "Reparto" anterior mezclaba dos cortes distintos (router vs. prefijo de URL) y por eso no cerraba: `mastering`, `mix`, `splitter` y `songstarter` publican casi todo bajo `/api/session`, `/api/beat` y `/api/album`, no bajo su propio nombre.
 
-**Tests**: `apps/audiomind/tests/` — **68 archivos `test_*.py`** (71 `.py` contando `conftest.py`, `__init__.py`, `create_test_wav.py`) · suite **1,141 passed, 0 failed** (medida 18-Oct: 131.9 s, 1 warning preexistente `StarletteDeprecationWarning`).
+**Tests**: `apps/audiomind/tests/` — **77 archivos `test_*.py`** (80 `.py` contando `conftest.py`, `__init__.py`, `create_test_wav.py`) · suite **1,410 passed, 0 failed** (medida 19-Oct sobre la unión `develop` + `main`: 152.6 s, 1 warning preexistente `StarletteDeprecationWarning`) = **975** del punto de divergencia `5c1bafa` + **166** del bucle agéntico (`develop` medía 1,141) + **269** del Character Stage (`main` medía 1,244). La feature de textura aporta `test_character.py`, `test_character_integration.py`, `test_texture.py`, `test_texture_adaptation.py`, `test_texture_recipe.py`, `test_modulation.py` e `test_inspector.py`.
 
 #### 3.1.1 Estado de jobs: `JobStore` compartido (30-Sep)
 
@@ -190,7 +190,13 @@ El caso material era `processing/engine.py`:
 - **EOL churn resuelto (14-Oct)**: `2776bd1` + `2aa40b6` normalizan `mix_engine.py` a LF/UTF-8 y restauran la versión correcta (era el pendiente #3 de la versión anterior).
 - **Dependencia abierta**: `build_mix()` **re-separa desde el original** en cada corrida; el reuso de stems ya separados quedó como follow-up (§7 #43).
 
-**API**: `POST /api/session/{id}/mix` (WAV + `X-Mix-Result`) · `GET /api/session/{id}/audio/mix` (WAV persistido).
+**P3 Character Stage (commercial_alt_pop)**: slapback vocal, wow/flutter + chorus en `other`, saturación paralela en bass, bed hiss/crackle con compensación sample-level `base_delay_ms` y droop HF. **Solo render principal**; versiones alternativas y variantes creativas quedan limpias. `tests/test_character.py` + `test_character_integration.py` → **150 passed** (con `test_texture_adaptation.py`).
+
+**P4 Recipe Handshake**: `texture_recipe` v2 en `MixMetadata` (schema 2 cuando hay receta, 1 cuando no); deltas medidos: `loudness_delta_lu`, `hf_excess_db`, `crest_delta_db`, `centroid_delta_hz`, `band_limited_vocal`, `vocal_band_ratio`. Mastering lee la receta y adapta: match EQ ±2 dB bound (HF offset en delta, no en energía), de-esser skip por crackle/telephone-band, clarity shelf floor 0 dB, exciter held neutral, LUFS compensation `target − (measured − delta)`, gate correction por `crest_delta_db`/`centroid_delta_hz`. **Invariante neutralidad**: sin receta o `character=None` → master byte-idéntico a baseline (SHA-256 `6e3dd486…` cross-commit probado).
+
+**P5 Wiring**: `character`/`character_seed` en `POST /jobs/mix` + `MixJobOptions` + forwarding; `MixPlan.character` en `compile_project.py` lee `mix_intent.character` (solo si perfil conocido) + forwarding en `project_jobs::_execute_mix`. Tests: `test_async_mix_jobs.py` + `test_compile_project.py` + `test_project_jobs.py`.
+
+**API**: `POST /api/session/{id}/mix` (WAV + `X-Mix-Result`) · `GET /api/session/{id}/audio/mix` (WAV persistido) · `POST /jobs/mix/{id}` (async, 202 + poll) · `POST /projects/{id}/jobs/mix` (proyecto).
 
 ### 3.2.1 ✅ Defecto corregido y **commiteado**: el camino async de mezcla no registraba la mezcla en la sesión
 
@@ -426,19 +432,24 @@ Sin cambios de fondo: traduce lenguaje natural → `IntentProfile` con Gemini + 
 - Specs: **sólo** `e2e/tests/demo_flow.spec.ts`. `master_to_live.spec.ts` fue eliminado con el Live Engine (27-Sep).
 - **e2e no ejecutado** en este relevamiento (requiere stack levantado).
 
-### 6.5 Verificación ejecutada (2026-10-16, sobre `develop` @ `95a90c8`)
+### 6.5 Verificación ejecutada (2026-10-17, sobre `develop` @ `95a90c8` + PR #33 `feat/texture-modulation-dsp`)
 
 | Comando | Resultado |
 |---|---|
-| `pytest tests/ -q` (audiomind) | **975 passed, 0 failed** · 206.6 s · 3 warnings · tras el saneamiento **977 passed, 0 failed** (125.1 s) |
-| `python -m ruff check` (audiomind) | ⚠️ **483 errores** (eran 524; tras el saneamiento `F401`/`F811`/`F821` en 0 y `E402` 43→37) |
-| `npm run test` (studio, vitest) | **11 archivos / 126 tests passed** (47.75 s) |
+| `pytest tests/ -q` (audiomind) | **1244 passed, 0 failed** · 125.1 s · 3 warnings (era 975 → 1244 tras P5: +17 tests no-finitos, +golden fingerprint, +purity, +wiring async/proyecto) |
+| `python -m ruff check` (audiomind) | ⚠️ **483 errores** (eran 524; saneamiento 16-Oct: `F401`/`F811`/`F821` en 0) |
+| `npm run test` (studio, vitest) | **11 archivos / 126 tests passed** (26.3 s) |
 | `npm run lint` (studio, eslint) | **0 errores / 37 warnings** |
-| `npm run build` (studio) | **✓ Compiled successfully, 17.6 s, exit 0** |
+| `npm run build` (studio) | **✓ Compiled successfully, 15.0 s, exit 0** |
+| `gentle-ai review assess --base-ref d0342ff --committed-only --json` | `risk: medium`, `review_due: false`, `review_due_reason: under_budget` |
 
-Comparación con la verificación del 23-Sep que declaraba este documento: backend 887 → **975**; vitest 8/72 → **11/126**; eslint 0 err/33 warn → 0 err/**37 warn**; build OK → OK; **ruff: ahora se mide y no está limpio** (antes declarado "0 errores").
+Comparación con la verificación del 23-Sep: backend 887 → **1244**; vitest 8/72 → **11/126**; eslint 0 err/33 warn → 0 err/**37 warn**; build OK → OK; **ruff: sin gate en CI** (§7 #34).
 
-**Re-verificación post-saneamiento** (mismo 16-Oct, sobre `211b9fb`): `pytest tests/ -q` → **977 passed, 0 failed** (125.1 s; +2 tests nuevos) · Studio `npm run test` → **11 archivos / 126 tests** · `npm run build` → **✓ Compiled successfully, 15.0 s, exit 0** · ruff `F401`/`F811`/`F821` → **0**. Verificación independiente delegada sobre la base `95a90c8`: **S1–S7 PASS, 0 blockers**. Detalle en §3.1.5 y §7 #34–#36.
+**Re-verificación P5** (17-Oct, sobre PR #33 `17d361f`): backend **1244 passed** · frontend **126 tests / build OK / tsc ✓ / eslint 0** · independent verifier: **PASS** (S9–S12 met, no blockers) · native assess: no review due.
+
+**Re-verificación de la unión** (19-Oct, `release/develop-to-main` con `main` ya mergeado): backend **1,410 passed, 0 failed** (152.6 s, 1 warning) · vitest **11 archivos / 134 tests** · `tsc --noEmit` limpio · eslint **0 errores / 37 warnings** · `npm run build` **exit 0** · inventario OpenAPI re-medido: **60 operaciones / 55 paths** (sin cambios). El merge **no trajo tests de frontend desde `main`**: los 134 son los de `develop`, por eso ese conteo no sube.
+
+**Boot en contenedor** (19-Oct, `develop` @ `b0d3a48`): el deploy de Railway `dev` pasó de **CRASHED** a **SUCCESS / RUNNING** (`GET /health` → 200). La causa del crash era `intelligence/rag/config.py`, que resolvía la raíz del repo indexando `Path.parents`; en la imagen (`/app/src/audiomind/...`) eso lanzaba `IndexError: 1` al importar, y `api/agent.py` arrastraba ese import al arranque. Hoy el config se importa perezoso y la resolución tiene cota (`tests/test_app_boot.py`, `tests/test_rag_config_paths.py`). En el contenedor `POST /api/agent/rag/search` responde **503** con "índice no construido": degrada, no tumba.
 
 ### 6.6 Infraestructura realmente desplegada
 
@@ -476,7 +487,7 @@ Los límites actuales son de **plan**, no de código. Orden propuesto cuando hag
 | 2 | ~~Push de `develop` y `main`~~ **RESUELTO**: `develop` == `brik/develop` y `main` == `brik/main` (0/0). Queda `git fetch` para refrescar `team`/`origin` (refs stale) | git | Resuelto |
 | 3 | ~~Limpiar churn de EOL en `mix_engine.py`~~ **HECHO 14-Oct** (`2776bd1` + `2aa40b6`) | Mix Engine | **Resuelto** |
 | 4 | Mypy — **RESUELTO 23-Sep** (`66c4fdb`) | audiomind | Hecho |
-| 5 | Prueba **manual** de "Mezcla de Audio" en la UI (backend + studio levantados) | Frontend | Decisión del usuario |
+| 5 | Prueba **E2E** de "Mezcla de Audio" con toggle **Carácter analógico** (backend + studio levantados): activar toggle → disparar mix job → verificar `character_report` con perfil `commercial_alt_pop` | Frontend | Decisión del usuario |
 | 6 | ~~Deploy demo Vercel + Railway~~ **EJECUTADO 02-Oct** (ver §6.6) | Deploy | **Resuelto** |
 | 7 | Convex — **RESUELTO**: eliminado del repo y de la CI | Studio | Resuelto |
 | 8 | Probar `interpretIntent` real (credenciales Gemini) + tipos Python del mapper | apps/agent | Decisión usuario |
@@ -502,7 +513,7 @@ Los límites actuales son de **plan**, no de código. Orden propuesto cuando hag
 | 28 | **`DJ_LIMIT_WORKERS`**: ahora **commiteado**, pero (a) `reset_gate()` lo ignora y (b) la afirmación de `AGENTS.md` sobre "no bloquear el event loop" describe el síntoma de forma laxa (lo que agota el contenedor es CPU/RAM del pipeline en paralelo en el mismo worker) | Backend/Docs | Trabajo pendiente + doc por corregir |
 | 29 | ~~Candidatos sin commit: `mastering-stages.ts` (untracked) e INSERT manual en `dsp_jobs`~~ **PARCIAL**: `mastering-stages.ts` ya está trackeado (`cbdf356`); el INSERT manual en prod es parche operativo, no migración | Deploy/Frontend | Parcialmente resuelto |
 | 30 | ~~Persistir los MASTERS en R2~~ **RESUELTO y commiteado** (ver §3.1.2) | Backend | Resuelto |
-| 31 | ~~Dos tests preexistentes en rojo~~ **RESUELTO**: la suite corre **975 passed, 0 failed** (16-Oct) | Tests | Resuelto |
+| 31 | ~~Dos tests preexistentes en rojo~~ **RESUELTO**: la suite corre **1244 passed, 0 failed** (17-Oct) | Tests | Resuelto |
 | 32 | **La sesión no sobrevivía al redeploy**: primera mitad resuelta (sesiones durables en Postgres, §3.1.3); falta **verificar en prod** que el backend `auto` y la migración de reparación están aplicados | Backend/Deploy | Parcial — verificar en prod |
 | 33 | ~~La suite escribía WAVs reales en el bucket de producción~~ **RESUELTO** con `tests/conftest.py` (degradación del cliente S3 + redirección de `SESSION_FILE`) | Tests/Infra | Resuelto — falta decidir el borrado de los 4 objetos de prueba (#46) |
 | **34** | **Backend sin gate de lint/tests en CI**: sigue sin gate y quedan **483 errores** de ruff (eran 524; el saneamiento del 16-Oct puso `F401`/`F811`/`F821` en 0). Decisión: agregar job de backend (pytest + ruff) o fijar/suprimir la deuda restante | CI/Backend | **Acción del usuario** |
@@ -521,6 +532,9 @@ Los límites actuales son de **plan**, no de código. Orden propuesto cuando hag
 | **47** | **Verificar en prod** `AUDIOMIND_SESSION_STORE_BACKEND` y la aplicación de `20261005180000` / `20261005220000`; sin eso la durabilidad de sesiones y `masters.status` quedan en duda | Deploy/Backend | Acción del usuario |
 | **48** | **Un clone fresco no puede correr la suite completa**: `apps/audiomind/samples/*.wav` está gitignoreado, así que un checkout limpio falla **4 tests de songstarter** hasta ejecutar `scripts/generate_samples.py`. Condición preexistente (idéntica en la base `95a90c8`), detectada por la verificación independiente del saneamiento | Tests/Onboarding | Deuda técnica |
 | **49** | **RDD activo pero no ejecutable en este runtime**: `gentle-ai review mode status` → `on (global)`, pero `review assess` responde `risk: high` con `unassessable` — OpenCode no es elegible para el review inmutable (requiere 1.x estable sin relay, o 2.x bajo el plugin V2). Decisión: desactivarlo clone-local (`gentle-ai review mode disable --scope clone`) o correr el review en un runtime elegible | Proceso/Entorno | **Decisión del usuario** |
+| **50** | **P5 follow-up — Golden fingerprint portabilidad**: el límite `1e-3 dB` deja pasar cambios menores al ruido de plataforma; si se requiere detección estricta, mover a hash cuantizado | Backend/Tests | Deuda técnica |
+| **51** | **P5 follow-up — `character_seed` en UI de proyecto**: hoy no hay UI para persistir `mix_intent.character`; `updateMixCharacter` cableado en `ProjectContext` pero sin consumidor | Frontend | Trabajo pendiente |
+| **52** | **P5 follow-up — `character_seed` expuesto en MixPanel**: seed determinístico del backend (default `20261016`); si se quiere variación, exponer control "Variación" | Frontend | Decisión del usuario |
 
 ---
 
@@ -564,6 +578,6 @@ Los límites actuales son de **plan**, no de código. Orden propuesto cuando hag
 
 ---
 
-*Documento generado por auditoría read-only del repositorio. Actualizado el 23-Sep (Mix Stem Balance), el 27-Sep (remoción del Live Engine), el 02-Oct (infraestructura desplegada + defecto async de mezcla) y el 13-Oct (sync de conteos y claims). **Relevamiento completo del 2026-10-16** sobre `develop` @ `95a90c8`: suites medidas en vivo (975 backend / 126 vitest / build OK / ruff 524), ramas y remotes reales, flujo multitenant, landing, sesiones durables en Postgres, estabilidad Demucs, RAG local, y §7 reescrito con 47 pendientes. **Ampliado el mismo 16-Oct** con la arquitectura del frontend (§4.1), la capa mobile/responsive (§4.1.1) y el detalle componente por componente de la landing (§4.2). **Cerrado el mismo 16-Oct** con el saneamiento de `develop` (`3f5c758`, `079d38a`, `211b9fb`, `861c791`): rutas duplicadas (#36), código muerto de `engine.py` (#35) y las clases `F` de ruff (50 → 15), con la verificación re-corrida y §7 ampliado a **49 pendientes**.*
+*Documento generado por auditoría read-only del repositorio. Actualizado el 23-Sep (Mix Stem Balance), el 27-Sep (remoción del Live Engine), el 02-Oct (infraestructura desplegada + defecto async de mezcla), el 13-Oct (sync de conteos y claims) y el **17-Oct (P5 integración carácter completada: backend + frontend; PR #33 abierto)**. **Relevamiento completo del 2026-10-16** sobre `develop` @ `95a90c8`: suites medidas en vivo (975 backend / 126 vitest / build OK / ruff 524), ramas y remotes reales, flujo multitenant, landing, sesiones durables en Postgres, estabilidad Demucs, RAG local, y §7 reescrito con 47 pendientes. **Ampliado el mismo 16-Oct** con la arquitectura del frontend (§4.1), la capa mobile/responsive (§4.1.1) y el detalle componente por componente de la landing (§4.2). **Cerrado el mismo 16-Oct** con el saneamiento de `develop` (`3f5c758`, `079d38a`, `211b9fb`, `861c791`): rutas duplicadas (#36), código muerto de `engine.py` (#35) y las clases `F` de ruff (50 → 15), con la verificación re-corrida y §7 ampliado a **49 pendientes**. **Actualizado el 17-Oct**: P5 completado (backend + frontend), PR #33 abierto, suites 1244/126, §7 ampliado a **52 pendientes**. **Actualizado el 19-Oct**: reconciliación `develop` → `main` (Character Stage + Productor IA en una sola entrega), fix del boot del API en contenedor y suites re-medidas (**1,410 backend / 134 vitest**).*
 
 *Método: lectura del código y de los documentos ODD por exploradores read-only; las cifras de tests, lint y build son de ejecuciones propias del 16-Oct. Lo no verificado está marcado explícitamente como tal en cada punto (notablemente: estado de producción de las migraciones nuevas, backend de sesiones en prod y rotación de credenciales R2).*

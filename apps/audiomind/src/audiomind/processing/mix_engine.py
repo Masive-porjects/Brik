@@ -97,6 +97,17 @@ import soundfile as sf
 from audiomind.config import settings
 from audiomind.models.mix_metadata import MixMetadata
 from audiomind.processing.adaptive_comp import AdaptiveCompressor
+from audiomind.processing.character import (
+    CHARACTER_DEFAULT_SEED,
+    CHARACTER_PROFILE,
+    CHARACTER_STAGES,
+    apply_bed,
+    apply_stem_character,
+    character_budget,
+    crest_db,
+    crest_relax_needed_db,
+    is_known_profile,
+)
 from audiomind.processing.creative import (
     apply_variant_to_profiles,
     run_creative_mode,
@@ -134,6 +145,7 @@ from audiomind.processing.resample import resample_audio
 from audiomind.processing.spatial import mid_side_encode
 from audiomind.processing.splitter import STEM_NAMES, split_audio
 from audiomind.processing.stem_balance import compute_stem_balance
+from audiomind.processing.texture_recipe import build_texture_recipe
 
 #: Per-stem fields extracted from ``AnalysisResult`` (spec: LUFS/DR/centroid).
 _STEM_ANALYSIS_FIELDS: tuple[str, ...] = (
@@ -434,8 +446,14 @@ def _compute_mix_metadata(
     stereo_width_param: float,
     stereo_imaging_enabled: bool,
     limiter_ceiling_db: float,
+    texture_recipe: dict[str, Any] | None = None,
 ) -> MixMetadata:
-    """Compute MixMetadata from the final mix bus and processing reports."""
+    """Compute MixMetadata from the final mix bus and processing reports.
+
+    ``texture_recipe`` (P4, T2) is published as ``MixMetadata.texture_recipe``
+    and bumps ``schema_version`` to ``2``; ``None`` keeps the v1 payload exactly
+    as it was (same keys, same values — neutrality, spec 08/S8).
+    """
     # 1. Side energy ratio (bus final)
     mid, side = mid_side_encode(final_bus)
     side_rms = float(np.sqrt(np.mean(side**2)))
@@ -479,12 +497,44 @@ def _compute_mix_metadata(
     transient_headroom_db = limiter_ceiling_db - true_peak_db
 
     return MixMetadata(
+        schema_version=2 if texture_recipe is not None else 1,
         applied_spatial_width=applied_spatial_width,
         side_energy_ratio=side_energy_ratio,
         stem_lufs=stem_lufs,
         transient_headroom_db=transient_headroom_db,
         mix_status="completed",
+        texture_recipe=texture_recipe,
     )
+
+
+def _bed_authorization(input_path: str | Path) -> tuple[bool, dict[str, Any]]:
+    """Whether the raw material has measured room for a texture bed.
+
+    The measurement is the phase-1 inspector's ``NegativeSpace`` — the whole
+    reason that profile exists. A bed under material that has no room in it is
+    mud, so this is a gate and not a decoration.
+
+    A failed measurement SKIPS the bed and says so. It never costs the render
+    (the bed is a texture, not a deliverable), and it is never treated as
+    authorization: an unmeasured bed is an unauthorized one.
+    """
+    try:
+        # Heavy (librosa) — lazy import, same policy as the analyzer below.
+        from audiomind.analysis.inspector import measure_negative_space
+
+        space = measure_negative_space(input_path)
+    except Exception as exc:  # a measurement must never lose the mix
+        return False, {
+            "status": "unavailable",
+            "reason": "inspection_failed",
+            "error": type(exc).__name__,
+        }
+    return bool(space.bed_authorized), {
+        "status": "measured",
+        "negative_space_ratio": space.negative_space_ratio,
+        "gate_db": space.gate_db,
+        "bed_authorized": bool(space.bed_authorized),
+    }
 
 
 def build_mix(
@@ -504,6 +554,8 @@ def build_mix(
     creative_manual: bool = False,
     auto_balance: bool = False,
     stem_trims: dict[str, float] | None = None,
+    character: str | None = None,
+    character_seed: int | None = None,
     progress_cb: Callable[[float, str], None] | None = None,
 ) -> dict[str, Any]:
     """Run the per-stem routing pipeline for a session.
@@ -624,6 +676,27 @@ def build_mix(
             with at least one non-zero gain the payload carries
             ``trim_report`` = ``{"gains": {non-zero ``{stem}_db`` keys},
             "applied": true}``.
+        character: Opt-in CHARACTER stage (P3,
+            ``processing/character.py`` — the texture return; feature
+            ``odd/tasks/character-integration.md``). ``None`` (default): the
+            exact previous routing (bit-identical neutral, no measurement, no
+            ``character_report`` key). A known profile name
+            (``"commercial_alt_pop"``) applies that profile's stages to the
+            PRINCIPAL render only: a BPM-synced slapback on vocals, wow/flutter
+            then chorus on ``other``, parallel saturation on the bass, and a
+            hiss/crackle bed under the bus. The principal survives the
+            alternatives by construction — the versions re-sum
+            ``processed_stems`` and the creative variants re-render from the raw
+            stems, and the character writes to COPIES plus the bus, never into
+            the processed stems. An unknown name raises ``ValueError``.
+        character_seed: Seed for the character stage's stochastic part (the bed).
+            ``None`` (default) uses ``character.CHARACTER_DEFAULT_SEED``, so the
+            same input and profile produce the same bed. Every other stage of
+            the profile is deterministic. With a character set, the payload also
+            carries ``mix_metadata["texture_recipe"]`` (P4, T2): the MEASURED
+            effect of the texture on the mix bus, and ``schema_version`` is
+            bumped to ``2``. Without a character the metadata keeps its exact v1
+            shape — no recipe key, no measurement.
         progress_cb: Optional ``(pct, stage)`` callback invoked as each key
             pipeline stage completes. ``pct`` is 0-100 and ``stage`` is one
             of the Mix Engine's stage ids (``split``, ``eq``, ``pan``,
@@ -736,6 +809,12 @@ def build_mix(
         raise ValueError(
             "creative mode requires a seed (creative_seed) so every "
             "variant draws a reproducible stream"
+        )
+    # P3 — same contract, same place: a misspelled profile is a configuration
+    # bug, and it must fail before the split rather than after a full render.
+    if character is not None and not is_known_profile(character):
+        raise ValueError(
+            f"unknown character profile {character!r}; known: {CHARACTER_PROFILE!r}"
         )
 
     stems_dir = settings.output_dir / session_id / "stems"
@@ -982,13 +1061,93 @@ def build_mix(
             "status": "active" if bpm_used is not None else "no_tempo",
         }
 
+    # P3 — the CHARACTER stage (the texture return). The shaped stems are COPIED,
+    # never written into: ``processed_stems`` is exactly what
+    # ``render_versions.render_version_buses`` re-sums for the five alternative
+    # versions, and the creative variants re-render from the raw stems. An
+    # in-place stage would leak texture into both, and the two are aliased here
+    # (``_apply_stem_trims`` mutates the dict and the bus list together). With
+    # ``character`` unset nothing below runs and the sum is the same 1:1 pad of
+    # ``bus_audio`` as before (neutral = bypass, spec 08).
+    character_report: dict[str, Any] | None = None
+    character_bus_audio = bus_audio
+    character_qc_budget: dict[str, Any] | None = None
+    # P4 (T2): the recipe measured on the two character buses. Stays ``None``
+    # when no character ran, so nothing is measured and the metadata keeps its
+    # v1 shape (neutrality, spec 08/S8).
+    texture_recipe: dict[str, Any] | None = None
+    resolved_character_seed = (
+        CHARACTER_DEFAULT_SEED if character_seed is None else character_seed
+    )
+    if character is not None:
+        character_stems_report: dict[str, Any] = {}
+        character_bus_audio = []
+        for character_stem in STEM_NAMES:
+            shaped_character, stem_character_report = apply_stem_character(
+                character_stem,
+                processed_stems[character_stem],
+                target_sr,
+                bpm=bpm_used,
+            )
+            character_stems_report[character_stem] = stem_character_report
+            character_bus_audio.append(shaped_character)
+
     # Pad to the longest stem and sum onto the stereo mono-compatible bus.
     # Neutral 0 dB = 1:1 summing (no normalization); a hot sum just clips
     # at write time — accepted for the skeleton (no DSP yet).
-    max_len = max(audio.shape[1] for audio in bus_audio)
+    max_len = max(audio.shape[1] for audio in character_bus_audio)
     bus = np.zeros((2, max_len), dtype=np.float32)
-    for audio in bus_audio:
+    for audio in character_bus_audio:
         bus[:, : audio.shape[1]] += audio
+
+    # The bed goes under the WHOLE mix, so it lands on the bus and only after the
+    # sum: a naked bed measures a 29.81 dB crest factor against the QC's 18 dB
+    # ceiling, and is only safe with the program underneath it. Whether it is
+    # authorized at all is a MEASUREMENT (the phase-1 inspector's
+    # ``NegativeSpace``), not a default — and an unauthorized bed is reported,
+    # not silently dropped.
+    if character is not None:
+        bed_authorized, negative_space_report = _bed_authorization(input_path)
+        bus, bed_report = apply_bed(
+            bus,
+            target_sr,
+            seed=resolved_character_seed,
+            authorized=bed_authorized,
+        )
+        character_bus_crest_db = crest_db(bus)
+        character_qc_budget = character_budget(bus_crest_db=character_bus_crest_db)
+        character_report = {
+            "profile": character,
+            "seed": resolved_character_seed,
+            "stems": character_stems_report,
+            "bed": bed_report,
+            "negative_space": negative_space_report,
+            "bus_crest_db": round(character_bus_crest_db, 4),
+            "crest_relax_needed_db": round(
+                crest_relax_needed_db(character_bus_crest_db), 4
+            ),
+            "qc_budget": character_qc_budget,
+            "status": "active",
+        }
+
+        # P4 (T2): publish what the texture did to the bus. The shaped bus is
+        # ``bus`` right here — the bus input of the 2-bus compressor, bed
+        # included; the clean bus is the same 1:1 pad/sum WITHOUT the character
+        # stages. Both are measured before the compressor (stated approximation,
+        # see ``texture_recipe``).
+        clean_bus = np.zeros((2, max_len), dtype=np.float32)
+        for clean_stem in bus_audio:
+            clean_bus[:, : clean_stem.shape[1]] += clean_stem
+        texture_recipe = build_texture_recipe(
+            profile=character,
+            seed=resolved_character_seed,
+            stages=CHARACTER_STAGES,
+            clean_bus=clean_bus,
+            shaped_bus=bus,
+            sr=target_sr,
+            bed=bed_report,
+            vocal_audio=character_bus_audio[STEM_NAMES.index("vocals")],
+        )
 
     # Paso 05 + Paso 06: the mix bus compresses AFTER the stem sum (Jerry
     # Finn technique: 2–3 dB total, slow attack / fast release, breathing
@@ -1028,7 +1187,15 @@ def build_mix(
 
     # Paso 07: QC report on the FINAL compressed bus — informational
     # flags that never block the render (human decision per the plan).
-    qc_report = run_qc_checks(bus, target_sr, pan_info=pan_report)
+    # With the character stage on, the profile DECLARES what it deviates on
+    # purpose (``character_budget``, P2.5), so its own texture lands in
+    # ``intentional_deviations`` and is reported as declared instead of reading
+    # as a defect. Without a character the budget is ``None``, which P2.5 proved
+    # byte-identical to the previous report; the alternative renders keep the
+    # strict call, because they are clean (see the versions block below).
+    qc_report = run_qc_checks(
+        bus, target_sr, pan_info=pan_report, budget=character_qc_budget
+    )
 
     mix_path = (settings.output_dir / f"{session_id}_mix.wav").resolve()
     write_output(bus, mix_path, target_sr, bit_depth=24)
@@ -1236,8 +1403,13 @@ def build_mix(
         build_result["balance_report"] = balance_report
     if trim_report is not None:
         build_result["trim_report"] = trim_report
+    if character_report is not None:
+        build_result["character_report"] = character_report
 
-    # Mix → Master handshake metadata (computed after all reports are built)
+    # Mix → Master handshake metadata (computed after all reports are built).
+    # ``exclude_none=True`` is what keeps the neutral payload textually
+    # identical to the pre-P4 one: with no character there is no
+    # ``texture_recipe`` to serialise, so no key is added (spec 08/S8).
     build_result["mix_metadata"] = _compute_mix_metadata(
         final_bus=bus,
         sr=target_sr,
@@ -1247,6 +1419,7 @@ def build_mix(
         stereo_width_param=1.0,
         stereo_imaging_enabled=False,
         limiter_ceiling_db=-1.0,
-    ).model_dump()
+        texture_recipe=texture_recipe,
+    ).model_dump(exclude_none=True)
     
     return build_result

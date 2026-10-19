@@ -9,6 +9,7 @@ import {
   approveProposal as approveProposalApi,
   rejectProposal as rejectProposalApi,
   updateMasterIntent as updateMasterIntentApi,
+  updateMixCharacter as updateMixCharacterApi,
   updateStemNode as updateStemNodeApi,
   type ProjectDocumentV1,
   type MasterIntent,
@@ -24,6 +25,7 @@ interface ProjectContextValue {
   error: string | null;
   loadProject: (projectId: string) => Promise<void>;
   updateMasterIntent: (intent: Partial<MasterIntent>) => Promise<void>;
+  updateMixCharacter: (character: string | null) => Promise<void>;
   approveProposal: (proposalId: string) => Promise<void>;
   rejectProposal: (proposalId: string) => Promise<void>;
   updateStemNode: (
@@ -98,6 +100,15 @@ export function ProjectProvider({ children, initialProjectId }: ProjectProviderP
     [projectId, document, version]
   );
 
+  const updateMixCharacter = useCallback(
+    async (character: string | null) => {
+      if (!projectId || !document) throw new Error("No project loaded");
+      const res = await updateMixCharacterApi(projectId, character, document, version);
+      setDocument(res.document);
+      setVersion(res.version);
+    },
+    [projectId, document, version]
+  );
   const approveProposal = useCallback(
     async (proposalId: string) => {
       if (!projectId || !document) throw new Error("No project loaded");
@@ -148,6 +159,7 @@ export function ProjectProvider({ children, initialProjectId }: ProjectProviderP
         error,
         loadProject,
         updateMasterIntent,
+        updateMixCharacter,
         approveProposal,
         rejectProposal,
         updateStemNode,

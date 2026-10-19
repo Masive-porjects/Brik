@@ -113,8 +113,19 @@ def _read_wav(path: str | Path) -> tuple[np.ndarray, int]:
     return frames.T, sr
 
 
-def _qc_all_ok(bus: np.ndarray, sr: int, pan_info: dict | None = None) -> dict:
-    """QC stand-in: every check passes (accepted-variant integration tests)."""
+def _qc_all_ok(
+    bus: np.ndarray,
+    sr: int,
+    pan_info: dict | None = None,
+    budget: dict | None = None,
+) -> dict:
+    """QC stand-in: every check passes (accepted-variant integration tests).
+
+    The signature mirrors ``quality_checks.run_qc_checks``, ``budget`` included:
+    the mix engine passes the character stage's declared budget on the principal
+    QC call, and a stand-in that cannot accept it turns a wired feature into a
+    ``TypeError``.
+    """
     return {
         "mono": {"ok": True, "details": {}},
         "phase": {"ok": True, "details": {}},
@@ -127,9 +138,14 @@ def _qc_all_ok(bus: np.ndarray, sr: int, pan_info: dict | None = None) -> dict:
     }
 
 
-def _qc_flagged(bus: np.ndarray, sr: int, pan_info: dict | None = None) -> dict:
+def _qc_flagged(
+    bus: np.ndarray,
+    sr: int,
+    pan_info: dict | None = None,
+    budget: dict | None = None,
+) -> dict:
     """QC stand-in: low_level_listen flagged (every variant would fail)."""
-    report = _qc_all_ok(bus, sr, pan_info)
+    report = _qc_all_ok(bus, sr, pan_info, budget)
     report["low_level_listen"] = {"ok": False, "details": {}}
     report["summary"] = {"all_ok": False, "flagged": ["low_level_listen"]}
     return report
@@ -531,6 +547,90 @@ class TestRunCreativeMode:
         # The resampling stride is documented: seed + index*1000 + attempt.
         for i, entry in enumerate(report["variants"]):
             assert entry["seed"] == 4 + i * 1000 + (creative.MAX_CREATIVE_ATTEMPTS - 1)
+
+    def test_a_rejection_names_the_gate_that_fired(self):
+        """The reason is what makes a dead batch actionable: a positional
+        rejection is a routing problem and a QC rejection is a deviation, and
+        the operator cannot decide anything without knowing which one it was."""
+        cases = {
+            "positional": (_validation_bad(), _qc_all_ok(np.zeros((2, 4)), _SR)),
+            "qc": (_validation_ok(), _qc_flagged(np.zeros((2, 4)), _SR)),
+            "positional+qc": (
+                _validation_bad(),
+                _qc_flagged(np.zeros((2, 4)), _SR),
+            ),
+        }
+        for expected, (validation, qc) in cases.items():
+            report = run_creative_mode(
+                5,
+                creativity=1.0,
+                variants_count=1,
+                render=self._fake_render(validation, qc),
+                save=self._fake_save([]),
+            )
+            entry = report["variants"][0]
+            assert entry["status"] == "rejected"
+            assert entry["rejected_reason"] == expected
+            assert report["rejected_reasons"] == {expected: 1}
+            assert report["all_rejected"] is True
+
+    def test_an_accepted_variant_carries_no_reason(self):
+        report = run_creative_mode(
+            6,
+            creativity=0.5,
+            variants_count=2,
+            render=self._fake_render(
+                _validation_ok(), _qc_all_ok(np.zeros((2, 4)), _SR)
+            ),
+            save=self._fake_save([]),
+        )
+        assert report["all_rejected"] is False
+        assert report["rejected_reasons"] == {}
+        assert all("rejected_reason" not in entry for entry in report["variants"])
+
+    def test_rejected_reasons_counts_one_per_gate(self):
+        """A mixed batch counts per reason, not per rejection — the difference
+        between 'everything failed routing' and 'everything failed the tone
+        check' is the whole point of keeping the tally."""
+
+        def render(attempt_seed: int, params: dict[str, float]) -> dict:
+            audio = np.zeros((2, 16), dtype=np.float32)
+            if attempt_seed < 1000:  # index 0: both gates fail, every attempt
+                return {
+                    "validation": _validation_bad(),
+                    "qc": _qc_flagged(audio, _SR),
+                    "bus": audio,
+                }
+            return {  # index 1: QC only
+                "validation": _validation_ok(),
+                "qc": _qc_flagged(audio, _SR),
+                "bus": audio,
+            }
+
+        report = run_creative_mode(
+            8,
+            creativity=1.0,
+            variants_count=2,
+            render=render,
+            save=self._fake_save([]),
+        )
+        assert report["rejected_count"] == 2
+        assert report["all_rejected"] is True
+        assert report["rejected_reasons"] == {"positional+qc": 1, "qc": 1}
+
+    def test_manual_mode_never_reports_a_rejection(self):
+        report = run_creative_mode(
+            9,
+            creativity=1.0,
+            variants_count=1,
+            render=self._fake_render(
+                _validation_bad(), _qc_flagged(np.zeros((2, 4)), _SR)
+            ),
+            save=self._fake_save([]),
+            manual=True,
+        )
+        assert report["all_rejected"] is False
+        assert report["rejected_reasons"] == {}
 
 
 class TestCreativeMix:
