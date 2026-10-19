@@ -13,9 +13,12 @@ Contracts pinned:
 * ``search_knowledge`` only exists when a RAG callable is injected;
 * the Gemini transport walks its model chain and refuses to guess without a key.
 """
+import base64
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from google.genai import types
 from pydantic import ValidationError
 
 from audiomind.models.audio import MasteringParameters
@@ -548,3 +551,97 @@ class TestGeminiTransport:
 
     def test_empty_text_entries_are_dropped(self):
         assert _to_contents([{"role": "model", "text": ""}]) == []
+
+
+class TestTheThoughtSignatureSurvivesTheRoundTrip:
+    """The ``400 Function call is missing a thought_signature``.
+
+    A thinking model marks its function-call part with an opaque signature and
+    rejects any later turn whose history repeats that call without it. The
+    neutral transcript carried only name/args, so the rebuilt part always lost
+    the signature. These tests pin it on both ends and through the recorder.
+    """
+
+    SIGNATURE = b"\x01\x9f\xf2opaque"
+
+    def _response(self) -> SimpleNamespace:
+        part = types.Part(
+            function_call=types.FunctionCall(
+                name="adjust_stem_parameters", args={"stem": "vocals"}
+            ),
+            thought_signature=self.SIGNATURE,
+        )
+        return SimpleNamespace(
+            candidates=[
+                SimpleNamespace(content=types.Content(role="model", parts=[part]))
+            ],
+            function_calls=[
+                types.FunctionCall(
+                    name="adjust_stem_parameters", args={"stem": "vocals"}
+                )
+            ],
+            text="",
+        )
+
+    def _transport(self, response: SimpleNamespace) -> GeminiTransport:
+        models = SimpleNamespace(generate_content=lambda **_: response)
+        return GeminiTransport(client=SimpleNamespace(models=models))
+
+    def test_the_turn_hands_the_signature_to_the_loop(self):
+        turn = self._transport(self._response()).turn(
+            phase="phase3", system="s", transcript=[], tools=[]
+        )
+        assert turn.tool_calls[0].name == "adjust_stem_parameters"
+        assert turn.tool_calls[0].thought_signature == base64.b64encode(
+            self.SIGNATURE
+        ).decode("ascii")
+
+    def test_a_rebuilt_history_carries_the_signature(self):
+        encoded = base64.b64encode(self.SIGNATURE).decode("ascii")
+        contents = _to_contents(
+            [
+                {
+                    "role": "model",
+                    "function_call": {
+                        "name": "adjust_stem_parameters",
+                        "args": {"stem": "vocals"},
+                        "thought_signature": encoded,
+                    },
+                }
+            ]
+        )
+        assert contents[0].parts[0].thought_signature == self.SIGNATURE
+
+    def test_a_call_without_a_signature_rebuilds_as_before(self):
+        """Non-thinking providers never set it; the part stays valid."""
+        contents = _to_contents(
+            [{"role": "model", "function_call": {"name": "render_mix", "args": {}}}]
+        )
+        assert contents[0].parts[0].thought_signature is None
+
+    def test_the_loop_records_what_it_has_to_echo(self):
+        transport = self._transport(self._response())
+        turn = transport.turn(phase="phase3", system="s", transcript=[], tools=[])
+        transcript: list[dict] = []
+        al._record_exchange(
+            transcript,
+            turn.tool_calls[0],
+            al.ToolResult(ok=True, tool="adjust_stem_parameters", detail="ok"),
+        )
+        assert _to_contents(transcript)[0].parts[0].thought_signature == self.SIGNATURE
+
+    def test_assign_call_ids_keeps_the_signature(self):
+        encoded = base64.b64encode(self.SIGNATURE).decode("ascii")
+        out = al.assign_call_ids(
+            [
+                {
+                    "role": "model",
+                    "function_call": {
+                        "name": "render_mix",
+                        "args": {},
+                        "thought_signature": encoded,
+                    },
+                }
+            ]
+        )
+        assert out[0]["function_call"]["thought_signature"] == encoded

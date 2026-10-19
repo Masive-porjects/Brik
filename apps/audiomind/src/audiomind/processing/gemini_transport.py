@@ -14,6 +14,10 @@ Decisions worth knowing:
   ``role`` "Must be either 'user' or 'model'"; there is no ``tool`` role.
 * **A turn can carry several calls.** Gemini returns parallel function calls,
   so ``ModelTurn.tool_calls`` is a list and the loop executes all of them.
+* **The thought signature is echoed back verbatim.** A thinking model signs its
+  function-call part and answers ``400 INVALID_ARGUMENT: Function call is
+  missing a thought_signature`` when the history repeats that call unsigned, so
+  the opaque blob travels with the call and is re-attached on rebuild.
 * **Failures are typed, never silent.** A missing key, an exhausted chain or an
   empty reply raises ``GeminiUnavailableError``; the loop lets it out rather
   than inventing a diagnosis.
@@ -22,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import os
+from base64 import b64decode, b64encode
 from collections.abc import Sequence
 from typing import Any
 
@@ -67,6 +72,53 @@ def _function_declarations(
     ]
 
 
+def _decode_signature(raw: Any) -> bytes | None:
+    """El base64 del transcript de vuelta a los bytes que espera el SDK.
+
+    Un blob ilegible se descarta en vez de romper el turno: perder la firma da
+    un error del proveedor que se ve en el log, no una excepción de base64 que
+    apunte al lugar equivocado.
+    """
+    if not raw:
+        return None
+    try:
+        return b64decode(raw, validate=True)
+    except (ValueError, TypeError):
+        log.warning("thought_signature ilegible en el historial: se omite")
+        return None
+
+
+def _encode_signature(raw: Any) -> str | None:
+    """La firma del SDK, en base64 para que el transcript siga siendo JSON."""
+    return b64encode(raw).decode("ascii") if raw else None
+
+
+def _tool_calls_from(response: Any) -> list[ToolCall]:
+    """Las llamadas del turno, cada una con su firma de pensamiento si la trae.
+
+    ``response.function_calls`` es un atajo que devuelve los ``FunctionCall``
+    sueltos y descarta los ``Part`` que los envuelven — y la firma vive en el
+    ``Part``, no en la llamada. Por eso se recorren los parts directo.
+    """
+    calls: list[ToolCall] = []
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            function_call = getattr(part, "function_call", None)
+            if not function_call or not function_call.name:
+                continue
+            calls.append(
+                ToolCall(
+                    name=function_call.name,
+                    args=dict(function_call.args or {}),
+                    thought_signature=_encode_signature(
+                        getattr(part, "thought_signature", None)
+                    ),
+                )
+            )
+    return calls
+
+
 def _to_contents(
     transcript: Sequence[dict[str, Any]],
 ) -> list[types.Content]:
@@ -90,7 +142,10 @@ def _to_contents(
                         types.Part(
                             function_call=types.FunctionCall(
                                 name=call["name"], args=call.get("args") or {}
-                            )
+                            ),
+                            thought_signature=_decode_signature(
+                                call.get("thought_signature")
+                            ),
                         )
                     ],
                 )
@@ -178,11 +233,7 @@ class GeminiTransport:
                 log.warning("Gemini %s falló en %s: %s", model, phase, exc)
                 continue
 
-            calls = [
-                ToolCall(name=c.name or "", args=dict(c.args or {}))
-                for c in (response.function_calls or [])
-                if c.name
-            ]
+            calls = _tool_calls_from(response)
             if calls:
                 return ModelTurn(tool_calls=calls)
 

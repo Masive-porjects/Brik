@@ -663,6 +663,12 @@ def _dispatch(state: AgentState, tool: str, raw_args: dict[str, Any]) -> ToolRes
 class ToolCall(BaseModel):
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
+    #: Blob OPACO del proveedor que debe devolverse tal cual al repetir la
+    #: llamada en el historial. Gemini lo llama ``thought_signature`` y rechaza
+    #: con 400 el turno que repite una llamada sin él. Viaja en base64 para que
+    #: el transcript neutro siga siendo serializable; los demás proveedores lo
+    #: ignoran.
+    thought_signature: str | None = None
 
 
 class ModelTurn(BaseModel):
@@ -750,6 +756,9 @@ def default_transport(**kwargs: Any) -> ModelTransport:
 #   {"role": "user"|"model", "text": str}
 #   {"role": "model", "function_call": {"name": str, "args": dict}}
 #   {"role": "tool", "name": str, "response": dict}
+# La llamada puede llevar además ``thought_signature`` (str base64, opcional):
+# el sello opaco con que un modelo con razonamiento firma la llamada. Se
+# conserva porque el proveedor exige verlo de vuelta en el historial.
 
 
 def _record_exchange(
@@ -758,11 +767,13 @@ def _record_exchange(
     """Registra la llamada del modelo y su respuesta, en ese orden.
 
     El SDK exige ver el `function_call` antes de su `function_response`; sin la
-    llamada en el historial, Gemini rechaza el turno.
+    llamada en el historial, Gemini rechaza el turno. La firma de pensamiento,
+    cuando existe, viaja pegada a la llamada por el mismo motivo.
     """
-    transcript.append(
-        {"role": "model", "function_call": {"name": call.name, "args": call.args}}
-    )
+    recorded: dict[str, Any] = {"name": call.name, "args": call.args}
+    if call.thought_signature:
+        recorded["thought_signature"] = call.thought_signature
+    transcript.append({"role": "model", "function_call": recorded})
     transcript.append(
         {"role": "tool", "name": result.tool, "response": result.model_dump()}
     )
