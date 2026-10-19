@@ -26,15 +26,17 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from audiomind.intelligence.rag.chunk import Chunk
-from audiomind.intelligence.rag.config import RagConfig
 from audiomind.intelligence.rag.embed import EmbeddingUnavailableError, OllamaEmbedder
 from audiomind.intelligence.rag.index import RagIndex, SearchMode
+
+if TYPE_CHECKING:  # pragma: no cover - solo anotaciones; el config se importa perezoso
+    from audiomind.intelligence.rag.config import RagConfig
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +103,13 @@ _index_error: str | None = None
 
 
 def _config() -> RagConfig:
-    """Rutas del RAG desde el entorno (mismo factory que usa el CLI)."""
+    """Rutas del RAG desde el entorno (mismo factory que usa el CLI).
+
+    Import perezoso a propósito: `rag.config` resuelve rutas en disco al
+    importarse. Si eso falla, se degrada este endpoint; nunca el boot del API.
+    """
+    from audiomind.intelligence.rag.config import RagConfig
+
     return RagConfig.from_env()
 
 

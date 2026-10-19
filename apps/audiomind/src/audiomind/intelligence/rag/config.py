@@ -3,10 +3,38 @@
 import os
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 
-_AUDIOMIND_DIR = Path(__file__).resolve().parents[4]  # apps/audiomind
-_REPO_ROOT = _AUDIOMIND_DIR.parents[1]
+#: Levels between this file and the project dir: rag/intelligence/audiomind/src.
+_PROJECT_DIR_DEPTH = 4
+
+
+def _resolve_dirs(config_file: PurePath) -> tuple[PurePath, PurePath]:
+    """Resolve ``(project_dir, repo_root)`` from this module's path, never raising.
+
+    Both layouts keep the module at ``<project>/src/audiomind/intelligence/rag``:
+    the monorepo (``<repo>/apps/audiomind``) and the Docker image, where the
+    Dockerfile copies ``apps/audiomind`` straight to ``/app``. Only the monorepo
+    has an ``apps`` level above the project dir, so in the image the project dir
+    stands in for the repo root.
+
+    Walking to the project dir is bounded on purpose. Indexing ``Path.parents``
+    blind is what took the API down on boot: on ``/app`` there is no second
+    ancestor, so ``parents[1]`` raised ``IndexError`` at import time.
+    """
+    ancestors = list(config_file.parents)
+    project_dir = (
+        ancestors[_PROJECT_DIR_DEPTH]
+        if len(ancestors) > _PROJECT_DIR_DEPTH
+        else config_file.parent
+    )
+
+    if project_dir.parent.name == "apps":
+        return project_dir, project_dir.parent.parent
+    return project_dir, project_dir
+
+
+_AUDIOMIND_DIR, _REPO_ROOT = _resolve_dirs(Path(__file__).resolve())
 
 _WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
