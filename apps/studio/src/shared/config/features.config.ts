@@ -65,6 +65,16 @@ export const DEFAULT_FEATURES: Record<FeatureKey, FeatureDefinition> = {
     labelKey: "nav.album",
     defaultLabel: "Álbum",
   },
+  // El bucle agéntico del backend. Sin esta entrada el dock lo filtra
+  // (`isFeatureEnabled` devuelve false para una clave ausente) y el tab no
+  // aparece nunca.
+  productor: {
+    id: "productor",
+    enabled: true,
+    labelKey: "nav.productor",
+    defaultLabel: "Productor IA",
+    descriptionKey: "productor.subtitle",
+  },
   history: {
     id: "history",
     enabled: true,

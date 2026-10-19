@@ -15,6 +15,8 @@ import {
   processAudio,
   submitMixJob,
   getMixJobState,
+  submitAgentJob,
+  getAgentJobStatus,
   getProjectDocument,
   putProjectDocument,
   getProjectMixState,
@@ -908,5 +910,139 @@ describe('project assets — subida directa a R2', () => {
     stub({ detail: 'Proyecto no encontrado.' }, false, 404);
 
     await expect(presignAsset(p1, { kind: 'original' })).rejects.toThrow();
+  });
+});
+
+describe('submitAgentJob', () => {
+  function okFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'agent_abc123',
+        session_id: SID,
+        status: 'processing',
+        poll_url: '/api/jobs/agent/agent_abc123',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('devuelve el job_id sin esperar al bucle agéntico', async () => {
+    okFetch();
+    const accepted = await submitAgentJob(SID);
+    expect(accepted.job_id).toBe('agent_abc123');
+    expect(accepted.status).toBe('processing');
+  });
+
+  it('pega al endpoint async con el session_id en la ruta', async () => {
+    const fetchMock = okFetch();
+    await submitAgentJob(SID);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/agent/${SID}`);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe('POST');
+  });
+
+  it('manda el prompt del usuario, sin espacios sobrantes', async () => {
+    const fetchMock = okFetch();
+    await submitAgentJob(SID, '  quiero la voz al frente  ');
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      prompt: 'quiero la voz al frente',
+    });
+  });
+
+  it('omite prompt cuando viene vacío: el loop usa su directiva por defecto', async () => {
+    const fetchMock = okFetch();
+    await submitAgentJob(SID, '   ');
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({});
+  });
+
+  it('propaga el 503 sin credencial de LLM con el detalle del backend', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ detail: 'No hay transporte LLM disponible' }),
+    }));
+    await expect(submitAgentJob(SID)).rejects.toThrow('No hay transporte LLM disponible');
+  });
+});
+
+describe('getAgentJobStatus', () => {
+  it('lee el resultado completo: diagnóstico, herramientas y audio durable', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'agent_abc123',
+        kind: 'agent',
+        status: 'completed',
+        progress: 100,
+        stage: null,
+        session_id: SID,
+        result: {
+          session_id: SID,
+          diagnosis: 'La mezcla estaba apretada en graves.',
+          iterations: 2,
+          intent: { warmth: 0.6, punch: 0.5 },
+          analysis: null,
+          mix_metrics: { iteration: 2, qc_report: {} },
+          master_metrics: { integrated_lufs: -9.4, source: 'mix' },
+          tools_executed: [
+            { tool: 'trigger_stem_separation', ok: true, detail: '4 stems', payload: {}, error: null },
+          ],
+          audio: {
+            mix: null,
+            master: {
+              r2_key: 'masters/session-123/master.wav',
+              url: 'https://r2.example/master.wav',
+              local_path: null,
+              durable: true,
+              note: null,
+            },
+          },
+        },
+        error: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const state = await getAgentJobStatus('agent_abc123');
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/agent/agent_abc123`);
+    expect(state.status).toBe('completed');
+    expect(state.result?.diagnosis).toBe('La mezcla estaba apretada en graves.');
+    expect(state.result?.tools_executed[0].tool).toBe('trigger_stem_separation');
+    expect(state.result?.audio.master?.durable).toBe(true);
+  });
+
+  it('reporta el job interrumpido como error, no como processing eterno', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        job_id: 'agent_abc123',
+        kind: 'agent',
+        status: 'error',
+        progress: 0,
+        stage: null,
+        session_id: SID,
+        result: {},
+        error: 'The job was interrupted (the worker stopped before it finished)',
+      }),
+    }));
+
+    const state = await getAgentJobStatus('agent_abc123');
+
+    expect(state.status).toBe('error');
+    expect(state.error).toContain('interrupted');
+  });
+
+  it('escapa el job_id en la URL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ job_id: 'a/b', kind: 'agent', status: 'processing' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getAgentJobStatus('a/b');
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/agent/a%2Fb`);
   });
 });
