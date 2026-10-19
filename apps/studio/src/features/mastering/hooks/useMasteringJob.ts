@@ -93,6 +93,11 @@ export function useMasteringJob(
   const submitPromiseRef = useRef<Promise<void> | null>(null);
   const pollIntervalRef = useRef(2500); // Exponential backoff: starts at 2.5s
   const MAX_POLL_INTERVAL = 10000; // Cap at 10s
+  // Fallos consecutivos (red, 5xx, o un estado que no reconocemos). Sin este
+  // tope el hook reprogramaba el tick para siempre y la UI quedaba en
+  // "processing" con el usuario esperando un resultado que nunca llega.
+  const failureStreakRef = useRef(0);
+  const MAX_CONSECUTIVE_POLL_FAILURES = 6;
 
   // Evitar submeter dos jobs simultáneos
   const isSubmittingRef = useRef(false);
@@ -107,6 +112,21 @@ export function useMasteringJob(
     onErrorRef.current = options.onError;
   }, [options.onComplete, options.onError]);
 
+  /**
+   * Termina el job como fallido. Único camino de salida para los fallos que no
+   * son del servidor: sin esto el polling no tiene estado terminal.
+   */
+  const failJob = useCallback((message: string) => {
+    if (intervalRef.current) {
+      clearTimeout(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setState("error");
+    setIsTerminal(true);
+    setError(message);
+    onErrorRef.current?.(message);
+  }, []);
+
   /** Iniciar el polling con exponential backoff. */
   const startPolling = useCallback(
     (overrideJobId?: string) => {
@@ -115,6 +135,7 @@ export function useMasteringJob(
         clearTimeout(intervalRef.current);
       }
       pollIntervalRef.current = 2500; // Reset backoff
+      failureStreakRef.current = 0;
       setProgress(0);
       setError(null);
       setIsTerminal(false);
@@ -139,6 +160,8 @@ export function useMasteringJob(
               setState("processing");
               // Reset error if was previously errored and now running again
               setError(null);
+              // Un tick bueno corta la racha: el job sigue vivo.
+              failureStreakRef.current = 0;
               // Exponential backoff
               pollIntervalRef.current = Math.min(
                 pollIntervalRef.current * 1.5,
@@ -178,7 +201,19 @@ export function useMasteringJob(
               break;
 
             default:
-              // Estado desconocido, continuar polling con backoff
+              // Estado que no reconocemos (respuesta 200 sin `status`, versión
+              // del backend más nueva, proxy devolviendo HTML). Reintentar sin
+              // tope deja al usuario esperando para siempre.
+              failureStreakRef.current += 1;
+              if (failureStreakRef.current >= MAX_CONSECUTIVE_POLL_FAILURES) {
+                failJob(
+                  t(
+                    "errors.masteringJobPoll",
+                    "Error al consultar el estado del job",
+                  ),
+                );
+                return;
+              }
               pollIntervalRef.current = Math.min(
                 pollIntervalRef.current * 1.5,
                 MAX_POLL_INTERVAL
@@ -194,6 +229,7 @@ export function useMasteringJob(
           // Si el job desaparece (404), tratar como error de lease expirado
           if (pollErr instanceof Error && pollErr.message.includes("404")) {
             setState("error");
+            setIsTerminal(true);
             setError(
               t(
                 "errors.masteringJobStale",
@@ -201,6 +237,18 @@ export function useMasteringJob(
               ),
             );
           } else {
+            failureStreakRef.current += 1;
+            if (failureStreakRef.current >= MAX_CONSECUTIVE_POLL_FAILURES) {
+              // Un 5xx sostenido es un fallo del trabajo, no algo que el
+              // usuario pueda esperar: se corta acá.
+              failJob(
+                t(
+                  "errors.masteringJobPoll",
+                  "Error al consultar el estado del job",
+                ),
+              );
+              return;
+            }
             setError(
               t("errors.masteringJobPoll", "Error al consultar el estado del job"),
             );
@@ -217,7 +265,7 @@ export function useMasteringJob(
       // Start first tick
       intervalRef.current = setTimeout(tick, pollIntervalRef.current);
     },
-    [jobId, t],
+    [jobId, t, failJob],
   );
 
   /** Submeter el job asíncrono. */
@@ -280,6 +328,7 @@ export function useMasteringJob(
   /** Reiniciar el hook (limpiar job actual y volver a idle). */
   const reset = useCallback(() => {
     stopPolling();
+    failureStreakRef.current = 0;
     setState("idle");
     setJobId(null);
     setResult(null);
