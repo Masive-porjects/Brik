@@ -128,7 +128,11 @@ class Settings(BaseSettings):
     #
     # Both naming conventions are accepted so an operator can use either the
     # Cloudflare-flavoured ``CLOUDFLARE_R2_*`` or the project-wide
-    # ``AUDIOMIND_R2_*`` prefix (the latter wins when both are set).
+    # ``AUDIOMIND_R2_*`` prefix. ``AliasChoices`` resolves in list order: the
+    # FIRST alias present wins, so ``AUDIOMIND_R2_*`` takes precedence and the
+    # others are ignored. Never keep two sets with different values: the
+    # backend would read the prefixed one while the dashboard makes the other
+    # look authoritative, and a rotated secret in the losing name is invisible.
     r2_endpoint: str = Field(
         default="",
         validation_alias=AliasChoices(
