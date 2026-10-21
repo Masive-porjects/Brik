@@ -67,9 +67,14 @@ type DecisionPhase =
 interface AgentPanelProps {
   sessionId: string | null;
   disabled?: boolean;
+  /**
+   * Hides the internal title block. Used when the panel lives inside the
+   * Productor sidebar, which already renders that header in its own rail.
+   */
+  compact?: boolean;
 }
 
-export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
+export default function AgentPanel({ sessionId, disabled, compact = false }: AgentPanelProps) {
   const { t } = useTranslation();
 
   const [prompt, setPrompt] = useState("");
@@ -276,19 +281,21 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
 
   return (
     <div className="w-full" style={CARD_STYLE}>
-      <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4">
-        <div>
-          <h2
-            className="text-lg font-bold"
-            style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
-          >
-            {t("productor.title")}
-          </h2>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
-            {t("productor.subtitle")}
-          </p>
+      {!compact && (
+        <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4">
+          <div>
+            <h2
+              className="text-lg font-bold"
+              style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+            >
+              {t("productor.title")}
+            </h2>
+            <p className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+              {t("productor.subtitle")}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="px-4 pt-3 pb-4">
         <label
