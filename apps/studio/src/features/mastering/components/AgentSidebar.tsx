@@ -1,129 +1,105 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Sparkles, Bot } from "lucide-react";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+
 import { useTranslation } from "@/i18n";
 
 import AgentPanel from "./AgentPanel";
 
+/** Expanded rail width (px). Exported so the dock can offset itself. */
+export const AGENT_SIDEBAR_WIDTH = 400;
+/** Collapsed rail width (px). */
+export const AGENT_SIDEBAR_COLLAPSED = 56;
+
 interface AgentSidebarProps {
   sessionId: string | null;
   disabled?: boolean;
-  /** Callback when user wants to switch back to manual mode */
-  onSwitchToManual?: () => void;
+  /** Expanded state. Owned by the page so the floating dock can follow. */
+  open: boolean;
+  onToggle: () => void;
 }
 
-/**
- * AgentSidebar — Collapsible right sidebar for the AI Producer (Productor IA).
- *
- * Inspired by Moises Studio: fixed right drawer that slides in/out.
- * Contains the full AgentPanel workflow in a compact vertical layout.
- * Width: 400px desktop, full-width mobile.
- */
+/* ── AgentSidebar ───────────────────────────────────────
+   Right rail that hosts Brik (Productor IA) next to the DAW.
+   It is a layout sibling of the main column, not a fixed overlay:
+   it takes real horizontal space, so the waveform on the left keeps
+   its own scroll and nothing ever overlaps. Collapses to a narrow
+   rail that still shows the toggle. */
 export default function AgentSidebar({
   sessionId,
   disabled,
-  onSwitchToManual,
+  open,
+  onToggle,
 }: AgentSidebarProps) {
   const { t } = useTranslation();
-  const SIDEBAR_WIDTH = 400;
+  const collapseLabel = t("productor.sidebarCollapse");
+  const expandLabel = t("productor.sidebarExpand");
 
   return (
-    <AnimatePresence>
-      <motion.aside
-        initial={{ x: SIDEBAR_WIDTH }}
-        animate={{ x: 0 }}
-        exit={{ x: SIDEBAR_WIDTH }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed right-0 top-0 bottom-0 z-30 flex flex-col"
-        style={{
-          width: SIDEBAR_WIDTH,
-          maxWidth: "100vw",
-          background: "var(--bg-glass-elevated)",
-          borderLeft: "1px solid var(--border-strong)",
-          boxShadow: "var(--shadow-heavy)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-        }}
-        role="complementary"
-        aria-label={t("nav.productor", "Productor IA")}
+    <motion.aside
+      initial={false}
+      animate={{ width: open ? AGENT_SIDEBAR_WIDTH : AGENT_SIDEBAR_COLLAPSED }}
+      transition={{ type: "spring", stiffness: 320, damping: 34 }}
+      className="relative z-[2] flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l"
+      style={{
+        background: "var(--bg-glass-elevated)",
+        borderColor: "var(--border-strong)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+      }}
+      aria-label={t("productor.sidebarTitle")}
+    >
+      <header
+        className={`flex shrink-0 gap-2 border-b px-3 py-3 ${
+          open ? "items-center" : "flex-col items-center"
+        }`}
+        style={{ borderColor: "var(--border-subtle)" }}
       >
-        {/* Drag handle / resize indicator */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 hover:opacity-30 transition-opacity"
-          aria-hidden="true"
-        />
+        <span
+          className="grid size-7 shrink-0 place-items-center rounded-full"
+          style={{
+            background: "var(--surface-hover)",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--accent-primary)",
+          }}
+        >
+          <Sparkles size={15} />
+        </span>
 
-        {/* Sidebar Content */}
-        <div className="flex flex-col h-full overflow-hidden">
-          {/* Header */}
-          <header className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <div className="relative">
-                  <Bot size={18} className="text-[var(--accent-primary)]" />
-                  <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--accent-primary)] animate-pulse" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-[var(--text-primary)] leading-tight">
-                    {t("nav.productor", "Productor IA")}
-                  </h2>
-                  <p className="text-[10px] text-[var(--text-muted)] leading-none">
-                    {t("productor.subtitle", "El agente escucha, separa, mezcla y masteriza por su cuenta")}
-                  </p>
-                </div>
-              </div>
-            </div>
+        {open && (
+          <h2
+            className="min-w-0 flex-1 truncate text-sm font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {t("productor.sidebarTitle")}
+          </h2>
+        )}
 
-            <div className="flex items-center gap-1.5">
-              {/* Collapse toggle */}
-              <button
-                type="button"
-                className="p-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-colors"
-                aria-label="Colapsar panel"
-                aria-expanded="true"
-                onClick={() => window.dispatchEvent(new CustomEvent("agent-sidebar:toggle"))}
-              >
-                <ChevronRight size={16} />
-              </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-label={open ? collapseLabel : expandLabel}
+          title={open ? collapseLabel : expandLabel}
+          className="grid size-7 shrink-0 place-items-center rounded-lg border transition-colors
+            hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]
+            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-primary)]"
+          style={{
+            background: "var(--surface-hover)",
+            borderColor: "var(--border-subtle)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          {open ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+        </button>
+      </header>
 
-              {/* Switch to manual mode */}
-              {onSwitchToManual && (
-                <button
-                  type="button"
-                  onClick={onSwitchToManual}
-                  className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] hover:border-[var(--border-hover)]"
-                >
-                  <ChevronLeft size={13} />
-                  <span>{t("common.backToMainFlow", "Volver al flujo principal")}</span>
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Content Area */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4">
-            {sessionId ? (
-              <AgentPanel sessionId={sessionId} disabled={disabled} />
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-                className="flex flex-col items-center justify-center h-full text-center"
-              >
-                <Sparkles size={48} className="text-[var(--accent-primary)] mb-4" />
-                <h3 className="text-base font-semibold text-[var(--text-primary)] mb-2">
-                  {t("productor.title", "Productor IA")}
-                </h3>
-                <p className="text-sm text-[var(--text-secondary)] max-w-xs">
-                  {t("productor.loadAudioPrompt", "Carga un audio para usar el Productor IA.")}
-                </p>
-              </motion.div>
-            )}
-          </div>
+      {open && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <AgentPanel sessionId={sessionId} disabled={disabled} compact />
         </div>
-      </motion.aside>
-    </AnimatePresence>
+      )}
+    </motion.aside>
   );
 }

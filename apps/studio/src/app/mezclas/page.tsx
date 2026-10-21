@@ -29,6 +29,8 @@ import {
   ConsolidateMasterModal,
   SelectWorkflowModal,
   AgentSidebar,
+  AGENT_SIDEBAR_WIDTH,
+  AGENT_SIDEBAR_COLLAPSED,
 } from "@/features/mastering";
 import { LibraryView } from "@/features/remastering-history";
 import { fetchUserTracks, renameTrackDraft, getUserTracksCount, type Track } from "@/features/tracks";
@@ -159,6 +161,9 @@ function MezclasContent() {
   // Right panel collapse state (manual mode analysis sidebar)
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [panelSyncTab, setPanelSyncTab] = useState<MasteringTab | null>(null);
+
+  // Productor IA sidebar (right rail, desktop only). Open by default.
+  const [agentSidebarOpen, setAgentSidebarOpen] = useState(true);
 
   const needsRightPanel = currentTab === "analysis" || currentTab === "stereo";
   if (currentTab !== panelSyncTab) {
@@ -318,68 +323,55 @@ function MezclasContent() {
           <main className="flex-1 h-full flex flex-col min-w-0 relative">
             <div className="flex flex-1 min-h-0 relative">
               <div className="flex-1 flex flex-col min-w-0 relative">
-                {/* AI Mode Workspace — Horizontal split: Main content + Agent Sidebar */}
+                {/* AI Mode Workspace */}
                 <div
                   className={`${
                     masteringMode === "ai" && !isMezclaTab ? "flex" : "hidden"
-                  } flex-1 min-h-0 flex-row`}
+                  } flex-1 min-h-0 items-center justify-center overflow-y-auto px-4 py-5 md:px-6 md:py-8`}
                   aria-hidden={masteringMode !== "ai" || isMezclaTab}
                 >
-                  {/* Main Content Area (Left) — Player + Canvas */}
-                  <div className="flex-1 min-w-0 flex flex-col">
-                    <motion.div
-                      className="flex h-full max-h-[min(42rem,100%)] min-h-[28rem] w-full flex-col"
-                      initial={VIEW_TRANSITION.initial}
-                      animate={VIEW_TRANSITION.animate}
-                      transition={VIEW_TRANSITION.transition}
+                  <motion.div
+                    className="flex h-full max-h-[min(42rem,100%)] min-h-[28rem] w-full max-w-2xl flex-col"
+                    initial={VIEW_TRANSITION.initial}
+                    animate={VIEW_TRANSITION.animate}
+                    transition={VIEW_TRANSITION.transition}
+                  >
+                    <div
+                      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-2xl"
+                      style={{
+                        background: "var(--bg-glass-elevated)",
+                        borderColor: "var(--border-strong)",
+                        boxShadow: "var(--shadow-card)",
+                      }}
                     >
-                      <div
-                        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-2xl"
-                        style={{
-                          background: "var(--bg-glass-elevated)",
-                          borderColor: "var(--border-strong)",
-                          boxShadow: "var(--shadow-card)",
-                        }}
-                      >
-                        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="size-2 rounded-full bg-[var(--accent-primary)] animate-pulse" />
-                            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                              {t("nav.productor", "Productor IA")}
-                            </h2>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setMasteringMode("manual")}
-                            className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-                          >
-                            <ChevronLeft size={13} />
-                            <span>{t("common.backToMainFlow", "Volver al flujo principal")}</span>
-                          </button>
+                      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="size-2 rounded-full bg-[var(--accent-primary)] animate-pulse" />
+                          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                            {t("nav.chat", "Asistente IA")}
+                          </h2>
                         </div>
-
-                        <div className="flex-1 min-h-0 p-4">
-                          {/* Main content goes here — Player + Canvas will be rendered by the Manual Mode Workspace logic */}
-                          <div className="h-full flex items-center justify-center">
-                            <ComingSoonNotice
-                              title={t("nav.productor", "Productor IA")}
-                              message={t(
-                                "mastering.aiComingSoon",
-                                "El asistente con recomendaciones inteligentes llega pronto. Mientras tanto, masteriza en modo Manual con las guías de género."
-                              )}
-                            />
-                          </div>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMasteringMode("manual")}
+                          className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+                        >
+                          <ChevronLeft size={13} />
+                          <span>{t("common.backToMainFlow", "Volver al flujo principal")}</span>
+                        </button>
                       </div>
-                    </motion.div>
-                  </div>
 
-                  {/* Agent Sidebar (Right) — Collapsible */}
-                  <AgentSidebar
-                    sessionId={workflow.session?.session_id ?? null}
-                    disabled={workflow.processing}
-                    onSwitchToManual={() => setMasteringMode("manual")}
-                  />
+                      <div className="flex-1 min-h-0 p-4 flex items-center justify-center">
+                        <ComingSoonNotice
+                          title={t("nav.chat", "Asistente IA")}
+                          message={t(
+                            "mastering.aiComingSoon",
+                            "El asistente con recomendaciones inteligentes llega pronto. Mientras tanto, masteriza en modo Manual con las guías de género."
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
                 </div>
 
                 {/* Manual Mode Workspace */}
@@ -437,7 +429,7 @@ function MezclasContent() {
                           layout="position"
                           transition={{ type: "spring", stiffness: 40, damping: 12 }}
                           className={`relative z-[1] px-4 lg:px-6 pt-4 pb-2 ${
-                            currentTab === null
+                            currentTab === null || currentTab === "productor"
                               ? "flex-1 flex items-center justify-center min-h-0"
                               : "shrink-0"
                           }`}
@@ -446,7 +438,7 @@ function MezclasContent() {
                             <div
                               ref={playerScaleRef}
                               className={`w-full origin-center ${
-                                currentTab === null ? "max-w-5xl" : ""
+                                currentTab === null || currentTab === "productor" ? "max-w-5xl" : ""
                               }`}
                             >
                               <Player
@@ -473,7 +465,9 @@ function MezclasContent() {
                       {/* Scrollable Tab Canvas */}
                       <div
                         className={`relative z-[1] overflow-y-auto px-4 lg:px-6 pt-4 pb-48 ${
-                          sheetTab !== null || currentTab === null ? "hidden" : "flex-1"
+                          sheetTab !== null || currentTab === null || currentTab === "productor"
+                            ? "hidden"
+                            : "flex-1"
                         }`}
                       >
                         {workflow.error && (
@@ -507,7 +501,7 @@ function MezclasContent() {
                             referencia queda stale y el commit falla con
                             "NotFoundError: insertBefore" al abrir el tab de mezcla. */}
                         <AnimatePresence>
-                          {currentTab !== null && (
+                          {currentTab !== null && currentTab !== "productor" && (
                             <PaintedModule key={currentTab}>
                               <MasteringCanvas
                                 tab={currentTab}
@@ -537,6 +531,13 @@ function MezclasContent() {
                         <ModuleDock
                           activeTab={currentTab}
                           onSelect={handleModuleClick}
+                          rightOffset={
+                            currentTab === "productor"
+                              ? agentSidebarOpen
+                                ? AGENT_SIDEBAR_WIDTH
+                                : AGENT_SIDEBAR_COLLAPSED
+                              : 0
+                          }
                           processingProgress={workflow.processing ? workflow.progress : 0}
                           lufs={
                             workflow.session?.master_result?.integrated_lufs ??
@@ -548,6 +549,16 @@ function MezclasContent() {
                     </motion.div>
                   )}
                 </div>
+
+                {/* Agent Sidebar Column (Productor IA) — collapsible right rail */}
+                {!isMobile && masteringMode === "manual" && currentTab === "productor" && (
+                  <AgentSidebar
+                    sessionId={workflow.session?.session_id ?? null}
+                    disabled={workflow.processing}
+                    open={agentSidebarOpen}
+                    onToggle={() => setAgentSidebarOpen((prev) => !prev)}
+                  />
+                )}
               </div>
             </div>
           </main>

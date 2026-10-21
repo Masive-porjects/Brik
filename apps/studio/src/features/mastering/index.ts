@@ -6,7 +6,11 @@ export { default as MasteringHeader } from "./components/MasteringHeader";
 export { default as MasteringOverlays } from "./components/MasteringOverlays";
 export { default as MasteringCanvas } from "./components/MasteringCanvas";
 export { default as AnalysisSidebar } from "./components/AnalysisSidebar";
-export { default as AgentSidebar } from "./components/AgentSidebar";
+export {
+  default as AgentSidebar,
+  AGENT_SIDEBAR_WIDTH,
+  AGENT_SIDEBAR_COLLAPSED,
+} from "./components/AgentSidebar";
 export { default as MobileMasteringView } from "./components/MobileMasteringView";
 export { default as ConsolidateMasterModal } from "./components/ConsolidateMasterModal";
 export { default as SelectWorkflowModal } from "./components/SelectWorkflowModal";
