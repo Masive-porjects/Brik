@@ -28,6 +28,7 @@ import {
   MobileMasteringView,
   ConsolidateMasterModal,
   SelectWorkflowModal,
+  AgentSidebar,
 } from "@/features/mastering";
 import { LibraryView } from "@/features/remastering-history";
 import { fetchUserTracks, renameTrackDraft, getUserTracksCount, type Track } from "@/features/tracks";
@@ -155,7 +156,7 @@ function MezclasContent() {
     }
   }, [workflow.session, workflow.loading, workflow.processing, workflow.isLoadingTrackProject, trackIdParam, router]);
 
-  // Right panel collapse state
+  // Right panel collapse state (manual mode analysis sidebar)
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [panelSyncTab, setPanelSyncTab] = useState<MasteringTab | null>(null);
 
@@ -317,55 +318,68 @@ function MezclasContent() {
           <main className="flex-1 h-full flex flex-col min-w-0 relative">
             <div className="flex flex-1 min-h-0 relative">
               <div className="flex-1 flex flex-col min-w-0 relative">
-                {/* AI Mode Workspace */}
+                {/* AI Mode Workspace — Horizontal split: Main content + Agent Sidebar */}
                 <div
                   className={`${
                     masteringMode === "ai" && !isMezclaTab ? "flex" : "hidden"
-                  } flex-1 min-h-0 items-center justify-center overflow-y-auto px-4 py-5 md:px-6 md:py-8`}
+                  } flex-1 min-h-0 flex-row`}
                   aria-hidden={masteringMode !== "ai" || isMezclaTab}
                 >
-                  <motion.div
-                    className="flex h-full max-h-[min(42rem,100%)] min-h-[28rem] w-full max-w-2xl flex-col"
-                    initial={VIEW_TRANSITION.initial}
-                    animate={VIEW_TRANSITION.animate}
-                    transition={VIEW_TRANSITION.transition}
-                  >
-                    <div
-                      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-2xl"
-                      style={{
-                        background: "var(--bg-glass-elevated)",
-                        borderColor: "var(--border-strong)",
-                        boxShadow: "var(--shadow-card)",
-                      }}
+                  {/* Main Content Area (Left) — Player + Canvas */}
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <motion.div
+                      className="flex h-full max-h-[min(42rem,100%)] min-h-[28rem] w-full flex-col"
+                      initial={VIEW_TRANSITION.initial}
+                      animate={VIEW_TRANSITION.animate}
+                      transition={VIEW_TRANSITION.transition}
                     >
-                      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="size-2 rounded-full bg-[var(--accent-primary)] animate-pulse" />
-                          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                            {t("nav.chat", "Asistente IA")}
-                          </h2>
+                      <div
+                        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-2xl"
+                        style={{
+                          background: "var(--bg-glass-elevated)",
+                          borderColor: "var(--border-strong)",
+                          boxShadow: "var(--shadow-card)",
+                        }}
+                      >
+                        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-[var(--accent-primary)] animate-pulse" />
+                            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                              {t("nav.productor", "Productor IA")}
+                            </h2>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMasteringMode("manual")}
+                            className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+                          >
+                            <ChevronLeft size={13} />
+                            <span>{t("common.backToMainFlow", "Volver al flujo principal")}</span>
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setMasteringMode("manual")}
-                          className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-                        >
-                          <ChevronLeft size={13} />
-                          <span>{t("common.backToMainFlow", "Volver al flujo principal")}</span>
-                        </button>
-                      </div>
 
-                      <div className="flex-1 min-h-0 p-4 flex items-center justify-center">
-                        <ComingSoonNotice
-                          title={t("nav.chat", "Asistente IA")}
-                          message={t(
-                            "mastering.aiComingSoon",
-                            "El asistente con recomendaciones inteligentes llega pronto. Mientras tanto, masteriza en modo Manual con las guías de género."
-                          )}
-                        />
+                        <div className="flex-1 min-h-0 p-4">
+                          {/* Main content goes here — Player + Canvas will be rendered by the Manual Mode Workspace logic */}
+                          <div className="h-full flex items-center justify-center">
+                            <ComingSoonNotice
+                              title={t("nav.productor", "Productor IA")}
+                              message={t(
+                                "mastering.aiComingSoon",
+                                "El asistente con recomendaciones inteligentes llega pronto. Mientras tanto, masteriza en modo Manual con las guías de género."
+                              )}
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  </div>
+
+                  {/* Agent Sidebar (Right) — Collapsible */}
+                  <AgentSidebar
+                    sessionId={workflow.session?.session_id ?? null}
+                    disabled={workflow.processing}
+                    onSwitchToManual={() => setMasteringMode("manual")}
+                  />
                 </div>
 
                 {/* Manual Mode Workspace */}
