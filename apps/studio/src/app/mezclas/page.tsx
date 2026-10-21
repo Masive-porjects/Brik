@@ -458,7 +458,7 @@ function MezclasContent() {
 
                       {/* Scrollable Tab Canvas */}
                       <div
-                        className={`relative z-[1] overflow-y-auto px-4 lg:px-6 pt-4 pb-40 ${
+                        className={`relative z-[1] overflow-y-auto px-4 lg:px-6 pt-4 pb-48 ${
                           sheetTab !== null || currentTab === null ? "hidden" : "flex-1"
                         }`}
                       >
