@@ -49,7 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from audiomind.analysis.analyzer import analyze_audio
 from audiomind.analysis.verdict import AudioVerdict
@@ -57,6 +57,7 @@ from audiomind.config import settings
 from audiomind.models.audio import AnalysisResult, ReferenceComparison
 from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing import prompts
+from audiomind.processing.character import CHARACTER_PROFILE, is_known_profile
 from audiomind.processing.engine import process_audio
 from audiomind.processing.mapper import map_intent_to_mastering
 from audiomind.processing.mix_engine import build_mix
@@ -117,6 +118,27 @@ class RenderMixArgs(BaseModel):
         description="Renderizar las 5 versiones derivadas (vocal_up, instrumental, "
         "tv_mix...). Costoso y NO necesario dentro del bucle.",
     )
+    character: str | None = Field(
+        None,
+        description="Perfil de carácter (atmósfera) del render. None = etapa "
+        "Character apagada: el bus queda idéntico al render sin carácter.",
+    )
+    character_seed: int | None = Field(
+        None,
+        description="Semilla del lecho estocástico del carácter. Solo se aplica "
+        "si se pidió un perfil.",
+    )
+
+    @field_validator("character")
+    @classmethod
+    def _validate_character(cls, value: str | None) -> str | None:
+        """Mismo contrato estricto que ``MixJobRequest``: un perfil desconocido
+        es un argumento inválido, no un no-op silencioso."""
+        if value is None or is_known_profile(value):
+            return value
+        raise ValueError(
+            f"character {value!r} not allowed; expected {CHARACTER_PROFILE!r}"
+        )
 
 
 class AnalyzeMixBusArgs(BaseModel):
@@ -205,7 +227,9 @@ _TOOL_DOCS: dict[str, str] = {
     "render_mix": (
         "Construye el bus de mezcla con la intención ajustada y devuelve su "
         "ruta. Es la operación más costosa del bucle: llamarla solo después "
-        "de adjust_stem_parameters."
+        "de adjust_stem_parameters. Acepta un perfil de carácter opcional "
+        "(atmósfera deliberada, no un eje de intención); sin perfil, la etapa "
+        "Character queda apagada y el bus es idéntico al render sin carácter."
     ),
     "analyze_mix_bus": (
         "Devuelve qc_report y balance_report del último render (mono, fase, "
@@ -457,6 +481,10 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
     misma pasada, el `qc_report` y el `balance_report` que el motor ya calcula.
     """
     settings_ = state.pending_settings or MixSettings()
+    # Un seed sin perfil no tiene etapa que sembrar: se descarta para que la
+    # ruta neutral siga siendo la misma de siempre (etapa Character apagada).
+    character = args.character
+    character_seed = args.character_seed if character is not None else None
     try:
         started = time.perf_counter()
         state.render = build_mix(
@@ -465,6 +493,8 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
             stem_trims=settings_.stem_trims,
             auto_balance=settings_.auto_balance,
             with_versions=args.with_versions,
+            character=character,
+            character_seed=character_seed,
         )
         render_seconds = time.perf_counter() - started
     except Exception as exc:  # noqa: BLE001
@@ -489,6 +519,7 @@ def _render_mix(state: AgentState, args: RenderMixArgs) -> ToolResult:
             "mix_path": state.mix_path,
             "iteration": state.iteration,
             "applied_stem_trims": settings_.stem_trims,
+            "character": character,
             "seconds": round(render_seconds, 2),
         },
     )

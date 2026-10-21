@@ -183,6 +183,96 @@ class TestToolContracts:
         assert schema.get("additionalProperties") is False
 
 
+class TestCharacterTool:
+    """El agente puede elegir el perfil de carácter del render.
+
+    Mismo contrato estricto que ``MixJobRequest``: un perfil desconocido es un
+    argumento inválido (envelope fallido que el modelo puede corregir), no un
+    no-op silencioso.
+    """
+
+    def test_render_mix_accepts_the_known_profile(self):
+        args = al.RenderMixArgs(character="commercial_alt_pop", character_seed=7)
+        assert args.character == "commercial_alt_pop"
+        assert args.character_seed == 7
+
+    def test_render_mix_defaults_to_the_neutral_path(self):
+        """Sin perfil la etapa Character no corre: el mix queda como antes."""
+        args = al.RenderMixArgs()
+        assert args.character is None
+        assert args.character_seed is None
+
+    def test_render_mix_rejects_an_unknown_profile(self):
+        with pytest.raises(ValidationError) as exc:
+            al.RenderMixArgs(character="warm_vintage")
+        assert "commercial_alt_pop" in str(exc.value)
+
+    def test_dispatch_turns_an_unknown_profile_into_a_failed_envelope(self):
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+
+        result = al.dispatch(state, "render_mix", {"character": "warm_vintage"})
+
+        assert result.ok is False
+        assert "argumentos inválidos" in (result.error or "")
+
+    def test_render_mix_forwards_the_profile_to_the_engine(
+        self, monkeypatch, tmp_path
+    ):
+        captured: dict = {}
+
+        def fake_build_mix(**kwargs):
+            captured.update(kwargs)
+            return {
+                "mix_path": str(tmp_path / "mix.wav"),
+                "qc_report": {},
+                "balance_report": None,
+            }
+
+        monkeypatch.setattr(al, "build_mix", fake_build_mix)
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+
+        result = al.dispatch(
+            state,
+            "render_mix",
+            {"character": "commercial_alt_pop", "character_seed": 7},
+        )
+
+        assert result.ok is True
+        assert captured["character"] == "commercial_alt_pop"
+        assert captured["character_seed"] == 7
+        assert result.payload["character"] == "commercial_alt_pop"
+
+    def test_render_mix_without_profile_never_sets_a_seed(
+        self, monkeypatch, tmp_path
+    ):
+        """Un seed suelto no puede mover nada: la ruta neutral sigue neutral."""
+        captured: dict = {}
+
+        def fake_build_mix(**kwargs):
+            captured.update(kwargs)
+            return {
+                "mix_path": str(tmp_path / "mix.wav"),
+                "qc_report": {},
+                "balance_report": None,
+            }
+
+        monkeypatch.setattr(al, "build_mix", fake_build_mix)
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+
+        al.dispatch(state, "render_mix", {"character_seed": 7})
+
+        assert captured["character"] is None
+        assert captured["character_seed"] is None
+
+    def test_tool_definition_exposes_the_profile(self):
+        """El modelo solo puede pedir lo que el schema declara."""
+        defs = {t["name"]: t for t in al.tool_definitions()}
+        props = defs["render_mix"]["parameters"]["properties"]
+
+        assert "character" in props
+        assert "character_seed" in props
+
+
 class TestToolDefinitions:
     def test_spec_tools_are_exactly_the_six_requested(self):
         assert [t["name"] for t in al.tool_definitions()] == [
