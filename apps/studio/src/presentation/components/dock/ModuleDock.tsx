@@ -23,6 +23,12 @@ interface ModuleDockProps {
   processingProgress: number;
   /** Integrated LUFS of the master result (fallback analysis), null if unknown. */
   lufs: number | null;
+  /**
+   * Horizontal space (px) reserved on the right by a side panel. The dock
+   * stays centred inside the remaining area instead of sliding underneath
+   * the panel it belongs to.
+   */
+  rightOffset?: number;
 }
 
 /* ── Fisheye tuning ─────────────────────────────────────
@@ -54,6 +60,7 @@ export default function ModuleDock({
   onSelect,
   processingProgress,
   lufs,
+  rightOffset = 0,
 }: ModuleDockProps) {
   const dockRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -222,6 +229,7 @@ export default function ModuleDock({
     <nav
       aria-label="Módulos del estudio"
       className="pointer-events-none fixed inset-x-0 bottom-4 pb-safe z-40 flex justify-center"
+      style={{ right: rightOffset }}
     >
       <motion.div
         ref={dockRef}
