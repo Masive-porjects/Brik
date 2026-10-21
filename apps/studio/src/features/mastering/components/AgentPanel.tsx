@@ -831,7 +831,7 @@ function AgentAudio({ audio }: { audio: AgentRunResult["audio"] }) {
           <span>{delivered.note ?? t("productor.audioEphemeral")}</span>
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 pb-2">
           {playable.map(({ kind, asset }) => (
             <div key={kind}>
               <p className="text-[10px] font-semibold" style={{ color: "var(--text-muted)" }}>
