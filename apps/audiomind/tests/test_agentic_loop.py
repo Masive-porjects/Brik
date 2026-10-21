@@ -21,7 +21,13 @@ import pytest
 from google.genai import types
 from pydantic import ValidationError
 
-from audiomind.models.audio import MasteringParameters
+from audiomind.analysis.analyzer import TARGET_BANDS_HZ
+from audiomind.analysis.verdict import build_verdict
+from audiomind.models.audio import (
+    AnalysisResult,
+    MasteringParameters,
+    ReferenceComparison,
+)
 from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing import agentic_loop as al
 from audiomind.processing import prompts
@@ -92,6 +98,12 @@ def cheap_tools(monkeypatch, tmp_path, fake_engine):
     mix_file = tmp_path / "mix.wav"
     mix_file.write_bytes(b"RIFF")
 
+    # ``send_to_master`` exige que el archivo fuente exista. En la ruta corta
+    # ese archivo es el INPUT (no un render), así que tiene que estar en disco
+    # igual que el mix del camino largo.
+    input_file = tmp_path / "original.wav"
+    input_file.write_bytes(b"RIFF")
+
     def fake_analyze(state, args):
         return al.ToolResult(
             ok=True,
@@ -129,6 +141,8 @@ def cheap_tools(monkeypatch, tmp_path, fake_engine):
     monkeypatch.setitem(al.TOOL_IMPLS, "analyze_original_audio", fake_analyze)
     monkeypatch.setitem(al.TOOL_IMPLS, "trigger_stem_separation", fake_separate)
     monkeypatch.setitem(al.TOOL_IMPLS, "render_mix", fake_render)
+
+    return SimpleNamespace(mix_file=mix_file, input_file=input_file)
 
 
 def _script(**overrides) -> list[al.ModelTurn]:
@@ -502,6 +516,401 @@ class TestBusMetrics:
         assert al.bus_metrics(state) == recorded.payload
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# S5 / S7 — la compuerta condicional
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _verdict(*, needs_mix: bool):
+    """A real verdict, built from a real analysis — never a hand-rolled stub.
+
+    Building it through ``build_verdict`` keeps the gate test honest: if the
+    verdict contract changes shape, this test breaks instead of silently
+    passing a duck-typed object the gate was never designed to read.
+    """
+    analysis = AnalysisResult(
+        integrated_lufs=-18.0,
+        true_peak_db=-1.0,
+        dynamic_range_db=17.0 if needs_mix else 12.0,
+        spectral_centroid=3000.0,
+        tempo_bpm=120.0,
+        duration_seconds=180.0,
+        sample_rate=44100,
+        channels=2,
+        detected_genre="pop",
+        genre_confidence=0.8,
+        crest_factor_db=20.0 if needs_mix else 14.0,
+        is_already_mastered=False,
+        mastering_confidence=0.0,
+    )
+    return build_verdict(analysis)
+
+
+def _verdict_with_deficiencies():
+    """A verdict whose per-band measurement really does report gaps.
+
+    A flat measurement reports NOTHING against a near-flat target (everything
+    falls under the 2 dB threshold), so a test that wants deficiencies has to
+    supply a real spectral shape. This shape is mid-recessed and top-light, the
+    classic "needs a mix" profile, and it passes the 20 dB runaway guard per
+    band — so every band is a legitimate, measurable gap.
+    """
+    analysis = AnalysisResult(
+        integrated_lufs=-18.0,
+        true_peak_db=-1.0,
+        dynamic_range_db=17.0,
+        spectral_centroid=3000.0,
+        tempo_bpm=120.0,
+        duration_seconds=180.0,
+        sample_rate=44100,
+        channels=2,
+        detected_genre="pop",
+        genre_confidence=0.8,
+        crest_factor_db=20.0,
+        is_already_mastered=False,
+        mastering_confidence=0.0,
+    )
+    # Sub/bass heavy, scooped mids, weak top: real gaps vs the pop profile.
+    band_energies = [-14.0, -16.0, -26.0, -32.0, -30.0, -34.0, -38.0, -40.0]
+    return build_verdict(analysis, band_energies_db=band_energies)
+
+
+class TestDecisionGate:
+    """S7 — la compuerta condicional del orquestador.
+
+    ``master_only`` tiene que saltarse la separación (Demucs) y el bucle de
+    mezcla ENTEROS, y masterizar el original. El motor soporta
+    ``SendToMasterArgs.source="original"`` desde antes de esta feature; el
+    orquestador es lo que nunca lo ofrecía.
+    """
+
+    def test_master_only_skips_phases_two_and_three(self, cheap_tools):
+        """Ni una llamada a Demucs ni un turno de bucle: ese es el ahorro."""
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Ya viene mezclado; masterizar directo."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        state = al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            decision="master_only",
+        )
+
+        assert transport.phases == ["phase1", "phase4"]
+        assert state.stems == {}
+        assert state.render is None
+        assert state.mix_path is None
+        assert state.master_path
+
+    def test_master_only_masters_the_original(self, cheap_tools, fake_engine):
+        """El master sale del INPUT, no de un render de mezcla."""
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Ya viene mezclado; masterizar directo."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            decision="master_only",
+        )
+
+        assert len(fake_engine) == 1
+        call = fake_engine[0]
+        assert Path(call["input_path"]) == cheap_tools.input_file
+        # El handshake adaptativo solo aplica cuando lo masterizado ES la mezcla.
+        assert call["mix_metadata"] is None
+
+    def test_master_only_forces_source_original_even_if_the_model_says_mix(
+        self, cheap_tools, fake_engine
+    ):
+        """El modelo no puede reabrir la compuerta pidiendo ``source='mix'``.
+
+        Un turno que insiste con ``mix`` sin render fallaría con un envelope de
+        error; la decisión del usuario es la que manda, así que la fase 4 la
+        aplica y el modelo no tiene voto.
+        """
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Ya viene mezclado; masterizar directo."),
+                al.ModelTurn(
+                    tool_calls=[
+                        al.ToolCall(name="send_to_master", args={"source": "mix"})
+                    ]
+                ),
+            ]
+        )
+        state = al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            decision="master_only",
+        )
+
+        assert state.master_path
+        recorded = next(r for r in state.tool_log if r.tool == "send_to_master")
+        assert recorded.ok is True
+        assert recorded.payload["source"] == "original"
+
+    def test_mix_then_master_runs_the_four_phases(self, cheap_tools):
+        """La ruta larga explícita es EXACTAMENTE la de siempre."""
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        assert transport.phases == ["phase1", "phase3", "phase3", "phase3", "phase4"]
+        assert len(state.stems) == 4
+        assert state.master_path
+
+    def test_the_user_decision_beats_briks_own_verdict(self, cheap_tools):
+        """El usuario tiene la última palabra, incluso contra el veredicto.
+
+        Brik dice ``needs_mix=False`` y el usuario pide mezclar igual: se corre
+        la ruta larga. Es la garantía de "la última palabra la decide el
+        usuario", y es lo que impide que la IA decida sola por accidente.
+        """
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+            verdict=_verdict(needs_mix=False),
+        )
+
+        assert transport.phases == ["phase1", "phase3", "phase3", "phase3", "phase4"]
+        assert len(state.stems) == 4
+
+
+class TestAutoDecision:
+    """S5 — ``auto`` es el default y resuelve con el veredicto."""
+
+    def test_auto_without_a_verdict_is_the_historical_run(self, cheap_tools):
+        """Cero veredicto, cero cambio de comportamiento: compatibilidad total."""
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe", input_path=Path("x.wav"), transport=transport
+        )
+
+        assert transport.phases == ["phase1", "phase3", "phase3", "phase3", "phase4"]
+        assert len(state.stems) == 4
+        assert state.decision.requested == "auto"
+        assert state.decision.applied == "mix_then_master"
+
+    def test_auto_follows_a_verdict_that_needs_a_mix(self, cheap_tools):
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            verdict=_verdict(needs_mix=True),
+        )
+
+        assert state.decision.applied == "mix_then_master"
+        assert len(state.stems) == 4
+
+    def test_auto_follows_a_verdict_that_only_needs_mastering(self, cheap_tools):
+        """El caso que hasta hoy era imposible: el orchestrator ofrece la ruta
+        corta por sí solo, sin que nadie lo pida a mano."""
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Veredicto: solo masterizar."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        state = al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            verdict=_verdict(needs_mix=False),
+        )
+
+        assert transport.phases == ["phase1", "phase4"]
+        assert state.decision.requested == "auto"
+        assert state.decision.applied == "master_only"
+        assert state.stems == {}
+        assert state.master_path
+
+    def test_an_explicit_decision_is_reported_as_applied(self, cheap_tools):
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Solo masterizar."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        state = al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            decision="master_only",
+        )
+
+        assert state.decision.requested == "master_only"
+        assert state.decision.applied == "master_only"
+
+    def test_an_invalid_decision_is_refused_at_the_contract(self):
+        """La decisión viaja de la UI: un valor basura se rechaza, no se asume."""
+        with pytest.raises(ValidationError):
+            al.DecisionRecord(requested="hacer-lo-que-quieras", applied="auto")
+
+
+class TestVerdictArtifact:
+    """S1/S10 — el veredicto se adjunta al estado para que el job lo devuelva."""
+
+    def test_a_passed_verdict_lands_on_the_state(self, cheap_tools):
+        transport = StubTransport(_script())
+        verdict = _verdict(needs_mix=True)
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            verdict=verdict,
+        )
+
+        assert state.verdict is verdict
+
+    def test_without_a_verdict_the_state_stays_empty(self, cheap_tools):
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe", input_path=Path("x.wav"), transport=transport
+        )
+
+        assert state.verdict is None
+
+    def test_the_verdict_reaches_the_diagnosis_turn(self, cheap_tools):
+        """Un veredicto que no llega al modelo es un adorno.
+
+        El diagnóstico tiene que poder VER de dónde salió la ruta: si no, Brik
+        explica un audio que no es el que se está procesando.
+        """
+        transport = StubTransport(_script())
+        al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            verdict=_verdict(needs_mix=False),
+        )
+
+        # transcripts[0] es el estado del transcript cuando se pidió el turno de
+        # fase 1: el último elemento es el bloque de mediciones+veredicto.
+        phase1_turn = transport.transcripts[0][-1]["text"]
+        assert "<veredicto>" in phase1_turn
+        assert "master_only" in phase1_turn
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# S8 — la referencia entra al prompt
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _reference_comparison() -> ReferenceComparison:
+    return ReferenceComparison(
+        status="ready",
+        target_bands_hz=list(TARGET_BANDS_HZ),
+        master_band_levels_db=[-20.0] * 8,
+        reference_band_levels_db=[-18.0] * 8,
+        band_deltas_db=[2.0] * 8,
+        master_lufs_db=-16.0,
+        reference_lufs_db=-14.0,
+        lufs_delta_db=2.0,
+    )
+
+
+class TestReferenceReachesThePrompt:
+    """S8 — la referencia que el usuario sube hoy muere en la sesión."""
+
+    def test_the_reference_block_reaches_the_diagnosis_turn(self, cheap_tools):
+        transport = StubTransport(_script())
+        al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            reference_comparison=_reference_comparison(),
+        )
+
+        phase1_turn = transport.transcripts[0][-1]["text"]
+        assert "<referencia>" in phase1_turn
+        assert "-14.0" in phase1_turn
+
+    def test_without_a_reference_the_turn_is_unchanged(self, cheap_tools):
+        """Sin referencia, el turno de fase 1 queda EXACTAMENTE como estaba."""
+        transport = StubTransport(_script())
+        al.run(
+            session_id="probe", input_path=Path("x.wav"), transport=transport
+        )
+
+        phase1_turn = transport.transcripts[0][-1]["text"]
+        assert "<referencia>" not in phase1_turn
+        assert "<veredicto>" not in phase1_turn
+
+    def test_an_unready_reference_is_not_shown_as_evidence(self, cheap_tools):
+        """``status != "ready"`` es una comparación que no corrió o falló.
+
+        Mostrarla sería presentar como medición algo que nunca se midió.
+        """
+        transport = StubTransport(_script())
+        al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            reference_comparison=ReferenceComparison(
+                status="error", message="decode falló"
+            ),
+        )
+
+        assert "<referencia>" not in transport.transcripts[0][-1]["text"]
+
+    def test_a_mastered_reference_forces_master_only(self, cheap_tools):
+        """Una referencia ya masterizada cierra la ruta corta.
+
+        Comparar dos masters no justifica re-mezclar: la referencia ES el
+        estándar al que se quiere llegar, y ya viene masterizada.
+        """
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="La referencia ya está masterizada."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        state = al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            reference_comparison=_reference_comparison(),
+            reference_is_mastered=True,
+        )
+
+        assert transport.phases == ["phase1", "phase4"]
+        assert state.decision.applied == "master_only"
+
+    def test_the_reference_alone_does_not_force_the_short_route(self, cheap_tools):
+        """Una referencia NO masterizada no cambia la ruta por sí sola.
+
+        La referencia dice a dónde ir, no en qué estado está el audio del
+        usuario. Forzar ``master_only`` ahí sería saltarse una mezcla que el
+        audio sí necesita.
+        """
+        transport = StubTransport(_script())
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            reference_comparison=_reference_comparison(),
+        )
+
+        assert transport.phases == ["phase1", "phase3", "phase3", "phase3", "phase4"]
+        assert state.decision.applied == "mix_then_master"
+
+
 class TestPromptContext:
     def test_context_block_lists_every_axis(self):
         block = prompts.context_block(IntentProfile.neutral().model_dump())
@@ -518,6 +927,101 @@ class TestPromptContext:
         assert str(al.MAX_MIX_ITERATIONS) in prompts.mix_loop_system_prompt(
             al.MAX_MIX_ITERATIONS
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# S9 — el prompt es VOCERO del DSP, no autor de un diagnostico paralelo
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestDiagnosisPromptIsAVoice:
+    """El modelo NO calcula el veredicto: lo verbaliza.
+
+    El veredicto lo produce ``build_verdict`` con numeros medidos. Si el prompt
+    dejara al modelo calcular el suyo, tendriamos DOS diagnosticos sobre el
+    mismo audio, y el que el usuario lee (texto) podria contradecir al que el
+    motor aplica (DSP). Eso es peor que no decir nada: el usuario deja de poder
+    confiar en lo que lee.
+    """
+
+    def test_the_prompt_forbids_recomputing_the_verdict(self):
+        """El prompt le dice al modelo que VERBALICE, no que calcule."""
+        assert "verbaliz" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
+        assert "no recalcules" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
+
+    def test_the_prompt_names_the_motor_as_the_source_of_truth(self):
+        """El prompt tiene que decir de dónde sale el veredicto.
+
+        Normalizo el whitespace antes de buscar: el texto está refloweado a 80
+        columnas y una frase puede partirse en dos líneas. Buscar el literal
+        crudo haría que el test falle por un salto de línea, no por contenido.
+        """
+        flat = " ".join(prompts.DIAGNOSIS_SYSTEM_PROMPT.lower().split())
+        assert "ya lo midio sobre el audio real" in flat
+
+    def test_the_prompt_keeps_the_anti_invention_rule(self):
+        """Sigue prohibido afirmar una medicion que no existe."""
+        assert "no inventes" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
+
+    def test_the_prompt_keeps_the_hard_rule_about_promises(self):
+        """Hard rule 7 intacta: proponer rutas del motor no es prometer humo."""
+        assert "no prometas lo que no puedes" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
+
+    def test_the_prompt_still_carries_the_role_and_voice_rules(self):
+        """El rol y las reglas de voz no se pierden al reescribir la fase."""
+        assert "ingeniero de mezcla" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
+        assert "no recomiendas presets" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
+
+
+class TestVerdictBlockInThePrompt:
+    """``verdict_block`` traduce el veredicto a lenguaje de sensaciones."""
+
+    def test_without_a_verdict_the_block_is_empty(self):
+        """Vacio EXACTO cuando no hay veredicto: el prompt no cambia."""
+        assert prompts.verdict_block(None) == ""
+
+    def test_the_block_shows_the_applied_route(self):
+        verdict = _verdict(needs_mix=False)
+        block = prompts.verdict_block(verdict, applied="master_only")
+        assert "master_only" in block
+        assert "Solo masterizar" in block
+
+    def test_the_block_names_the_deficiencies_in_sensations_not_numbers(self):
+        """El usuario lee sensaciones; el prompt no le escupe dB crudos.
+
+        Uso un veredicto CON carencias reales: una medicion plana no reporta
+        ninguna contra un target casi plano (todo cae bajo el umbral de 2 dB),
+        asi que un test que espere carencias tiene que aportar una forma
+        espectral de verdad.
+        """
+        verdict = _verdict_with_deficiencies()
+        assert verdict.deficiencies, "el fixture tiene que producir carencias reales"
+        block = prompts.verdict_block(verdict, applied="mix_then_master")
+
+        # Las bandas se nombran en lenguaje humano, no como "60 Hz".
+        assert "graves" in block.lower() or "sub" in block.lower()
+        # Y la direccion importa: "le falta" y "le sobra" son opuestos.
+        assert "le falta" in block.lower() or "le sobra" in block.lower()
+        # El numero en Hz no se le muestra al usuario.
+        for item in verdict.deficiencies:
+            assert f"{item.band_hz} Hz" not in block
+
+    def test_the_block_marks_the_recommended_route(self):
+        verdict = _verdict(needs_mix=True)
+        block = prompts.verdict_block(verdict, applied="auto")
+        assert "recomendada" in block.lower()
+
+    def test_the_block_states_that_the_user_has_the_last_word(self):
+        """El modelo tiene que saber que la ruta NO esta cerrada.
+
+        Si el prompt presentara la ruta como definitiva, Brik le diria al
+        usuario que ya decidio, cuando en realidad la decision es suya.
+        """
+        verdict = _verdict(needs_mix=True)
+        block = prompts.verdict_block(verdict, applied="auto")
+        lowered = block.lower()
+        assert "usuario" in lowered
+        assert "ultima palabra" in lowered or "última palabra" in lowered
 
 
 class TestGeminiTransport:
