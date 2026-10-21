@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
 
-import AgentPanel from "./AgentPanel";
+import AgentPanel, { type DecisionPhase } from "./AgentPanel";
 
 /** Expanded rail width (px). Exported so the dock can offset itself. */
 export const AGENT_SIDEBAR_WIDTH = 400;
@@ -20,12 +21,48 @@ interface AgentSidebarProps {
   onToggle: () => void;
 }
 
+/** Tone per engine state. Semantic colours, same palette the panel uses. */
+const STATUS_TONE: Record<
+  DecisionPhase,
+  { color: string; background: string; border: string }
+> = {
+  idle: {
+    color: "var(--text-muted)",
+    background: "var(--surface-hover)",
+    border: "var(--border-subtle)",
+  },
+  analyzing: {
+    color: "#fbbf24",
+    background: "rgba(251, 191, 36, 0.12)",
+    border: "rgba(251, 191, 36, 0.28)",
+  },
+  verdict: {
+    color: "#fbbf24",
+    background: "rgba(251, 191, 36, 0.12)",
+    border: "rgba(251, 191, 36, 0.28)",
+  },
+  producing: {
+    color: "var(--accent-primary)",
+    background: "rgba(0, 212, 170, 0.12)",
+    border: "rgba(0, 212, 170, 0.28)",
+  },
+  completed: {
+    color: "#30d158",
+    background: "rgba(48, 209, 88, 0.12)",
+    border: "rgba(48, 209, 88, 0.28)",
+  },
+  error: {
+    color: "var(--accent-error)",
+    background: "rgba(220, 38, 38, 0.12)",
+    border: "rgba(220, 38, 38, 0.28)",
+  },
+};
+
 /* ── AgentSidebar ───────────────────────────────────────
-   Right rail that hosts Brik (Productor IA) next to the DAW.
-   It is a layout sibling of the main column, not a fixed overlay:
-   it takes real horizontal space, so the waveform on the left keeps
-   its own scroll and nothing ever overlaps. Collapses to a narrow
-   rail that still shows the toggle. */
+   Right rail that hosts Brik next to the DAW. It is a layout sibling of
+   the main column, not a fixed overlay: it takes real horizontal space,
+   so the waveform on the left keeps its own scroll and nothing overlaps.
+   Collapses to a narrow rail that still shows the toggle. */
 export default function AgentSidebar({
   sessionId,
   disabled,
@@ -33,8 +70,12 @@ export default function AgentSidebar({
   onToggle,
 }: AgentSidebarProps) {
   const { t } = useTranslation();
+  const [phase, setPhase] = useState<DecisionPhase>("idle");
+
   const collapseLabel = t("productor.sidebarCollapse");
   const expandLabel = t("productor.sidebarExpand");
+  const tone = STATUS_TONE[phase];
+  const busy = phase === "analyzing" || phase === "producing";
 
   return (
     <motion.aside
@@ -68,12 +109,30 @@ export default function AgentSidebar({
         </span>
 
         {open && (
-          <h2
-            className="min-w-0 flex-1 truncate text-sm font-semibold"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {t("productor.sidebarTitle")}
-          </h2>
+          <div className="min-w-0 flex-1">
+            <h2
+              className="truncate text-sm font-semibold leading-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {t("productor.sidebarTitle")}
+            </h2>
+            <span
+              className="mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{
+                background: tone.background,
+                border: `1px solid ${tone.border}`,
+                color: tone.color,
+              }}
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                className={`size-1.5 rounded-full ${busy ? "animate-pulse" : ""}`}
+                style={{ background: tone.color }}
+              />
+              {t(`productor.status.${phase}`)}
+            </span>
+          </div>
         )}
 
         <button
@@ -96,8 +155,13 @@ export default function AgentSidebar({
       </header>
 
       {open && (
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          <AgentPanel sessionId={sessionId} disabled={disabled} compact />
+        <div className="min-h-0 flex-1 overflow-hidden px-3 py-3">
+          <AgentPanel
+            sessionId={sessionId}
+            disabled={disabled}
+            compact
+            onPhaseChange={setPhase}
+          />
         </div>
       )}
     </motion.aside>

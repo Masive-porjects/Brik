@@ -44,7 +44,7 @@ const TABS: { key: MasteringTab; label: string }[] = [
   { key: "analysis", label: "Análisis" },
   { key: "stereo", label: "Estéreo" },
   { key: "album", label: "Álbum" },
-  { key: "productor", label: "Productor IA" },
+  { key: "productor", label: "Brik" },
 ];
 
 type MasteringMode = "manual" | "ai";
@@ -162,7 +162,7 @@ function MezclasContent() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [panelSyncTab, setPanelSyncTab] = useState<MasteringTab | null>(null);
 
-  // Productor IA sidebar (right rail, desktop only). Open by default.
+  // Brik sidebar (right rail, desktop only). Open by default.
   const [agentSidebarOpen, setAgentSidebarOpen] = useState(true);
 
   const needsRightPanel = currentTab === "analysis" || currentTab === "stereo";
@@ -550,7 +550,7 @@ function MezclasContent() {
                   )}
                 </div>
 
-                {/* Agent Sidebar Column (Productor IA) — collapsible right rail */}
+                {/* Agent Sidebar Column (Brik) — collapsible right rail */}
                 {!isMobile && masteringMode === "manual" && currentTab === "productor" && (
                   <AgentSidebar
                     sessionId={workflow.session?.session_id ?? null}

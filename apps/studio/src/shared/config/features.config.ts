@@ -72,7 +72,7 @@ export const DEFAULT_FEATURES: Record<FeatureKey, FeatureDefinition> = {
     id: "productor",
     enabled: true,
     labelKey: "nav.productor",
-    defaultLabel: "Productor IA",
+    defaultLabel: "Brik",
     descriptionKey: "productor.subtitle",
   },
   history: {
