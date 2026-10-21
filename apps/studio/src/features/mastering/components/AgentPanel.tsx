@@ -8,40 +8,41 @@ import {
   Loader2,
   Sparkles,
   XCircle,
+  Info,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getAgentJobStatus,
+  submitAgentAnalyzeJob,
   submitAgentJob,
   type AgentAudioAsset,
   type AgentRunResult,
   type AgentToolExecution,
+  type AudioVerdict,
+  type Deficiency,
+  type Route,
 } from "@/lib/api";
 import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
 
 /**
- * Módulo Productor IA.
+ * Módulo Productor IA — Capa de decisión interactiva (T6).
  *
- * Es la cara del bucle agéntico del backend (``agentic_loop.run``): el usuario
- * escribe qué quiere, el agente separa stems, mezcla, mide el bus y masteriza
- * por su cuenta. El panel NO ejecuta DSP ni interpreta la intención: encola el
- * job, espera y muestra lo que el backend registró.
+ * Flujo de dos fases:
+ *  1. Job de ANÁLISIS (POST /jobs/agent/{id}/analyze) — solo fase 1, ~3s.
+ *     Devuelve el veredicto de Brik (AudioVerdict) con carencias y rutas.
+ *  2. El usuario elige una ruta (Auto / Separar y mezclar / Solo master).
+ *  3. Job COMPLETO (POST /jobs/agent/{id}) con `decision` — Demucs + mix + master
+ *     si la ruta lo requiere.
  *
- * Esa separación es deliberada. El diagnóstico, la lista de herramientas y las
- * métricas vienen del ``tool_log`` real del loop, no se deducen de un archivo
- * que exista en disco: "se separaron los stems" es cierto porque la herramienta
- * corrió, no porque haya un stem.
+ * El panel NO ejecuta DSP ni interpreta la intención: encola jobs, espera y
+ * muestra lo que el backend registró. El diagnóstico, la lista de herramientas y
+ * las métricas vienen del `tool_log` real del loop, no se deducen de archivos.
  */
 
-/* ── Módulo: tokens semánticos de globals.css (dark por defecto,
-   light con html[data-theme="light"]). ─────────────────────── */
-
 const CARD_STYLE: React.CSSProperties = {
-  // position: relative ancla overlays internos del módulo.
   position: "relative",
-  // Vidrio flotante: el módulo flota sobre el canvas, no es una tarjeta.
   background: "var(--bg-glass)",
   backdropFilter: "blur(16px)",
   WebkitBackdropFilter: "blur(16px)",
@@ -50,49 +51,41 @@ const CARD_STYLE: React.CSSProperties = {
   boxShadow: "var(--shadow-card)",
 };
 
-/** Intervalo de polling. El backend reporta el estado real del job, así que
- *  cada tick es un dato verdadero y no una interpolación. */
 const AGENT_POLL_MS = 2_000;
-
-/** Deja de preguntar después de esto. El trabajo SIGUE corriendo del lado del
- *  servidor, así que el mensaje lo dice en vez de fingir un fallo. Un run es
- *  Demucs + la cadena de mezcla + N turnos del modelo: 30 min es holgado. */
 const AGENT_TIMEOUT_MS = 1_800_000;
-
-/** Verde de acción del repo (mismo que la pill de MixPanel). */
 const OK_COLOR = "#30d158";
+
+/** Estados internos del flujo de decisión. */
+type DecisionPhase =
+  | "idle"
+  | "analyzing"
+  | "verdict"
+  | "producing"
+  | "completed"
+  | "error";
 
 interface AgentPanelProps {
   sessionId: string | null;
   disabled?: boolean;
 }
 
-/**
- * Panel del Productor IA: prompt, espera y resultado.
- *
- * Renderiza SOLO lo que el backend midió. Una métrica ausente no se dibuja:
- * nunca se rellena con un cero que el agente no midió.
- */
 export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
   const { t } = useTranslation();
 
   const [prompt, setPrompt] = useState("");
-  const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<DecisionPhase>("idle");
+  const [verdict, setVerdict] = useState<AudioVerdict | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<"auto" | "mix_then_master" | "master_only">("auto");
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
-  // Controller del polling, aparte del submit: cancelar tiene que abortar las
-  // DOS requests, no solo la que ya terminó.
   const pollAbortRef = useRef<AbortController | null>(null);
-  // Watchdog del submit + polling. ``timedOutRef`` distingue el timeout del
-  // cancel explícito del usuario (ambos llegan como AbortError).
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timedOutRef = useRef(false);
 
-  // Limpia al desmontar: sin esto, un run en vuelo seguiría golpeando el
-  // backend y haría setState sobre un componente desmontado.
   useEffect(() => {
     return () => {
       if (watchdogRef.current) {
@@ -128,8 +121,10 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
       );
     });
 
-  const handleProduce = useCallback(async () => {
-    if (!sessionId || running) return;
+  /** Paso 1 — Lanza el job de análisis y espera el veredicto. */
+  const handleAnalyze = useCallback(async () => {
+    if (!sessionId) return;
+
     abortRef.current?.abort();
     pollAbortRef.current?.abort();
     const controller = new AbortController();
@@ -145,37 +140,101 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
       pollController.abort();
     }, AGENT_TIMEOUT_MS);
 
-    setRunning(true);
-    setError(null);
-    setCancelled(false);
-    // Run nuevo: el resultado anterior ya no describe lo que está corriendo.
-    setResult(null);
+    setPhase("analyzing");
+    setAnalysisError(null);
+    setVerdict(null);
 
     try {
-      // Paso 1 — submit: 202 + job_id en milisegundos. El run tarda minutos,
-      // así que la conexión no lo espera (eso es lo que el edge corta con
-      // 502/504). Un 503 acá significa que falta la credencial del modelo.
-      const accepted = await submitAgentJob(sessionId, prompt, controller.signal);
+      const accepted = await submitAgentAnalyzeJob(sessionId, prompt, controller.signal);
 
-      // Paso 2 — polling. ``progress`` queda en 0 hasta el final: el loop no
-      // expone fase, así que mostramos un estado indeterminado en vez de una
-      // barra que mienta.
       let terminal = false;
       while (!terminal) {
         await sleep(AGENT_POLL_MS, pollController.signal);
-        const state = await getAgentJobStatus(
-          accepted.job_id,
-          pollController.signal,
-        );
+        const state = await getAgentJobStatus(accepted.job_id, pollController.signal);
+        if (state.status === "completed") {
+          terminal = true;
+          clearWatchdog();
+          if (state.result?.verdict) {
+            setVerdict(state.result.verdict);
+            setPhase("verdict");
+            // Preseleccionar la ruta recomendada por defecto
+            const rec = state.result.verdict.recommended_path;
+            setSelectedRoute(rec === "master_only" ? "master_only" : "mix_then_master");
+          } else {
+            setAnalysisError(t("productor.verdict.analysisFailed"));
+            setPhase("error");
+          }
+        } else if (state.status === "error") {
+          terminal = true;
+          clearWatchdog();
+          setAnalysisError(state.error ?? t("productor.interrupted"));
+          setPhase("error");
+        }
+      }
+    } catch (e) {
+      const isAbort = (e as { name?: string })?.name === "AbortError";
+      if (isAbort && timedOutRef.current) {
+        setAnalysisError(t("productor.timeout"));
+      } else if (isAbort) {
+        setCancelled(true);
+      } else {
+        setAnalysisError(e instanceof Error ? e.message : t("productor.verdict.analysisFailed"));
+      }
+      setPhase("error");
+    } finally {
+      clearWatchdog();
+      if (abortRef.current === controller) abortRef.current = null;
+      if (pollAbortRef.current === pollController) pollAbortRef.current = null;
+    }
+  }, [sessionId, prompt, clearWatchdog, t]);
+
+  /** Paso 3 — Lanza el job completo con la decisión elegida. */
+  const handleProduceWithDecision = useCallback(async () => {
+    if (!sessionId) return;
+
+    abortRef.current?.abort();
+    pollAbortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const pollController = new AbortController();
+    pollAbortRef.current = pollController;
+
+    timedOutRef.current = false;
+    clearWatchdog();
+    watchdogRef.current = setTimeout(() => {
+      timedOutRef.current = true;
+      controller.abort();
+      pollController.abort();
+    }, AGENT_TIMEOUT_MS);
+
+    setPhase("producing");
+    setError(null);
+    setCancelled(false);
+    setResult(null);
+
+    try {
+      const accepted = await submitAgentJob(
+        sessionId,
+        prompt,
+        selectedRoute,
+        controller.signal,
+      );
+
+      let terminal = false;
+      while (!terminal) {
+        await sleep(AGENT_POLL_MS, pollController.signal);
+        const state = await getAgentJobStatus(accepted.job_id, pollController.signal);
         if (state.status === "completed") {
           terminal = true;
           clearWatchdog();
           if (state.result) setResult(state.result);
           else setError(t("productor.emptyResult"));
+          setPhase("completed");
         } else if (state.status === "error") {
           terminal = true;
           clearWatchdog();
           setError(state.error ?? t("productor.interrupted"));
+          setPhase("error");
         }
       }
     } catch (e) {
@@ -183,23 +242,26 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
       if (isAbort && timedOutRef.current) {
         setError(t("productor.timeout"));
       } else if (isAbort) {
-        // Cancelación explícita: estado informativo, NO un fallo. El backend
-        // puede seguir procesando; solo dejamos de esperar.
         setCancelled(true);
       } else {
         setError(e instanceof Error ? e.message : t("productor.failed"));
       }
+      setPhase("error");
     } finally {
       clearWatchdog();
       if (abortRef.current === controller) abortRef.current = null;
       if (pollAbortRef.current === pollController) pollAbortRef.current = null;
-      setRunning(false);
     }
-  }, [sessionId, running, prompt, clearWatchdog, t]);
+  }, [sessionId, prompt, selectedRoute, clearWatchdog, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
     pollAbortRef.current?.abort();
+  }, []);
+
+  const handleBackToVerdict = useCallback(() => {
+    setPhase("verdict");
+    setSelectedRoute("auto");
   }, []);
 
   if (!sessionId) {
@@ -209,6 +271,8 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
       </p>
     );
   }
+
+  const isRunning = phase === "analyzing" || phase === "producing";
 
   return (
     <div className="w-full" style={CARD_STYLE}>
@@ -238,7 +302,7 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
           id="agent-prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.currentTarget.value)}
-          disabled={running || disabled}
+          disabled={isRunning || disabled}
           rows={2}
           placeholder={t("productor.promptPlaceholder")}
           className="mt-1 w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none
@@ -254,37 +318,50 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
           {t("productor.promptHint")}
         </p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleProduce}
-            disabled={disabled || running}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white
-              transition-all duration-300 hover:brightness-110
-              disabled:cursor-not-allowed disabled:opacity-40"
-            style={{
-              background: "linear-gradient(135deg, #10b981, #00d4aa)",
-              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
-            }}
-          >
-            {running ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                {t("productor.runningShort")}
-              </>
-            ) : (
-              <>
-                <Sparkles size={16} />
-                {t("productor.start")}
-              </>
-            )}
-          </button>
+        {phase === "idle" && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={disabled}
+              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white
+                transition-all duration-300 hover:brightness-110
+                disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                background: "linear-gradient(135deg, #10b981, #00d4aa)",
+                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+              }}
+            >
+              <Sparkles size={16} />
+              {t("productor.start")}
+            </button>
+          </div>
+        )}
 
-          {running && (
+        {phase === "verdict" && verdict && (
+          <VerdictCard
+            verdict={verdict}
+            selectedRoute={selectedRoute}
+            onRouteChange={setSelectedRoute}
+            onConfirm={handleProduceWithDecision}
+            onCancel={handleBackToVerdict}
+            t={t}
+            disabled={disabled}
+          />
+        )}
+
+        {isRunning && (
+          <div className="mt-3 flex items-center gap-2">
+            <Loader2 size={18} className="animate-spin" style={{ color: "var(--accent-primary)" }} />
+            <span className="text-sm" style={{ color: "var(--text-primary)" }}>
+              {phase === "analyzing"
+                ? t("productor.verdict.analyzing")
+                : t("productor.running")}
+            </span>
             <button
               type="button"
               onClick={handleCancel}
-              className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold
+              className="ml-2 flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold
                 transition-colors duration-300 hover:border-[var(--border-hover)]"
               style={{
                 background: "var(--surface-hover)",
@@ -295,19 +372,7 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
               <Ban size={13} />
               {t("productor.cancel")}
             </button>
-          )}
-        </div>
-
-        {running && (
-          <p
-            className="mt-3 flex items-start gap-2 text-xs leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-            role="status"
-            aria-live="polite"
-          >
-            <Loader2 size={13} className="mt-0.5 shrink-0 animate-spin" />
-            <span>{t("productor.running")}</span>
-          </p>
+          </div>
         )}
 
         {cancelled && (
@@ -320,23 +385,248 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
           </p>
         )}
 
-        {error && (
+        {(analysisError || error) && (
           <p
             className="mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed"
             style={{ background: "var(--surface-hover)", color: "var(--accent-error)" }}
             role="alert"
           >
-            {error}
+            {analysisError ?? error}
           </p>
         )}
 
-        {result && <AgentResultView result={result} />}
+        {phase === "completed" && result && <AgentResultView result={result} />}
       </div>
     </div>
   );
 }
 
-/* ── Resultado ───────────────────────────────────────────── */
+/* ────────────────── Tarjeta de Veredicto ────────────────── */
+
+function VerdictCard({
+  verdict,
+  selectedRoute,
+  onRouteChange,
+  onConfirm,
+  onCancel,
+  t,
+  disabled,
+}: {
+  verdict: AudioVerdict;
+  selectedRoute: "auto" | "mix_then_master" | "master_only";
+  onRouteChange: (r: "auto" | "mix_then_master" | "master_only") => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  t: (k: string) => string;
+  disabled?: boolean;
+}) {
+  const reasoningLabel = t(`productor.verdict.reasoning.${verdict.reasoning_key}`);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+      className="mt-4 space-y-4"
+    >
+      {/* Header del veredicto */}
+      <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border-subtle)" }}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+              {t("productor.verdict.title")}
+            </h3>
+            <p className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+              {t("productor.verdict.subtitle")}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <span
+              className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]"
+              style={{
+                background: verdict.needs_mix ? "rgba(251, 191, 36, 0.15)" : "rgba(48, 209, 88, 0.15)",
+                color: verdict.needs_mix ? "#fbbf24" : OK_COLOR,
+                border: verdict.needs_mix ? "1px solid rgba(251, 191, 36, 0.3)" : "1px solid rgba(48, 209, 88, 0.3)",
+              }}
+            >
+              {t("productor.verdict.needsMix")}: {verdict.needs_mix ? t("productor.verdict.yes") : t("productor.verdict.no")}
+            </span>
+            <span
+              className="rounded-full px-2.5 py-0.5 text-[10px] font-bold"
+              style={{
+                background: "var(--accent-primary)",
+                color: "white",
+                opacity: 0.9,
+              }}
+            >
+              {t("productor.verdict.confidence")}: {Math.round(verdict.confidence * 100)}%
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+          <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+            {t("productor.verdict.reasoning.raw_mix_detected")}:{" "}
+            <span style={{ color: "var(--text-primary)" }}>{reasoningLabel}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Carencias */}
+      {verdict.deficiencies.length > 0 && (
+        <section className="space-y-2">
+          <h4 className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+            {t("productor.verdict.deficienciesTitle")}
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {verdict.deficiencies.map((def) => (
+              <DeficiencyChip key={`${def.band_hz}-${def.direction}`} def={def} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {verdict.deficiencies.length === 0 && (
+        <p className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--surface-hover)", color: "var(--text-muted)" }}>
+          {t("productor.verdict.deficienciesNone")}
+        </p>
+      )}
+
+      {/* Selector de ruta — Radio group estilo tarjetas */}
+      <section className="space-y-2">
+        <h4 className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+          {t("productor.verdict.title")}
+        </h4>
+        <div className="space-y-2" role="radiogroup" aria-label={t("productor.verdict.title")}>
+          {verdict.routes.map((route) => (
+            <RouteCard
+              key={route.id}
+              route={route}
+              isSelected={selectedRoute === route.id}
+              onSelect={() => onRouteChange(route.id as "auto" | "mix_then_master" | "master_only")}
+              t={t}
+              disabled={disabled}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Botones de acción */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold
+            transition-colors duration-300 hover:border-[var(--border-hover)]"
+          style={{
+            background: "var(--surface-hover)",
+            borderColor: "var(--border-subtle)",
+            color: "var(--text-secondary)",
+          }}
+          disabled={disabled}
+        >
+          <XCircle size={13} />
+          {t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="ml-auto flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white
+            transition-all duration-300 hover:brightness-110
+            disabled:cursor-not-allowed disabled:opacity-40"
+          style={{
+            background: "linear-gradient(135deg, #10b981, #00d4aa)",
+            boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+          }}
+          disabled={disabled}
+        >
+          <Sparkles size={16} />
+          {t("productor.verdict.confirmButton")}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function DeficiencyChip({ def }: { def: Deficiency }) {
+  const isLacks = def.direction === "lacks";
+  const label = isLacks
+    ? `${def.band_hz} Hz: falta ${Math.abs(def.delta_db).toFixed(1)} dB`
+    : `${def.band_hz} Hz: exceso ${Math.abs(def.delta_db).toFixed(1)} dB`;
+
+  return (
+    <span
+      className="rounded-full px-2.5 py-1 text-[11px] font-medium"
+      style={{
+        background: isLacks ? "rgba(251, 191, 36, 0.12)" : "rgba(244, 63, 94, 0.12)",
+        color: isLacks ? "#fbbf24" : "#f43f5e",
+        border: isLacks ? "1px solid rgba(251, 191, 36, 0.3)" : "1px solid rgba(244, 63, 94, 0.3)",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function RouteCard({
+  route,
+  isSelected,
+  onSelect,
+  t,
+  disabled,
+}: {
+  route: Route;
+  isSelected: boolean;
+  onSelect: () => void;
+  t: (k: string) => string;
+  disabled?: boolean;
+}) {
+
+  return (
+    <label
+      className={`relative flex items-start gap-3 rounded-xl p-3 transition-all duration-300 cursor-pointer ${
+        isSelected ? "ring-2" : "hover:border-[var(--border-hover)]"
+      }`}
+      style={{
+        background: "var(--surface-hover)",
+        borderColor: isSelected ? "var(--accent-primary)" : "var(--border-subtle)",
+        borderWidth: isSelected ? 2 : 1,
+        opacity: disabled ? 0.5 : 1,
+        pointerEvents: disabled ? "none" : "auto",
+      }}
+    >
+      <input
+        type="radio"
+        checked={isSelected}
+        onChange={onSelect}
+        disabled={disabled}
+        className="mt-0.5 shrink-0"
+        style={{
+          accentColor: "var(--accent-primary)",
+          width: 18,
+          height: 18,
+        }}
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          {route.id === "mix_then_master" ? t("productor.verdict.routeMixThenMaster") : t("productor.verdict.routeMasterOnly")}
+        </p>
+        <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+          {route.id === "mix_then_master" ? t("productor.verdict.routeMixThenMasterDesc") : t("productor.verdict.routeMasterOnlyDesc")}
+        </p>
+        {route.recommended && (
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]"
+            style={{ background: "rgba(16, 185, 129, 0.15)", color: OK_COLOR, border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+            <Info size={10} />
+            {t("productor.verdict.routeAutoDesc")}
+          </span>
+        )}
+      </div>
+    </label>
+  );
+}
+
+/* ────────────────── Vista de resultado (sin cambios, solo import) ────────────────── */
 
 function AgentResultView({ result }: { result: AgentRunResult }) {
   const { t } = useTranslation();
@@ -396,11 +686,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Una herramienta ejecutada, en el orden real del run.
- *
- *  El nombre técnico (``trigger_stem_separation``) se traduce para la UI y
- *  cae al nombre crudo cuando es una herramienta que el frontend no conoce:
- *  mejor un identificador feo que una etiqueta inventada. */
 function ToolRow({
   index,
   tool,
@@ -437,11 +722,6 @@ function ToolRow({
   );
 }
 
-/** Métricas del run, en celdas.
- *
- *  Igual que ``MixAnalysisGrid``: solo se dibuja un campo cuando el backend lo
- *  midió. ``master_metrics`` viene del payload de ``send_to_master`` y
- *  ``mix_metrics`` de ``bus_metrics`` — ninguna celda se rellena a mano. */
 function AgentMetrics({ result }: { result: AgentRunResult }) {
   const { t } = useTranslation();
   const cells: { label: string; value: string }[] = [];
@@ -520,12 +800,6 @@ function AgentMetrics({ result }: { result: AgentRunResult }) {
   );
 }
 
-/** Audio entregado por el agente.
- *
- *  La URL la re-firma el backend en cada lectura del job, así que acá solo se
- *  reproduce la que vino en el payload. Sin R2 configurado el asset degrada a
- *  ``local_path`` (efímero): en ese caso se avisa en vez de mostrar un player
- *  que va a dar 404 después de un redeploy. */
 function AgentAudio({ audio }: { audio: AgentRunResult["audio"] }) {
   const { t } = useTranslation();
 

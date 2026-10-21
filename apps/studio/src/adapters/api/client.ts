@@ -745,6 +745,41 @@ export interface AgentAudioAsset {
   note: string | null;
 }
 
+/** One band that sits away from the genre target (mirrors backend `Deficiency`). */
+export interface Deficiency {
+  band_hz: number;
+  delta_db: number;
+  direction: "lacks" | "excess";
+}
+
+/** A processing path Brik proposes (mirrors backend `Route`). */
+export interface Route {
+  id: "mix_then_master" | "master_only";
+  label_es: string;
+  description_es: string;
+  recommended: boolean;
+}
+
+/** Brik's routing verdict for one track (mirrors backend `AudioVerdict`). */
+export interface AudioVerdict {
+  needs_mix: boolean;
+  confidence: number;
+  recommended_path: "mix_then_master" | "master_only";
+  reasoning_key:
+    | "raw_mix_detected"
+    | "finished_mix_detected"
+    | "already_mastered"
+    | "unmeasurable";
+  deficiencies: Deficiency[];
+  routes: Route[];
+}
+
+/** Decision the user (or Brik in auto mode) picked (mirrors backend `DecisionRecord`). */
+export interface DecisionRecord {
+  requested: "auto" | "mix_then_master" | "master_only";
+  applied: "mix_then_master" | "master_only";
+}
+
 /** Payload of a completed agent job: what the agent decided, did, measured
  *  and left behind. Every field comes from recorded evidence. */
 export interface AgentRunResult {
@@ -756,6 +791,10 @@ export interface AgentRunResult {
   /** The 9 semantic axes the mapper turned into DSP knobs. */
   intent: IntentProfile;
   analysis: AnalysisResult | null;
+  /** The verdict (analysis phase only). Null for legacy runs. */
+  verdict: AudioVerdict | null;
+  /** The decision that was applied (after user choice or auto). */
+  decision: DecisionRecord | null;
   /** Null when the run never rendered a mix. */
   mix_metrics: AgentMixMetrics | null;
   /** Null when the run never mastered. */
@@ -785,6 +824,44 @@ export interface AgentJobState {
 }
 
 /**
+ * Queue the Productor IA ANALYSIS JOB for a session and return immediately.
+ *
+ * This runs ONLY phase 1 (diagnosis + verdict) — no Demucs, no mix, no master.
+ * Returns in ~3s vs minutes for the full job. The result contains the verdict
+ * so the UI can show Brik's recommendation and let the user choose a route.
+ */
+export async function submitAgentAnalyzeJob(
+  sessionId: string,
+  prompt?: string,
+  signal?: AbortSignal,
+): Promise<AgentJobAccepted> {
+  const body: Record<string, unknown> = {};
+  const clean = prompt?.trim();
+  if (clean) body.prompt = clean;
+
+  const res = await fetch(
+    `${API_BASE}/jobs/agent/${encodeURIComponent(sessionId)}/analyze`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...licenseHeaders() },
+      body: JSON.stringify(body),
+      ...(signal ? { signal } : {}),
+    },
+  );
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Agent analyze job could not be submitted" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail ||
+        "Agent analyze job could not be submitted",
+      res.status,
+    );
+  }
+  return res.json();
+}
+
+/**
  * Queue the Productor IA for a session and return immediately.
  *
  * There is no blocking counterpart: a full run is Demucs plus the mix chain
@@ -795,17 +872,23 @@ export interface AgentJobState {
  * the loop's first turn, so both the diagnosis and the mix see it. Omitted or
  * blank keeps the loop's default directive.
  *
+ * `decision` tells the backend which route to take: "auto" (default, Brik
+ * follows the verdict), "mix_then_master" (force full chain), or
+ * "master_only" (skip separation, master the original directly).
+ *
  * A deployment with no usable LLM credential answers 503 here, at submit time,
  * instead of starting a job that dies minutes later.
  */
 export async function submitAgentJob(
   sessionId: string,
   prompt?: string,
+  decision?: "auto" | "mix_then_master" | "master_only",
   signal?: AbortSignal,
 ): Promise<AgentJobAccepted> {
   const body: Record<string, unknown> = {};
   const clean = prompt?.trim();
   if (clean) body.prompt = clean;
+  if (decision) body.decision = decision;
 
   const res = await fetch(
     `${API_BASE}/jobs/agent/${encodeURIComponent(sessionId)}`,

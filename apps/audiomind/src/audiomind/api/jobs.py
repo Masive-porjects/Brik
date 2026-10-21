@@ -22,13 +22,18 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from audiomind.api.license import require_license
 from audiomind.config import settings
-from audiomind.processing.agentic_loop import TransportUnavailableError
+from audiomind.processing.agentic_loop import (
+    Decision,
+    TransportUnavailableError,
+)
 from audiomind.processing.character import CHARACTER_PROFILE, is_known_profile
 from audiomind.services import demo_guard, storage
 from audiomind.services.agent_jobs import (
     ensure_transport_available,
     run_agent_job,
+    run_analyze_job,
     submit_agent_job,
+    submit_analyze_job,
 )
 from audiomind.services.dsp_worker import (
     MasterJobPayload,
@@ -403,6 +408,14 @@ class AgentRunRequest(BaseModel):
     on the loop's first turn, so the diagnosis and the mix loop both see it.
     Omitted keeps the loop's default directive.
 
+    ``decision`` is THE user's final word on the route, and it is the whole point
+    of the analysis breakpoint: the analysis job proposes, the user decides, and
+    the value comes back here. It is a closed literal, not a free string, because
+    a typo that selects a nonexistent route means "the user chose one thing and
+    the system ran another" -- a silent substitution is the one failure this
+    control exists to prevent. Omitted keeps ``"auto"``: follow Brik's verdict,
+    which is exactly the pre-feature behavior.
+
     ``extra="forbid"`` on purpose: a typo in a field name must be a 422 now, not
     a silently ignored instruction later.
     """
@@ -410,6 +423,7 @@ class AgentRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     prompt: str | None = None
+    decision: Decision = "auto"
 
 
 @router.post(
@@ -462,8 +476,65 @@ async def submit_agent(
     request = payload or AgentRunRequest()
     record = submit_agent_job(session_id, prompt=request.prompt)
     background_tasks.add_task(
-        run_agent_job, record.job_id, session_id, request.prompt
+        run_agent_job,
+        record.job_id,
+        session_id,
+        request.prompt,
+        request.decision,
     )
+    return {
+        "job_id": record.job_id,
+        "session_id": session_id,
+        "status": record.status.value,
+        "poll_url": f"/api/jobs/agent/{record.job_id}",
+    }
+
+
+@router.post(
+    "/agent/{session_id}/analyze",
+    summary="Analyze a session and return Brik's verdict + routes (202)",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def submit_agent_analyze(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    _: object = Depends(require_license),
+) -> dict[str, Any]:
+    """The FIRST breakpoint: measure, judge, and ask the user which route to run.
+
+    Marketing-wise this is "analizar y proponer"; technically it is the job that
+    produces the :class:`AudioVerdict` and stops. It is deliberately NOT the full
+    chain: the user has the last word on the route, so the chain may not start
+    until they give it.
+
+    Validation mirrors ``submit_agent`` exactly (404 no session, 400 no audio,
+    503 no transport) -- a client that already polls the mix job should not learn
+    a second error vocabulary for the same three failures.
+
+    The duration gate is deliberately ABSENT here. It exists to cap the cost of
+    the expensive chain; this job runs no Demucs and no render, so refusing to
+    analyze a long file would block the user from being told anything about it at
+    all. The gate stays where it belongs: on the job that actually costs minutes.
+    """
+    from audiomind.api.upload import sessions
+
+    session = sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not session.original_path or not Path(session.original_path).exists():
+        raise HTTPException(
+            status_code=400, detail="No audio file found for this session"
+        )
+
+    try:
+        ensure_transport_available()
+    except TransportUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+
+    record = submit_analyze_job(session_id)
+    background_tasks.add_task(run_analyze_job, record.job_id, session_id)
     return {
         "job_id": record.job_id,
         "session_id": session_id,
