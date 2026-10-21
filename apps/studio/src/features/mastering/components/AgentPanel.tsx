@@ -338,15 +338,6 @@ export default function AgentPanel({ sessionId, disabled }: AgentPanelProps) {
           </div>
         )}
 
-        {phase === "analyzing" && (
-          <div className="mt-3 flex items-center gap-2">
-            <Loader2 size={18} className="animate-spin" style={{ color: "var(--accent-primary)" }} />
-            <span className="text-sm" style={{ color: "var(--text-primary)" }}>
-              {t("productor.verdict.analyzing")}
-            </span>
-          </div>
-        )}
-
         {phase === "verdict" && verdict && (
           <VerdictCard
             verdict={verdict}
