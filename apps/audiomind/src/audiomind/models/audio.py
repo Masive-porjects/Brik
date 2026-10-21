@@ -5,6 +5,20 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from enum import Enum
 
 
+# ── Chat Transcript (T4) ──────────────────────────────────────────────────
+# Entrada individual del historial de chat. Se guarda en SessionData para que
+# el agente "recuerde" la conversación entre turnos y jobs.
+class TranscriptEntry(BaseModel):
+    """Un turno de conversación (user o assistant)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"] = Field(..., description="'user' o 'assistant'.")
+    text: str = Field(..., min_length=1, description="Contenido del mensaje.")
+    ts: int = Field(..., description="Timestamp Unix (segundos) del mensaje.")
+    escalated: bool = Field(False, description="True si este turno disparó un job.")
+
+
 class AudioFormat(str, Enum):
     WAV = "wav"
     MP3 = "mp3"
@@ -929,6 +943,14 @@ class SessionData(BaseModel):
             "Clave del WAV de mezcla en Cloudflare R2. Único puntero que "
             "sobrevive al redeploy cuando el archivo local se pierde."
         ),
+    )
+
+    # ── Chat Transcript (T4) ──────────────────────────────────────────────
+    # Historial de conversación con Brik. Máximo 20 turnos (FIFO) para
+    # controlar tokens. Persistido via session_store write-behind.
+    chat_transcript: list[TranscriptEntry] = Field(
+        default_factory=list,
+        description="Últimos 20 turnos de chat (user/assistant) con timestamps."
     )
 
 

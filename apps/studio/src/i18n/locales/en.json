@@ -533,6 +533,17 @@
       "confirmButton": "Confirm and produce",
       "analyzing": "Analyzing your audio…",
       "analysisFailed": "Analysis could not be completed. Try again."
+    },
+    "chat": {
+      "placeholder": "Type your message...",
+      "send": "Send",
+      "sending": "Sending...",
+      "escalateToast": "Job launched in background",
+      "intentPill": "Intent updated — confirm to apply",
+      "noHistory": "No previous conversation. Type something to start.",
+      "thinking": "Brik is thinking...",
+      "error": "Could not send message. Please try again.",
+      "escalateDescription": "The agent will run the job in the background. Keep chatting while it works."
     }
   },
   "songstarter": {

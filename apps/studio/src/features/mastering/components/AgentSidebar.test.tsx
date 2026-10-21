@@ -81,6 +81,18 @@ describe("AgentSidebar", () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
+  it("el fantasma está anclado abajo a la derecha y el botón no se mueve", () => {
+    render(<AgentSidebar sessionId={null} open onToggle={() => {}} />);
+
+    const ghost = screen.getByTestId("brik-ghost") as HTMLButtonElement;
+    expect(ghost.className).toContain("fixed");
+    expect(ghost.className).toContain("bottom-32");
+    expect(ghost.className).toContain("right-6");
+    expect(ghost.className).toContain("z-50");
+    // Nada de `right` dinámico: sólo el span interno levita.
+    expect(ghost.style.right).toBe("");
+  });
+
   it("levita en el eje Y, infinito y con yoyo", () => {
     render(<AgentSidebar sessionId={null} open={false} onToggle={() => {}} />);
 

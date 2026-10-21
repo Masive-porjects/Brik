@@ -1,5 +1,7 @@
 import type { IntentProfile } from "@midimastering/agent";
 
+export type { IntentProfile };
+
 import { API_BASE } from "./config";
 import { createClient } from "@/lib/supabase/client";
 
@@ -935,6 +937,63 @@ export async function getAgentJobStatus(
       .catch(() => ({ detail: "Agent job status check failed" }));
     throw new ApiError(
       (err as { detail?: string }).detail || "Agent job status check failed",
+      res.status,
+    );
+  }
+  return res.json();
+}
+
+/**
+ * Chat with Brik — lightweight conversational endpoint.
+ *
+ * Sends a message to the chat router and returns:
+ * - `reply`: Brik's text response
+ * - `escalation`: optional object indicating a job should be launched
+ * - `intent_updates`: optional IntentProfile if the user requested parameter changes
+ *
+ * This endpoint does NOT start a job itself. If `escalation` is present, the
+ * caller must fire the appropriate job (`submitAgentJob` or `submitMasterJob`)
+ * based on `escalation.job_kind` and `escalation.payload`.
+ */
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  ts: number;
+}
+
+export interface ChatEscalation {
+  action: "answer_in_chat" | "escalate_to_job";
+  reason: string;
+  job_kind?: "agent" | "master";
+  job_payload?: Record<string, unknown>;
+  updates_intent?: boolean;
+  intent_delta?: Record<string, number> | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  escalation?: ChatEscalation;
+  intent_updates?: IntentProfile;
+}
+
+export async function chatWithBrik(
+  sessionId: string,
+  message: string,
+  history?: ChatMessage[],
+  signal?: AbortSignal,
+): Promise<ChatResponse> {
+  const res = await fetch(`${API_BASE}/agent/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...licenseHeaders() },
+    body: JSON.stringify({ session_id: sessionId, message, history }),
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Chat request failed" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail || "Chat request failed",
       res.status,
     );
   }

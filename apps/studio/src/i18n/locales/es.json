@@ -533,6 +533,17 @@
       "confirmButton": "Confirmar y producir",
       "analyzing": "Analizando tu audio…",
       "analysisFailed": "No se pudo completar el análisis. Inténtalo de nuevo."
+    },
+    "chat": {
+      "placeholder": "Escribí tu mensaje...",
+      "send": "Enviar",
+      "sending": "Enviando...",
+      "escalateToast": "Proceso lanzado en segundo plano",
+      "intentPill": "Intención actualizada — confirmá para aplicar",
+      "noHistory": "Sin conversación previa. Escribí algo para empezar.",
+      "thinking": "Brik está pensando...",
+      "error": "No se pudo enviar el mensaje. Probá de nuevo.",
+      "escalateDescription": "El agente va a ejecutar el trabajo en segundo plano. Seguí chateando mientras tanto."
     }
   },
   "songstarter": {

@@ -10,11 +10,9 @@ import { useTranslation } from "@/i18n";
 import AgentPanel, { type DecisionPhase } from "./AgentPanel";
 
 /** Expanded rail width (px). Exported so the dock can offset itself. */
-export const AGENT_SIDEBAR_WIDTH = 400;
+export const AGENT_SIDEBAR_WIDTH = 350;
 /** Collapsed rail width (px). */
 export const AGENT_SIDEBAR_COLLAPSED = 56;
-/** Gap between the rail and the floating ghost, in px. */
-const GHOST_GAP = 14;
 /** Levitation amplitude and beat, in px / seconds. */
 const GHOST_LIFT_PX = -7;
 const GHOST_CYCLE_S = 1.7;
@@ -112,25 +110,19 @@ export default function AgentSidebar({
 
   return (
     <>
-      <motion.button
+      <button
         type="button"
         onClick={onToggle}
-        initial={false}
-        animate={{
-          right: (open ? AGENT_SIDEBAR_WIDTH : AGENT_SIDEBAR_COLLAPSED) + GHOST_GAP,
-        }}
-        transition={{ type: "spring", stiffness: 320, damping: 34 }}
         aria-expanded={open}
         aria-controls="brik-rail"
         aria-label={toggleLabel}
         title={toggleLabel}
         data-testid="brik-ghost"
-        className="fixed z-[45] grid size-11 place-items-center rounded-full border
+        className="fixed bottom-32 right-6 z-50 grid size-11 place-items-center rounded-full border
           transition-colors duration-300 hover:border-[var(--accent-primary)]
           focus-visible:outline focus-visible:outline-2
           focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
         style={{
-          top: "calc(50% - 22px)",
           background: "var(--bg-glass-elevated)",
           borderColor: "var(--border-strong)",
           color: "var(--accent-primary)",
@@ -142,7 +134,7 @@ export default function AgentSidebar({
         <span ref={ghostRef} className="grid place-items-center">
           <Ghost size={20} />
         </span>
-      </motion.button>
+      </button>
 
       <motion.aside
         id="brik-rail"

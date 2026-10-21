@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   Ban,
@@ -9,13 +9,14 @@ import {
   Sparkles,
   XCircle,
   Info,
+  Sparkle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getAgentJobStatus,
-  submitAgentAnalyzeJob,
   submitAgentJob,
+  submitMasterJob,
   type AgentAudioAsset,
   type AgentRunResult,
   type AgentToolExecution,
@@ -27,14 +28,15 @@ import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
 
 /**
- * Módulo Brik — Capa de decisión interactiva (T6).
+ * Módulo Brik — Capa de decisión interactiva (T6-T8).
  *
- * Flujo de dos fases:
- *  1. Job de ANÁLISIS (POST /jobs/agent/{id}/analyze) — solo fase 1, ~3s.
- *     Devuelve el veredicto de Brik (AudioVerdict) con carencias y rutas.
- *  2. El usuario elige una ruta (Auto / Separar y mezclar / Solo master).
- *  3. Job COMPLETO (POST /jobs/agent/{id}) con `decision` — Demucs + mix + master
- *     si la ruta lo requiere.
+ * Flujo conversacional:
+ *  1. El usuario escribe en el composer → POST /agent/chat
+ *  2. El router heurístico decide:
+ *     - answer_in_chat: Brik responde, se muestra en la lista
+ *     - escalate_to_job: Toast "Proceso lanzado", se dispara job async
+ *     - updates_intent: Pill "Intención actualizada — confirmá para aplicar"
+ *  3. El transcript se persiste en el backend (FIFO 20 turnos)
  *
  * El panel NO ejecuta DSP ni interpreta la intención: encola jobs, espera y
  * muestra lo que el backend registró. El diagnóstico, la lista de herramientas y
@@ -55,7 +57,7 @@ const AGENT_POLL_MS = 2_000;
 const AGENT_TIMEOUT_MS = 1_800_000;
 const OK_COLOR = "#30d158";
 
-/** Estados internos del flujo de decisión. */
+/** Estados internos del flujo de decisión (legacy + chat). */
 export type DecisionPhase =
   | "idle"
   | "analyzing"
@@ -77,6 +79,14 @@ interface AgentPanelProps {
   onPhaseChange?: (phase: DecisionPhase) => void;
 }
 
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+  ts: number;
+  escalated?: boolean;
+  intentPill?: boolean;
+}
+
 export default function AgentPanel({
   sessionId,
   disabled,
@@ -85,7 +95,13 @@ export default function AgentPanel({
 }: AgentPanelProps) {
   const { t } = useTranslation();
 
-  const [prompt, setPrompt] = useState("");
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [composerInput, setComposerInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [escalateNotice, setEscalateNotice] = useState(false);
+
+  // Legacy flow state (for verdict/producing phases)
   const [phase, setPhase] = useState<DecisionPhase>("idle");
   const [verdict, setVerdict] = useState<AudioVerdict | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -98,6 +114,7 @@ export default function AgentPanel({
   const pollAbortRef = useRef<AbortController | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timedOutRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return () => {
@@ -114,6 +131,11 @@ export default function AgentPanel({
   useEffect(() => {
     onPhaseChange?.(phase);
   }, [phase, onPhaseChange]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current) {
@@ -139,74 +161,73 @@ export default function AgentPanel({
       );
     });
 
-  /** Paso 1 — Lanza el job de análisis y espera el veredicto. */
-  const handleAnalyze = useCallback(async () => {
-    if (!sessionId) return;
+  /** Chat flow: send message to /agent/chat and handle response. */
+  const handleSendMessage = useCallback(async () => {
+    if (!sessionId || !composerInput.trim() || isSending) return;
 
-    abortRef.current?.abort();
-    pollAbortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const pollController = new AbortController();
-    pollAbortRef.current = pollController;
+    const userMessage = composerInput.trim();
+    setComposerInput("");
+    setIsSending(true);
 
-    timedOutRef.current = false;
-    clearWatchdog();
-    watchdogRef.current = setTimeout(() => {
-      timedOutRef.current = true;
-      controller.abort();
-      pollController.abort();
-    }, AGENT_TIMEOUT_MS);
-
-    setPhase("analyzing");
-    setAnalysisError(null);
-    setVerdict(null);
+    // Optimistically add user message
+    const userMsg: Message = {
+      role: "user",
+      content: userMessage,
+      ts: Date.now(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
 
     try {
-      const accepted = await submitAgentAnalyzeJob(sessionId, prompt, controller.signal);
+      const { chatWithBrik } = await import("@/lib/api");
+      const response = await chatWithBrik(sessionId, userMessage, messages);
 
-      let terminal = false;
-      while (!terminal) {
-        await sleep(AGENT_POLL_MS, pollController.signal);
-        const state = await getAgentJobStatus(accepted.job_id, pollController.signal);
-        if (state.status === "completed") {
-          terminal = true;
-          clearWatchdog();
-          if (state.result?.verdict) {
-            setVerdict(state.result.verdict);
-            setPhase("verdict");
-            // Preseleccionar la ruta recomendada por defecto
-            const rec = state.result.verdict.recommended_path;
-            setSelectedRoute(rec === "master_only" ? "master_only" : "mix_then_master");
-          } else {
-            setAnalysisError(t("productor.verdict.analysisFailed"));
-            setPhase("error");
+      // Add assistant response
+      const assistantMsg: Message = {
+        role: "assistant",
+        content: response.reply,
+        ts: Date.now(),
+        escalated: response.escalation?.action === "escalate_to_job",
+        intentPill: response.escalation?.updates_intent === true,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+
+      // Handle escalation
+      if (response.escalation?.action === "escalate_to_job") {
+        const { job_kind, job_payload } = response.escalation;
+        if (job_kind && job_payload) {
+          setEscalateNotice(true);
+          setTimeout(() => setEscalateNotice(false), 4000);
+
+          // Fire the job asynchronously (fire-and-forget)
+          const controller = new AbortController();
+          if (job_kind === "agent") {
+            submitAgentJob(sessionId, userMessage, job_payload.decision as "auto" | "mix_then_master" | "master_only", controller.signal)
+              .catch(() => {}); // Ignore errors; job runs in background
+          } else if (job_kind === "master") {
+            submitMasterJob({ track_id: sessionId, ...job_payload })
+              .catch(() => {});
           }
-        } else if (state.status === "error") {
-          terminal = true;
-          clearWatchdog();
-          setAnalysisError(state.error ?? t("productor.interrupted"));
-          setPhase("error");
         }
       }
-    } catch (e) {
-      const isAbort = (e as { name?: string })?.name === "AbortError";
-      if (isAbort && timedOutRef.current) {
-        setAnalysisError(t("productor.timeout"));
-      } else if (isAbort) {
-        setCancelled(true);
-      } else {
-        setAnalysisError(e instanceof Error ? e.message : t("productor.verdict.analysisFailed"));
-      }
-      setPhase("error");
-    } finally {
-      clearWatchdog();
-      if (abortRef.current === controller) abortRef.current = null;
-      if (pollAbortRef.current === pollController) pollAbortRef.current = null;
-    }
-  }, [sessionId, prompt, clearWatchdog, t]);
 
-  /** Paso 3 — Lanza el job completo con la decisión elegida. */
+      // If intent updates, we already show the pill via the message flag
+      // The actual intent merge happens when user confirms via verdict card
+    } catch (e) {
+      const errorMsg = t("productor.chat.error");
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: errorMsg,
+          ts: Date.now(),
+        },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  }, [sessionId, composerInput, isSending, messages, t]);
+
+  /** Paso 3 — Lanza el job completo con la decisión elegida (legacy). */
   const handleProduceWithDecision = useCallback(async () => {
     if (!sessionId) return;
 
@@ -233,7 +254,7 @@ export default function AgentPanel({
     try {
       const accepted = await submitAgentJob(
         sessionId,
-        prompt,
+        composerInput,
         selectedRoute,
         controller.signal,
       );
@@ -270,7 +291,7 @@ export default function AgentPanel({
       if (abortRef.current === controller) abortRef.current = null;
       if (pollAbortRef.current === pollController) pollAbortRef.current = null;
     }
-  }, [sessionId, prompt, selectedRoute, clearWatchdog, t]);
+  }, [sessionId, composerInput, selectedRoute, clearWatchdog, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -292,71 +313,83 @@ export default function AgentPanel({
 
   const isRunning = phase === "analyzing" || phase === "producing";
 
-  // Composer = prompt + acción primaria. En el rail queda anclado abajo
-  // (footer sticky sobre el cuerpo scrolleable); inline va arriba, como antes.
+  // ─── COMPOSER (sticky footer) ───
   const composer = (
     <div
       className={compact ? "shrink-0 border-t px-4 py-3" : "px-4 pt-3"}
       style={compact ? { borderColor: "var(--border-subtle)" } : undefined}
     >
-      <label
-        htmlFor="agent-prompt"
-        className="text-[10px] font-bold uppercase tracking-[0.16em]"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        {t("productor.promptLabel")}
-      </label>
-      <textarea
-        id="agent-prompt"
-        value={prompt}
-        onChange={(e) => setPrompt(e.currentTarget.value)}
-        disabled={isRunning || disabled}
-        rows={2}
-        placeholder={t("productor.promptPlaceholder")}
-        className="mt-1 w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none
-          transition-colors duration-300 focus:border-[var(--accent-primary)]
-          disabled:opacity-40"
-        style={{
-          background: "var(--surface-hover)",
-          borderColor: "var(--border-subtle)",
-          color: "var(--text-primary)",
-        }}
-      />
-      <p className="mt-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
-        {t("productor.promptHint")}
-      </p>
+      <div className="flex flex-col gap-2">
+        {/* Escalate notice inline */}
+        <AnimatePresence>
+          {escalateNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
+              style={{
+                background: "rgba(16, 185, 129, 0.15)",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+                color: OK_COLOR,
+              }}
+            >
+              <Sparkles size={13} className="shrink-0" />
+              <span className="font-medium">{t("productor.chat.escalateToast")}</span>
+              <span style={{ color: "var(--text-muted)" }}>{t("productor.chat.escalateDescription")}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <div className="mt-2 flex items-center gap-2">
-        {isRunning ? (
-          <span
-            className="text-xs font-medium"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {phase === "analyzing"
-              ? t("productor.verdict.analyzing")
-              : t("productor.runningShort")}
-          </span>
-        ) : phase === "verdict" ? (
-          <p className="text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
-            {t("productor.composerVerdictHint")}
-          </p>
-        ) : (
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={disabled}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white
-              transition-all duration-300 hover:brightness-110
-              disabled:cursor-not-allowed disabled:opacity-40"
-            style={{
-              background: "linear-gradient(135deg, #10b981, #00d4aa)",
-              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
-            }}
-          >
-            <Sparkles size={16} />
-            {phase === "completed" ? t("productor.restart") : t("productor.start")}
-          </button>
-        )}
+        <label htmlFor="agent-prompt" className="sr-only">
+          {t("productor.promptLabel")}
+        </label>
+        <textarea
+          id="agent-prompt"
+          value={composerInput}
+          onChange={(e) => setComposerInput(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          disabled={isSending || isRunning || disabled}
+          rows={2}
+          placeholder={t("productor.chat.placeholder")}
+          className="flex-1 resize-none rounded-xl border px-3 py-2 text-sm outline-none
+            transition-colors duration-300 focus:border-[var(--accent-primary)]
+            disabled:opacity-40"
+          style={{
+            background: "var(--surface-hover)",
+            borderColor: "var(--border-subtle)",
+            color: "var(--text-primary)",
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleSendMessage}
+          disabled={isSending || isRunning || disabled || !composerInput.trim()}
+          className="shrink-0 flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white
+            transition-all duration-300 hover:brightness-110
+            disabled:cursor-not-allowed disabled:opacity-40"
+          style={{
+            background: "linear-gradient(135deg, #10b981, #00d4aa)",
+            boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+          }}
+        >
+          {isSending ? (
+            <>
+              <Loader2 size={16} className="animate-spin mr-1.5" />
+              {t("productor.chat.sending")}
+            </>
+          ) : (
+            <>
+              <Sparkle size={16} className="mr-1.5" />
+              {t("productor.chat.send")}
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -391,6 +424,91 @@ export default function AgentPanel({
             : "px-4 pt-3 pb-4"
         }
       >
+        {/* ─── MESSAGE LIST ─── */}
+        <AnimatePresence mode="popLayout">
+          {messages.length > 0 ? (
+            <div className="space-y-3" role="log" aria-live="polite">
+              {messages.map((msg, idx) => (
+                <motion.div
+                  key={`${msg.ts}-${idx}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                  className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                >
+                  <div
+                    className={`flex-1 max-w-[85%] ${msg.role === "user" ? "text-right" : ""}`}
+                  >
+                    <div
+                      className={`inline-block rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "rounded-br-none"
+                          : "rounded-bl-none"
+                      }`}
+                      style={{
+                        background:
+                          msg.role === "user"
+                            ? "var(--accent-primary)"
+                            : "var(--surface-hover)",
+                        color:
+                          msg.role === "user"
+                            ? "white"
+                            : "var(--text-primary)",
+                        border:
+                          msg.role === "assistant"
+                            ? "1px solid var(--border-subtle)"
+                            : "none",
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+
+                    {/* Escalation toast indicator */}
+                    {msg.escalated && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-1.5 flex items-center gap-1.5 text-[10px]"
+                        style={{ color: "var(--accent-primary)" }}
+                      >
+                        <Sparkles size={11} />
+                        <span>{t("productor.chat.escalateToast")}</span>
+                      </motion.div>
+                    )}
+
+                    {/* Intent pill */}
+                    {msg.intentPill && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em]"
+                        style={{
+                          background: "rgba(16, 185, 129, 0.15)",
+                          color: OK_COLOR,
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                        }}
+                      >
+                        <Info size={9} />
+                        {t("productor.chat.intentPill")}
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <p
+              className="text-center text-sm py-8"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {t("productor.chat.noHistory")}
+            </p>
+          )}
+        </AnimatePresence>
+        <div ref={messagesEndRef} />
+
+        {/* ─── LEGACY VERDICT / PRODUCING UI ─── */}
         {phase === "verdict" && verdict && (
           <VerdictCard
             verdict={verdict}
@@ -404,7 +522,11 @@ export default function AgentPanel({
         )}
 
         {isRunning && (
-          <div className="mt-3 flex items-center gap-2">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 flex items-center gap-2"
+          >
             <Loader2 size={18} className="animate-spin" style={{ color: "var(--accent-primary)" }} />
             <span className="text-sm" style={{ color: "var(--text-primary)" }}>
               {phase === "analyzing"
@@ -425,27 +547,31 @@ export default function AgentPanel({
               <Ban size={13} />
               {t("productor.cancel")}
             </button>
-          </div>
+          </motion.div>
         )}
 
         {cancelled && (
-          <p
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
             className="mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed"
             style={{ background: "var(--surface-hover)", color: "var(--text-secondary)" }}
             role="status"
           >
             {t("productor.cancelled")}
-          </p>
+          </motion.p>
         )}
 
         {(analysisError || error) && (
-          <p
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
             className="mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed"
             style={{ background: "var(--surface-hover)", color: "var(--accent-error)" }}
             role="alert"
           >
             {analysisError ?? error}
-          </p>
+          </motion.p>
         )}
 
         {phase === "completed" && result && <AgentResultView result={result} />}
@@ -456,7 +582,7 @@ export default function AgentPanel({
   );
 }
 
-/* ────────────────── Tarjeta de Veredicto ────────────────── */
+/* ────────────────── Tarjeta de Veredicto (legacy) ────────────────── */
 
 function VerdictCard({
   verdict,
@@ -681,7 +807,7 @@ function RouteCard({
   );
 }
 
-/* ────────────────── Vista de resultado (sin cambios, solo import) ────────────────── */
+/* ────────────────── Vista de resultado (legacy) ────────────────── */
 
 function AgentResultView({ result }: { result: AgentRunResult }) {
   const { t } = useTranslation();

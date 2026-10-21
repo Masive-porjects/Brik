@@ -54,10 +54,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from audiomind.analysis.analyzer import analyze_audio
 from audiomind.analysis.verdict import AudioVerdict
 from audiomind.config import settings
-from audiomind.models.audio import AnalysisResult, ReferenceComparison
+from audiomind.models.audio import AnalysisResult, ReferenceComparison, TranscriptEntry
 from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing import prompts
 from audiomind.processing.character import CHARACTER_PROFILE, is_known_profile
+from audiomind.session_store import load_sessions
 from audiomind.processing.engine import process_audio
 from audiomind.processing.mapper import map_intent_to_mastering
 from audiomind.processing.mix_engine import build_mix
@@ -1127,6 +1128,8 @@ def run(
 
     ``decision`` es la última palabra del usuario (``auto`` = delegar en Brik).
     ``verdict`` y ``reference_comparison`` son los artefactos que la explican.
+    ``chat_transcript`` (si existe en la sesión) se inyecta como contexto previo
+    para que el agente "recuerde" la conversación.
     Todo con default: llamar ``run()`` como se llamaba antes corre las cuatro
     fases igual que siempre.
     """
@@ -1142,10 +1145,30 @@ def run(
         applied=resolve_decision(decision, verdict, reference_is_mastered),
     )
 
+    # ── Cargar transcript persistido de la sesión (T5) ──────────────────────
+    # Máx 10 pares (20 entradas) para controlar tokens. Los turnos más recientes
+    # del chat tienen prioridad sobre el historial más antiguo.
+    prior_transcript: list[dict[str, Any]] = []
+    try:
+        sessions = load_sessions()
+        session = sessions.get(session_id)
+        if session and getattr(session, "chat_transcript", None):
+            for entry in session.chat_transcript:
+                role = "model" if entry.role == "assistant" else "user"
+                prior_transcript.append({"role": role, "text": entry.text})
+            # Limitar a últimos 10 pares
+            if len(prior_transcript) > 20:
+                prior_transcript = prior_transcript[-20:]
+    except Exception as exc:  # noqa: BLE001
+        # Si falla la carga, seguimos sin transcript previo (degradación grácil)
+        logging.getLogger(__name__).debug("No se pudo cargar chat_transcript: %s", exc)
+
     instruction = f"Mezclar y masterizar: {state.input_path}"
     if prompt and prompt.strip():
         instruction = f"{instruction}\n\nPedido del usuario: {prompt.strip()}"
-    transcript: list[dict[str, Any]] = [{"role": "user", "text": instruction}]
+
+    # Transcript inicial = persistido + turno actual
+    transcript: list[dict[str, Any]] = prior_transcript + [{"role": "user", "text": instruction}]
 
     phase1_diagnose(state, transport, transcript)
     if state.decision.applied == "mix_then_master":
