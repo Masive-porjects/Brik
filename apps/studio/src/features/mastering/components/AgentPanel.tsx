@@ -27,7 +27,7 @@ import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
 
 /**
- * Módulo Productor IA — Capa de decisión interactiva (T6).
+ * Módulo Brik — Capa de decisión interactiva (T6).
  *
  * Flujo de dos fases:
  *  1. Job de ANÁLISIS (POST /jobs/agent/{id}/analyze) — solo fase 1, ~3s.
@@ -56,7 +56,7 @@ const AGENT_TIMEOUT_MS = 1_800_000;
 const OK_COLOR = "#30d158";
 
 /** Estados internos del flujo de decisión. */
-type DecisionPhase =
+export type DecisionPhase =
   | "idle"
   | "analyzing"
   | "verdict"
@@ -68,13 +68,21 @@ interface AgentPanelProps {
   sessionId: string | null;
   disabled?: boolean;
   /**
-   * Hides the internal title block. Used when the panel lives inside the
-   * Productor sidebar, which already renders that header in its own rail.
+   * Hides the internal title block and turns the panel into a full-height
+   * column: scrollable body + sticky composer. Used when the panel lives
+   * inside the Brik rail, which already renders the title in its header.
    */
   compact?: boolean;
+  /** Lets the rail paint the engine status badge without owning the flow. */
+  onPhaseChange?: (phase: DecisionPhase) => void;
 }
 
-export default function AgentPanel({ sessionId, disabled, compact = false }: AgentPanelProps) {
+export default function AgentPanel({
+  sessionId,
+  disabled,
+  compact = false,
+  onPhaseChange,
+}: AgentPanelProps) {
   const { t } = useTranslation();
 
   const [prompt, setPrompt] = useState("");
@@ -101,6 +109,11 @@ export default function AgentPanel({ sessionId, disabled, compact = false }: Age
       pollAbortRef.current?.abort();
     };
   }, []);
+
+  // El rail pinta el estado del motor sin ser dueño del flujo de decisión.
+  useEffect(() => {
+    onPhaseChange?.(phase);
+  }, [phase, onPhaseChange]);
 
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current) {
@@ -279,8 +292,80 @@ export default function AgentPanel({ sessionId, disabled, compact = false }: Age
 
   const isRunning = phase === "analyzing" || phase === "producing";
 
+  // Composer = prompt + acción primaria. En el rail queda anclado abajo
+  // (footer sticky sobre el cuerpo scrolleable); inline va arriba, como antes.
+  const composer = (
+    <div
+      className={compact ? "shrink-0 border-t px-4 py-3" : "px-4 pt-3"}
+      style={compact ? { borderColor: "var(--border-subtle)" } : undefined}
+    >
+      <label
+        htmlFor="agent-prompt"
+        className="text-[10px] font-bold uppercase tracking-[0.16em]"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        {t("productor.promptLabel")}
+      </label>
+      <textarea
+        id="agent-prompt"
+        value={prompt}
+        onChange={(e) => setPrompt(e.currentTarget.value)}
+        disabled={isRunning || disabled}
+        rows={2}
+        placeholder={t("productor.promptPlaceholder")}
+        className="mt-1 w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none
+          transition-colors duration-300 focus:border-[var(--accent-primary)]
+          disabled:opacity-40"
+        style={{
+          background: "var(--surface-hover)",
+          borderColor: "var(--border-subtle)",
+          color: "var(--text-primary)",
+        }}
+      />
+      <p className="mt-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+        {t("productor.promptHint")}
+      </p>
+
+      <div className="mt-2 flex items-center gap-2">
+        {isRunning ? (
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {phase === "analyzing"
+              ? t("productor.verdict.analyzing")
+              : t("productor.runningShort")}
+          </span>
+        ) : phase === "verdict" ? (
+          <p className="text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
+            {t("productor.composerVerdictHint")}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={disabled}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white
+              transition-all duration-300 hover:brightness-110
+              disabled:cursor-not-allowed disabled:opacity-40"
+            style={{
+              background: "linear-gradient(135deg, #10b981, #00d4aa)",
+              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+            }}
+          >
+            <Sparkles size={16} />
+            {phase === "completed" ? t("productor.restart") : t("productor.start")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="w-full" style={CARD_STYLE}>
+    <div
+      className={compact ? "flex h-full min-h-0 w-full flex-col" : "w-full"}
+      style={CARD_STYLE}
+    >
       {!compact && (
         <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4">
           <div>
@@ -297,54 +382,15 @@ export default function AgentPanel({ sessionId, disabled, compact = false }: Age
         </div>
       )}
 
-      <div className="px-4 pt-3 pb-4">
-        <label
-          htmlFor="agent-prompt"
-          className="text-[10px] font-bold uppercase tracking-[0.16em]"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          {t("productor.promptLabel")}
-        </label>
-        <textarea
-          id="agent-prompt"
-          value={prompt}
-          onChange={(e) => setPrompt(e.currentTarget.value)}
-          disabled={isRunning || disabled}
-          rows={2}
-          placeholder={t("productor.promptPlaceholder")}
-          className="mt-1 w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none
-            transition-colors duration-300 focus:border-[var(--accent-primary)]
-            disabled:opacity-40"
-          style={{
-            background: "var(--surface-hover)",
-            borderColor: "var(--border-subtle)",
-            color: "var(--text-primary)",
-          }}
-        />
-        <p className="mt-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
-          {t("productor.promptHint")}
-        </p>
+      {!compact && composer}
 
-        {phase === "idle" && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={disabled}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white
-                transition-all duration-300 hover:brightness-110
-                disabled:cursor-not-allowed disabled:opacity-40"
-              style={{
-                background: "linear-gradient(135deg, #10b981, #00d4aa)",
-                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
-              }}
-            >
-              <Sparkles size={16} />
-              {t("productor.start")}
-            </button>
-          </div>
-        )}
-
+      <div
+        className={
+          compact
+            ? "min-h-0 flex-1 overflow-y-auto px-4 pt-3"
+            : "px-4 pt-3 pb-4"
+        }
+      >
         {phase === "verdict" && verdict && (
           <VerdictCard
             verdict={verdict}
@@ -404,6 +450,8 @@ export default function AgentPanel({ sessionId, disabled, compact = false }: Age
 
         {phase === "completed" && result && <AgentResultView result={result} />}
       </div>
+
+      {compact && composer}
     </div>
   );
 }
