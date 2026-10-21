@@ -33,6 +33,14 @@ The duplicated blocks keep the source's accent-free spelling on purpose: it is
 byte-stable so the cached prefix survives. Only text the USER reads carries
 accents (hard rule 8).
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Solo para el type checker: ``verdict`` importa ``models.audio``, y una
+    # importacion de runtime aca crearia un ciclo con la capa de analisis.
+    from audiomind.analysis.verdict import AudioVerdict
 
 # The prompt blocks below are verbatim copies of apps/agent/src/prompt.ts.
 # Rewrapping them would change the prompt text, so the file opts out of the
@@ -118,24 +126,60 @@ IntentProfile: nueve ejes semanticos de 0 a 1. No decides parametros tecnicos:
 mueves los ejes y el mapper los traduce."""
 
 
+#: Las reglas duras que SI aplican al diagnostico. No se reusa ``HARD_RULES``
+#: entero a proposito: habla de mover ejes (una accion del bucle), y un
+#: diagnostico no mueve ejes. Mezclarlas confundiria al modelo sobre que fase
+#: esta corriendo. La 7 y la 8 son las que si rigen aca.
+_DIAGNOSIS_HARD_RULES = """\
+## Reglas duras que aplican a esta fase
+
+1. **No prometas lo que no puedes.** No puedes cambiar la mezcla, silenciar
+   instrumentos, corregir afinacion ni reemplazar sonidos. Si te lo piden, dilo
+   con claridad y ofrece lo que si puedes hacer: las rutas que el motor tiene.
+
+2. **Escribe todo lo que lee el usuario con ortografia correcta, con todas las
+   tildes y signos de apertura.** Este prompt esta sin tildes por razones
+   tecnicas, pero tu respuesta la lee el usuario: "más", "escúchalo", "¿quieres?"."""
+
+
 DIAGNOSIS_SYSTEM_PROMPT = f"""\
 {_MIX_ENGINEER_ROLE}
 
 ## Esta fase: diagnostico
 
-Recibis las metricas de un estéreo original. Escribis un diagnostico breve, en
-el idioma del usuario: que le falta al track y que NO hay que tocar.
+Recibis las metricas de un estéreo original MAS el veredicto que el motor ya
+calculo sobre el. Escribis un diagnostico breve, en el idioma del usuario.
 
-Reglas de esta fase:
+## Tu rol: sos la VOZ del motor, no su reemplazo
 
-- Basate SOLO en los numeros que recibis. No inventes mediciones ni afirmes
-  haber escuchado algo que no mediste.
+El veredicto que recibis en `<veredicto>` NO lo calculas vos: el motor ya lo
+midio sobre el audio real. Tu trabajo es **verbalizarlo** — traducirlo a
+sensaciones que el usuario entienda. Nada mas.
+
+- **No recalcules el veredicto.** No opines si el audio "necesita mezcla" por tu
+  cuenta ni contradigas la ruta que viene en el bloque. Si el motor dice una
+  cosa y vos decis otra, el usuario lee un diagnostico que el DSP no va a
+  aplicar. Eso destruye su confianza en todo lo que venga despues.
+- **Usa las carencias que vienen medidas.** Las bandas en `<veredicto>` ya estan
+  calculadas con la MISMA matematica que el EQ va a aplicar. Traducilas a
+  sensaciones ("le falta cuerpo abajo"), nunca las recalcules ni agregues las
+  tuyas.
+- **Podes proponer, nunca prometer.** Las rutas de `<veredicto>` son las
+  opciones reales del motor: nombralas y deci cual recomienda el sistema. Lo que
+  no podes es prometer un resultado que el motor no da.
+- **La ultima palabra es del usuario.** La ruta aplicada es una PROPUESTA por
+  defecto, no una sentencia. Decilo asi: el usuario puede elegir otra.
+
+## Lo que sigue valiendo
+
+- **No inventes mediciones** ni afirmes haber escuchado algo que no mediste.
 - Si la sonoridad ya esta bien para el objetivo, decilo y no propongas tocarla.
 - **Un bounce estéreo no se puede re-balancear.** EQ, compresion y saturacion
-  sobre el estéreo cambian COLOR, no balance. Subir el bombo o sacar la voz
-  exige stems. Si el pedido del usuario es de balance, deci que hay que separar
-  y para que lo vas a hacer.
-- No nombres parametros tecnicos. El usuario lee sensaciones."""
+  sobre el estéreo cambian COLOR, no balance. Si la ruta aplicada es de mezcla,
+  explica que se separa en stems y para que.
+- No nombres parametros tecnicos. El usuario lee sensaciones.
+
+{_DIAGNOSIS_HARD_RULES}"""
 
 
 MIX_LOOP_SYSTEM_PROMPT_TEMPLATE = f"""\
@@ -228,5 +272,83 @@ def context_block(profile: dict[str, float], analysis: dict[str, object] | None 
             "El clasificador se equivoca seguido, y afirmar algo falso sobre su propia "
             "cancion te hace perder credibilidad para todo lo que venga despues."
         )
+
+    return "\n".join(lines)
+
+
+# ── El veredicto, en lenguaje de sensaciones ──────────────────────────────
+
+#: Cómo se le nombra cada banda al usuario. El veredicto trae Hz (es una
+#: medición); el usuario lee sensaciones. Sin esta tabla, el modelo recibiría
+#: "60 Hz: falta 3.2 dB" y lo repetiría tal cual, violando la regla 6.
+_BAND_SENSATIONS: dict[int, str] = {
+    60: "los sub-graves (el peso más profundo)",
+    150: "los graves (el cuerpo del bombo y el bajo)",
+    400: "los medios-bajos (donde el audio se empasta)",
+    1000: "los medios (donde vive la voz y los instrumentos principales)",
+    2500: "los medios-altos (la presencia y el ataque)",
+    6000: "la presencia alta (el brillo de los detalles)",
+    10000: "el aire (la respiración del track)",
+    15000: "el brillo extremo (la chispa del final del espectro)",
+}
+
+
+def verdict_block(verdict: AudioVerdict | None, applied: str = "auto") -> str:
+    """Traduce el veredicto del motor a un bloque que el modelo pueda verbalizar.
+
+    Devuelve ``""`` EXACTO cuando no hay veredicto — no un bloque vacio. El
+    prompt queda byte a byte como estaba, que es lo que hace la compatibilidad
+    verificable en vez de prometida.
+
+    El bloque dice TRES cosas, y las tres importan:
+
+    1. **Qué ruta se aplicó** — con la etiqueta en español y el id técnico, para
+       que el modelo no invente una traducción propia.
+    2. **Qué le falta al audio** — las carencias YA medidas, nombradas en
+       sensaciones. El modelo no las recalcula: las repite con sus palabras.
+    3. **Que el usuario decide** — la ruta es una propuesta, no una sentencia.
+
+    Args:
+        verdict: El veredicto medido, o ``None``.
+        applied: La ruta realmente aplicada (``mix_then_master`` / ``master_only``;
+            ``auto`` cuando todavía no se resolvió).
+    """
+    if verdict is None:
+        return ""
+
+    lines = ["<veredicto>"]
+
+    recommended = verdict.recommended_path
+    for route in verdict.routes:
+        marker = " (recomendada)" if route.recommended else ""
+        lines.append(f"- {route.label_es}{marker}: {route.description_es}")
+
+    if applied != "auto":
+        lines.append(f"Ruta aplicada: {applied}.")
+
+    lines.append(f"El motor midio: {verdict.reasoning_key}.")
+    lines.append(f"Confianza del veredicto: {verdict.confidence:.0%}.")
+
+    if verdict.deficiencies:
+        lines.append(
+            "Carencias que el analisis YA midio (traducilas a sensaciones, "
+            "no las recalcules):"
+        )
+        for item in verdict.deficiencies:
+            sensation = _BAND_SENSATIONS.get(
+                item.band_hz, f"la banda de {item.band_hz} Hz"
+            )
+            # El signo importa: "le falta" y "le sobra" son opuestos.
+            lacks = item.direction == "lacks"
+            verb = "le falta" if lacks else "le sobra"
+            lines.append(f"- {sensation}: {verb} energia.")
+    else:
+        lines.append("El analisis no encontro carencias por banda: el balance esta bien.")
+
+    lines.append(
+        f"El motor recomienda '{recommended}', pero la ultima palabra la tiene el "
+        "usuario: puede elegir la otra ruta."
+    )
+    lines.append("</veredicto>")
 
     return "\n".join(lines)

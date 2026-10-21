@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from enum import Enum
 
 
@@ -761,6 +761,107 @@ class PresetMasterEntry(BaseModel):
     created_at: float | None = None
 
 
+# ── Brik's routing verdict (decision layer) ──────────────────────────────
+# These are DATA types, so they live beside ``AnalysisResult`` and
+# ``SessionData`` rather than in ``analysis/verdict.py``. That placement is
+# deliberate and load-bearing: ``SessionData.verdict`` references
+# ``AudioVerdict`` directly. Declaring it in the analysis package while this
+# module also imports that package for ``AnalysisResult`` produced an import
+# cycle, and every runtime way out of it (forward reference, lazy
+# ``model_rebuild``, patched constructors) was a workaround for a layout
+# mistake. The algorithm that PRODUCES these models stays in
+# ``analysis/verdict.py``.
+
+#: Route identifiers. ``mix_then_master`` is the historical four-phase chain;
+#: ``master_only`` skips separation and feeds the original straight to mastering.
+RouteId = Literal["mix_then_master", "master_only"]
+
+#: Why the verdict landed where it did. A stable key, never user-facing prose:
+#: the UI translates it, so the backend is free to change the wording.
+ReasoningKey = Literal[
+    "raw_mix_detected",
+    "finished_mix_detected",
+    "already_mastered",
+    "unmeasurable",
+]
+
+
+class Deficiency(BaseModel):
+    """One band that sits away from the genre target.
+
+    ``delta_db`` is ``target − measured``, so a POSITIVE value means the track
+    has LESS energy than the genre standard and the band "lacks" weight; a
+    negative value means it "excess". Only bands past the audibility threshold
+    are reported — the rest would be noise the user cannot hear anyway.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    band_hz: int = Field(..., description="Band center frequency in Hz.")
+    delta_db: float = Field(
+        ...,
+        description="target − measured, in dB. Positive = the band lacks energy.",
+    )
+    direction: Literal["lacks", "excess"] = Field(
+        ...,
+        description="'lacks' when delta_db > 0, 'excess' when delta_db < 0.",
+    )
+
+
+class Route(BaseModel):
+    """A processing path Brik proposes. The user picks one; Brik never decides.
+
+    ``label_es`` / ``description_es`` come from the backend so the agent's chat
+    message and the UI card say the same thing. Spanish is neutral Latin
+    American, no voseo, per the repo's i18n contract.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: RouteId
+    label_es: str
+    description_es: str
+    recommended: bool = False
+
+
+class AudioVerdict(BaseModel):
+    """Brik's routing verdict for one track.
+
+    Persisted on ``SessionData`` (so a reload does not lose the analysis) and
+    shipped in the agent job result. It is a decision artifact, not a transient
+    step: ``decision`` stays ``None`` until the user (or Brik, in auto mode)
+    picks a route.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    needs_mix: bool = Field(
+        ...,
+        description="True when the track is raw enough to need separating and "
+        "balancing before mastering.",
+    )
+    confidence: float = Field(
+        ..., ge=0.0, le=1.0, description="How sure the verdict is, 0..1."
+    )
+    recommended_path: RouteId = Field(
+        ..., description="The route Brik recommends. The user may override it."
+    )
+    reasoning_key: ReasoningKey = Field(
+        ...,
+        description="Stable key for WHY this verdict landed here. The UI "
+        "translates it; it is never shown raw.",
+    )
+    deficiencies: list[Deficiency] = Field(
+        default_factory=list,
+        description="Bands sitting away from the genre target, loudest gap "
+        "first. Empty when the analysis carried no per-band measurement.",
+    )
+    routes: list[Route] = Field(
+        default_factory=list,
+        description="Every path on offer, exactly one recommended.",
+    )
+
+
 class SessionData(BaseModel):
     session_id: str
     status: ProcessingStatus = ProcessingStatus.UPLOADED
@@ -777,6 +878,11 @@ class SessionData(BaseModel):
     # per-preset keys, because ``mastered_path`` is its own pointer.
     master_r2_key: str | None = None
     analysis: AnalysisResult | None = None
+    # Brik's routing verdict. Persisted so the analysis is an ARTIFACT the user
+    # can consult after a reload, not a step that only exists mid-request.
+    # Sessions persisted before the field existed load with None (safe
+    # default), so old session data is unchanged.
+    verdict: AudioVerdict | None = None
     parameters: MasteringParameters = MasteringParameters()
     master_result: MasterResultMetrics | None = None
     mastering_report: MasteringReport | None = None
@@ -843,6 +949,16 @@ class BeatData(BaseModel):
     stems: dict[str, str] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ── Album / EP batch mastering (Phase D, P1-2) ───────────────────────────
+# Relative LUFS/DR target negotiation across several sessions. Purely
+# additive and backward-compatible by design: every request field defaults
+# to the album defaults (None → -14.0 LUFS base, list → empty) and every
+# result field is nullable so partial measurements never break the payload.
+# The batch surface only COMPUTES ``target_lufs_db`` numbers and feeds them
+# through the existing single-track pipeline — no new DSP, no audio
+# mutation — preserving the neutral = bypass contract.
 
 
 # ── Album / EP batch mastering (Phase D, P1-2) ───────────────────────────

@@ -495,6 +495,31 @@
       "adjust_stem_parameters": "Ajustar parámetros",
       "search_knowledge": "Consultar el conocimiento",
       "send_to_master": "Masterizar"
+    },
+    "verdict": {
+      "title": "Veredicto de Brik",
+      "subtitle": "Brik analizó tu audio y propone una ruta. La última palabra es tuya.",
+      "confidence": "Confianza",
+      "needsMix": "Necesita mezcla",
+      "yes": "Sí",
+      "no": "No",
+      "reasoning": {
+        "raw_mix_detected": "Mezcla cruda detectada",
+        "finished_mix_detected": "Mezcla terminada detectada",
+        "already_mastered": "Ya está masterizado",
+        "unmeasurable": "No se pudo medir"
+      },
+      "deficienciesTitle": "Carencias detectadas",
+      "deficienciesNone": "El balance espectral está dentro del objetivo del género.",
+      "routeAuto": "Dejar que Brik decida (Auto)",
+      "routeAutoDesc": "Brik sigue su veredicto: mezcla si hace falta, master directo si no.",
+      "routeMixThenMaster": "Separar y mezclar primero",
+      "routeMixThenMasterDesc": "El audio viene sin mezclar. Se separa en stems, se balancea y después se masteriza.",
+      "routeMasterOnly": "Solo masterizar",
+      "routeMasterOnlyDesc": "El audio ya tiene una mezcla terminada. Se masteriza directo, sin tocarlo.",
+      "confirmButton": "Confirmar y producir",
+      "analyzing": "Analizando tu audio…",
+      "analysisFailed": "No se pudo completar el análisis. Inténtalo de nuevo."
     }
   },
   "songstarter": {

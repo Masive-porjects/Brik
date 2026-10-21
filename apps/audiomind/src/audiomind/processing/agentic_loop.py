@@ -52,8 +52,9 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from audiomind.analysis.analyzer import analyze_audio
+from audiomind.analysis.verdict import AudioVerdict
 from audiomind.config import settings
-from audiomind.models.audio import AnalysisResult
+from audiomind.models.audio import AnalysisResult, ReferenceComparison
 from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing import prompts
 from audiomind.processing.engine import process_audio
@@ -259,6 +260,37 @@ class ToolResult(BaseModel):
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# La decisión de ruta (S5, S10)
+# ══════════════════════════════════════════════════════════════════════════
+
+#: La ruta que el usuario pide. ``auto`` delega en el veredicto de Brik; las
+#: otras dos son la última palabra del usuario y pisan lo que Brik opine.
+Decision = Literal["auto", "mix_then_master", "master_only"]
+
+#: La ruta que REALMENTE se corrió. ``auto`` nunca llega acá: se resuelve.
+AppliedDecision = Literal["mix_then_master", "master_only"]
+
+
+class DecisionRecord(BaseModel):
+    """Qué se pidió y qué se aplicó — las dos, porque no siempre coinciden.
+
+    ``requested="auto"`` con ``applied="master_only"`` es la UI diciendo "Brik
+    eligió la ruta corta, y podés cambiarla". Colapsar los dos campos en un
+    solo valor borraría justo la información que hace explicable la decisión.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested: Decision = Field(
+        "auto",
+        description="Lo que pidió el usuario. 'auto' = decidir con el veredicto.",
+    )
+    applied: AppliedDecision = Field(
+        ..., description="La ruta que efectivamente se ejecutó."
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Estado del agente
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -272,6 +304,27 @@ class AgentState:
 
     #: Consulta al RAG. ``None`` = el agente no ve ``search_knowledge``.
     rag: RAGQuery | None = None
+
+    #: Veredicto de Brik sobre este audio (``audiomind.analysis.verdict``).
+    #: ``None`` = nadie lo calculó, y la compuerta cae en el comportamiento
+    #: histórico de cuatro fases. Es el artefacto que explica la ruta elegida.
+    verdict: AudioVerdict | None = None
+
+    #: Comparación contra la referencia que subió el usuario. ``None`` = no hay
+    #: referencia. Antes de esta feature la referencia moría en la sesión: se
+    #: persistía en ``SessionData`` y nunca llegaba al modelo que decide.
+    reference_comparison: ReferenceComparison | None = None
+
+    #: ``True`` cuando la referencia subida ya está masterizada. Fuerza la ruta
+    #: corta: comparar dos masters no justifica re-mezclar.
+    reference_is_mastered: bool = False
+
+    # S5/S10 — qué ruta se pidió y cuál se aplicó.
+    decision: DecisionRecord = field(
+        default_factory=lambda: DecisionRecord(
+            requested="auto", applied="mix_then_master"
+        )
+    )
 
     # Fase 1
     analysis: AnalysisResult | None = None
@@ -796,6 +849,37 @@ def _tools_for(state: AgentState) -> list[dict[str, Any]]:
     return tool_definitions(include_rag=state.rag is not None)
 
 
+def _verdict_block(state: AgentState) -> str:
+    """El veredicto de Brik como bloque de contexto, o "" si no hay.
+
+    Delegado a ``prompts.verdict_block``: la traduccion de Hz a sensaciones vive
+    con el resto del texto que lee el modelo, no en el orquestador.
+
+    Sin veredicto devuelve ``""`` EXACTO (no un bloque vacío): el turno queda
+    byte a byte como estaba antes de que la feature existiera, que es lo que
+    permite que los tests de compatibilidad sigan pasando sin tocarlos.
+    """
+    block = prompts.verdict_block(state.verdict, applied=state.decision.applied)
+    return f"\n\n{block}" if block else ""
+
+
+def _reference_block(state: AgentState) -> str:
+    """La referencia del usuario como contexto, o "" si no hay una lista.
+
+    Solo ``status="ready"`` es evidencia: un ``error`` o un ``no_reference`` es
+    una comparación que no corrió, y mostrarla sería presentar como medición
+    algo que nunca se midió.
+    """
+    comparison = state.reference_comparison
+    if comparison is None or comparison.status != "ready":
+        return ""
+    return (
+        "\n\n<referencia>\n"
+        + json.dumps(comparison.model_dump(mode="json"), indent=2, ensure_ascii=False)
+        + "\n</referencia>"
+    )
+
+
 def phase1_diagnose(
     state: AgentState, transport: ModelTransport, transcript: list[dict[str, Any]]
 ) -> str:
@@ -818,6 +902,8 @@ def phase1_diagnose(
             "role": "user",
             "text": (
                 prompts.context_block(state.intent.model_dump(), result.payload)
+                + _verdict_block(state)
+                + _reference_block(state)
                 + "\n\n<mediciones>\n"
                 + json.dumps(result.payload, indent=2, ensure_ascii=False)
                 + "\n</mediciones>"
@@ -911,7 +997,13 @@ def phase3_mix_loop(
 def phase4_send_to_master(
     state: AgentState, transport: ModelTransport, transcript: list[dict[str, Any]]
 ) -> ToolResult:
-    """FASE 4 · CIERRE (S3.d). Empuja el bus al mastering engine."""
+    """FASE 4 · CIERRE (S3.d). Empuja el bus al mastering engine.
+
+    Con la compuerta cerrada (``applied="master_only"``) el argumento se FUERZA
+    a ``source="original"``. No es una preferencia: el modelo podría pedir
+    ``mix`` por inercia y el envelope fallaría pidiendo un render que esta ruta
+    nunca produjo. La decisión ya está tomada; el modelo no tiene voto acá.
+    """
     turn = transport.turn(
         phase="phase4",
         system=prompts.mix_loop_system_prompt(MAX_MIX_ITERATIONS),
@@ -924,11 +1016,53 @@ def phase4_send_to_master(
         log.warning("Fase 4 recibió %s; se fuerza send_to_master.", call.name)
         call = ToolCall(name="send_to_master")
 
+    if state.decision.applied == "master_only":
+        if call.args.get("source") not in (None, "original"):
+            log.warning(
+                "Ruta 'master_only': se ignora source=%r y se masteriza el original.",
+                call.args.get("source"),
+            )
+        call = call.model_copy(update={"args": {**call.args, "source": "original"}})
+
     result = dispatch(state, call.name, call.args)
     _record_exchange(transcript, call, result)
     if result.ok:
         state.master_path = result.payload.get("master_path")
     return result
+
+
+def resolve_decision(
+    requested: Decision,
+    verdict: AudioVerdict | None = None,
+    reference_is_mastered: bool = False,
+) -> AppliedDecision:
+    """Resolver qué ruta corre de verdad. PURA: no toca el estado ni el audio.
+
+    El orden de prioridad es la regla de negocio, y cada escalón existe por un
+    motivo distinto:
+
+    1. **La elección explícita del usuario gana siempre.** Es "la última palabra
+       la decide el usuario" hecho código, y también la garantía de que Brik no
+       puede decidir sola por accidente.
+    2. **Una referencia masterizada fuerza la ruta corta**, incluso sobre un
+       veredicto que pida mezclar. Comparar dos masters no justifica re-mezclar:
+       la referencia ya es el estándar al que se quiere llegar.
+    3. **``auto`` sigue el veredicto.** ``needs_mix`` manda.
+    4. **Sin veredicto, la ruta histórica.** Cuatro fases, exactamente como
+       antes de esta feature. Un audio sin clasificar nunca cambia de
+       comportamiento en silencio.
+    """
+    if requested == "mix_then_master" or requested == "master_only":
+        return requested
+
+    if reference_is_mastered:
+        return "master_only"
+
+    if verdict is not None:
+        return "mix_then_master" if verdict.needs_mix else "master_only"
+
+    # Sin veredicto: comportamiento histórico. La feature es opt-in de hecho.
+    return "mix_then_master"
 
 
 def run(
@@ -937,31 +1071,55 @@ def run(
     transport: ModelTransport | None = None,
     rag: RAGQuery | None = None,
     prompt: str | None = None,
+    decision: Decision = "auto",
+    verdict: AudioVerdict | None = None,
+    reference_comparison: ReferenceComparison | None = None,
+    reference_is_mastered: bool = False,
     **transport_kwargs: Any,
 ) -> AgentState:
-    """Corre el flujo completo: diagnóstico -> desmontaje -> bucle -> cierre.
+    """Corre el flujo: diagnóstico -> [desmontaje -> bucle] -> cierre.
+
+    Las fases 2 y 3 son CONDICIONALES desde esta feature. Con
+    ``applied="master_only"`` no se separa ni se mezcla: la fase 4 masteriza el
+    original (``SendToMasterArgs.source="original"``, que el motor soporta desde
+    antes — lo que el orquestador nunca ofrecía). Ese es el ahorro real: Demucs
+    es la operación más cara del sistema y se evita por completo.
 
     ``transport`` es inyectable (tests sin red). Si se omite, se construye el
     transporte real según ``LLM_PROVIDER``; sin credencial utilizable eso levanta
     ``TransportUnavailableError`` en vez de seguir a ciegas.
 
     ``prompt`` es el pedido en lenguaje natural del usuario. Viaja en el turno
-    inicial, que las cuatro fases reciben, así que tanto el diagnóstico como el
-    bucle lo ven. ``None`` o vacío deja ese turno EXACTAMENTE como estaba antes
-    de que el parámetro existiera.
+    inicial, que las fases reciben, así que tanto el diagnóstico como el bucle
+    lo ven. ``None`` o vacío deja ese turno EXACTAMENTE como estaba antes de que
+    el parámetro existiera.
+
+    ``decision`` es la última palabra del usuario (``auto`` = delegar en Brik).
+    ``verdict`` y ``reference_comparison`` son los artefactos que la explican.
+    Todo con default: llamar ``run()`` como se llamaba antes corre las cuatro
+    fases igual que siempre.
     """
     if transport is None:
         transport = default_transport(**transport_kwargs)
 
     state = AgentState(session_id=session_id, input_path=Path(input_path), rag=rag)
+    state.verdict = verdict
+    state.reference_comparison = reference_comparison
+    state.reference_is_mastered = reference_is_mastered
+    state.decision = DecisionRecord(
+        requested=decision,
+        applied=resolve_decision(decision, verdict, reference_is_mastered),
+    )
+
     instruction = f"Mezclar y masterizar: {state.input_path}"
     if prompt and prompt.strip():
         instruction = f"{instruction}\n\nPedido del usuario: {prompt.strip()}"
     transcript: list[dict[str, Any]] = [{"role": "user", "text": instruction}]
 
     phase1_diagnose(state, transport, transcript)
-    phase2_separate(state, transport, transcript)
-    phase3_mix_loop(state, transport, transcript)
+    if state.decision.applied == "mix_then_master":
+        phase2_separate(state, transport, transcript)
+        phase3_mix_loop(state, transport, transcript)
     phase4_send_to_master(state, transport, transcript)
 
     return state

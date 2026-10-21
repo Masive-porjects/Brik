@@ -495,6 +495,31 @@
       "adjust_stem_parameters": "Adjust parameters",
       "search_knowledge": "Search the knowledge base",
       "send_to_master": "Master"
+    },
+    "verdict": {
+      "title": "Brik's Verdict",
+      "subtitle": "Brik analyzed your audio and proposes a route. The final word is yours.",
+      "confidence": "Confidence",
+      "needsMix": "Needs mix",
+      "yes": "Yes",
+      "no": "No",
+      "reasoning": {
+        "raw_mix_detected": "Raw mix detected",
+        "finished_mix_detected": "Finished mix detected",
+        "already_mastered": "Already mastered",
+        "unmeasurable": "Could not measure"
+      },
+      "deficienciesTitle": "Detected deficiencies",
+      "deficienciesNone": "The spectral balance is within the genre target.",
+      "routeAuto": "Let Brik decide (Auto)",
+      "routeAutoDesc": "Brik follows its verdict: mix if needed, direct master if not.",
+      "routeMixThenMaster": "Separate and mix first",
+      "routeMixThenMasterDesc": "The audio is unmixed. It will be split into stems, balanced, then mastered.",
+      "routeMasterOnly": "Master only",
+      "routeMasterOnlyDesc": "The audio already has a finished mix. It will be mastered directly, untouched.",
+      "confirmButton": "Confirm and produce",
+      "analyzing": "Analyzing your audio…",
+      "analysisFailed": "Analysis could not be completed. Try again."
     }
   },
   "songstarter": {
