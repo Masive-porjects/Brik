@@ -1,29 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import gsap from "gsap";
-import { ChevronLeft, ChevronRight, Ghost, Sparkles } from "lucide-react";
+import { Ghost, Sparkles, X } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
 
 import AgentPanel, { type DecisionPhase } from "./AgentPanel";
 
-/** Expanded rail width (px). Exported so the dock can offset itself. */
-export const AGENT_SIDEBAR_WIDTH = 350;
-/** Collapsed rail width (px). */
-export const AGENT_SIDEBAR_COLLAPSED = 56;
 /** Levitation amplitude and beat, in px / seconds. */
 const GHOST_LIFT_PX = -7;
 const GHOST_CYCLE_S = 1.7;
-
-interface AgentSidebarProps {
-  sessionId: string | null;
-  disabled?: boolean;
-  /** Expanded state. Owned by the page so the floating dock can follow. */
-  open: boolean;
-  onToggle: () => void;
-}
 
 /** Tone per engine state. Semantic colours, same palette the panel uses. */
 const STATUS_TONE: Record<
@@ -63,24 +50,23 @@ const STATUS_TONE: Record<
 };
 
 /* ── AgentSidebar ───────────────────────────────────────
-   Right rail that hosts Brik next to the DAW. It is a layout sibling of
-   the main column, not a fixed overlay: it takes real horizontal space,
-   so the waveform on the left keeps its own scroll and nothing overlaps.
-   Collapses to a narrow rail that still shows the header toggle, and a
-   levitating ghost anchored to the rail's left shoulder flips it open or
-   shut from anywhere on the DAW. */
+   Brik como widget de chat flotante (pop-up) en la esquina inferior derecha.
+   No ocupa espacio del layout: el canvas de la forma de onda no se desplaza ni
+   cambia de tamaño cuando el widget se abre. El botón fantasma permanece anclado
+   debajo del widget y su levitación GSAP solo anima el icono interno. */
 export default function AgentSidebar({
   sessionId,
   disabled,
-  open,
-  onToggle,
-}: AgentSidebarProps) {
+}: {
+  sessionId: string | null;
+  disabled?: boolean;
+}) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<DecisionPhase>("idle");
   const ghostRef = useRef<HTMLSpanElement>(null);
 
-  /* Levitation. GSAP owns the inner span's transform so framer-motion stays
-     free to animate the button's `right` while the rail slides. */
+  /* Levitation. GSAP owns the inner span's transform. */
   useEffect(() => {
     const ghost = ghostRef.current;
     if (!ghost) return;
@@ -102,23 +88,18 @@ export default function AgentSidebar({
     };
   }, []);
 
-  const collapseLabel = t("productor.sidebarCollapse");
-  const expandLabel = t("productor.sidebarExpand");
-  const toggleLabel = open ? collapseLabel : expandLabel;
-  const tone = STATUS_TONE[phase];
-  const busy = phase === "analyzing" || phase === "producing";
+  const toggleLabel = open ? t("productor.sidebarCollapse") : t("productor.sidebarExpand");
 
   return (
     <>
+      {/* Fantasma de activación — anclado debajo del widget, cerca de ENTREGA */}
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        aria-controls="brik-rail"
         aria-label={toggleLabel}
-        title={toggleLabel}
         data-testid="brik-ghost"
-        className="fixed bottom-32 right-6 z-50 grid size-11 place-items-center rounded-full border
+        className="fixed bottom-16 right-6 z-50 grid size-11 place-items-center rounded-full border
           transition-colors duration-300 hover:border-[var(--accent-primary)]
           focus-visible:outline focus-visible:outline-2
           focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
@@ -136,38 +117,26 @@ export default function AgentSidebar({
         </span>
       </button>
 
-      <motion.aside
-        id="brik-rail"
-        initial={false}
-        animate={{ width: open ? AGENT_SIDEBAR_WIDTH : AGENT_SIDEBAR_COLLAPSED }}
-        transition={{ type: "spring", stiffness: 320, damping: 34 }}
-        className="relative z-[2] flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l"
-        style={{
-          background: "var(--bg-glass-elevated)",
-          borderColor: "var(--border-strong)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-        }}
-        aria-label={t("productor.sidebarTitle")}
-      >
-        <header
-          className={`flex shrink-0 gap-2 border-b px-3 py-3 ${
-            open ? "items-center" : "flex-col items-center"
-          }`}
-          style={{ borderColor: "var(--border-subtle)" }}
+      {/* Widget de chat flotante — overlay independiente */}
+      {open && (
+        <div
+          className="fixed bottom-32 right-6 z-40 w-[350px] h-[550px] max-h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col border border-[var(--border-subtle)]"
         >
-          <span
-            className="grid size-7 shrink-0 place-items-center rounded-full"
-            style={{
-              background: "var(--surface-hover)",
-              border: "1px solid var(--border-subtle)",
-              color: "var(--accent-primary)",
-            }}
+          <header
+            className="flex shrink-0 gap-2 border-b px-4 py-3 items-center justify-between"
+            style={{ borderColor: "var(--border-subtle)" }}
           >
-            <Sparkles size={15} />
-          </span>
+            <span
+              className="grid size-7 shrink-0 place-items-center rounded-full"
+              style={{
+                background: "var(--surface-hover)",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--accent-primary)",
+              }}
+            >
+              <Sparkles size={15} />
+            </span>
 
-          {open && (
             <div className="min-w-0 flex-1">
               <h2
                 className="truncate text-sm font-semibold leading-tight"
@@ -178,45 +147,43 @@ export default function AgentSidebar({
               <span
                 className="mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
                 style={{
-                  background: tone.background,
-                  border: `1px solid ${tone.border}`,
-                  color: tone.color,
+                  background: STATUS_TONE[phase].background,
+                  border: `1px solid ${STATUS_TONE[phase].border}`,
+                  color: STATUS_TONE[phase].color,
                 }}
                 role="status"
                 aria-live="polite"
               >
                 <span
-                  className={`size-1.5 rounded-full ${busy ? "animate-pulse" : ""}`}
-                  style={{ background: tone.color }}
+                  className={`size-1.5 rounded-full ${
+                    phase === "analyzing" || phase === "producing"
+                      ? "animate-pulse"
+                      : ""
+                  }`}
+                  style={{ background: STATUS_TONE[phase].color }}
                 />
                 {t(`productor.status.${phase}`)}
               </span>
             </div>
-          )}
 
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-controls="brik-rail"
-            aria-label={toggleLabel}
-            title={toggleLabel}
-            data-testid="brik-rail-toggle"
-            className="grid size-7 shrink-0 place-items-center rounded-lg border transition-colors
-              hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]
-              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-primary)]"
-            style={{
-              background: "var(--surface-hover)",
-              borderColor: "var(--border-subtle)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            {open ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </button>
-        </header>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label={t("common.close")}
+              className="grid size-7 shrink-0 place-items-center rounded-lg border transition-colors
+                hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)]
+                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-primary)]"
+              style={{
+                background: "var(--surface-hover)",
+                borderColor: "var(--border-subtle)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <X size={15} />
+            </button>
+          </header>
 
-        {open && (
-          <div className="min-h-0 flex-1 overflow-hidden px-3 py-3">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <AgentPanel
               sessionId={sessionId}
               disabled={disabled}
@@ -224,8 +191,8 @@ export default function AgentSidebar({
               onPhaseChange={setPhase}
             />
           </div>
-        )}
-      </motion.aside>
+        </div>
+      )}
     </>
   );
 }

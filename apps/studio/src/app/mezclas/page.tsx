@@ -29,8 +29,6 @@ import {
   ConsolidateMasterModal,
   SelectWorkflowModal,
   AgentSidebar,
-  AGENT_SIDEBAR_WIDTH,
-  AGENT_SIDEBAR_COLLAPSED,
 } from "@/features/mastering";
 import { LibraryView } from "@/features/remastering-history";
 import { fetchUserTracks, renameTrackDraft, getUserTracksCount, type Track } from "@/features/tracks";
@@ -162,8 +160,8 @@ function MezclasContent() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [panelSyncTab, setPanelSyncTab] = useState<MasteringTab | null>(null);
 
-  // Brik sidebar (right rail, desktop only). Open by default.
-  const [agentSidebarOpen, setAgentSidebarOpen] = useState(true);
+  // Brik ahora es un widget de chat flotante (overlay). No ocupa espacio
+  // del layout, así que no hay estado de rail que sincronizar con el dock.
 
   const needsRightPanel = currentTab === "analysis" || currentTab === "stereo";
   if (currentTab !== panelSyncTab) {
@@ -531,13 +529,7 @@ function MezclasContent() {
                         <ModuleDock
                           activeTab={currentTab}
                           onSelect={handleModuleClick}
-                          rightOffset={
-                            currentTab === "productor"
-                              ? agentSidebarOpen
-                                ? AGENT_SIDEBAR_WIDTH
-                                : AGENT_SIDEBAR_COLLAPSED
-                              : 0
-                          }
+                          rightOffset={0}
                           processingProgress={workflow.processing ? workflow.progress : 0}
                           lufs={
                             workflow.session?.master_result?.integrated_lufs ??
@@ -550,15 +542,6 @@ function MezclasContent() {
                   )}
                 </div>
 
-                {/* Agent Sidebar Column (Brik) — collapsible right rail */}
-                {!isMobile && masteringMode === "manual" && currentTab === "productor" && (
-                  <AgentSidebar
-                    sessionId={workflow.session?.session_id ?? null}
-                    disabled={workflow.processing}
-                    open={agentSidebarOpen}
-                    onToggle={() => setAgentSidebarOpen((prev) => !prev)}
-                  />
-                )}
               </div>
             </div>
           </main>
@@ -651,6 +634,13 @@ function MezclasContent() {
           }}
           onClose={() => setWorkflowModalOpen(false)}
           canDismiss={true}
+        />
+
+        {/* Brik chat widget — overlay independiente, fuera del flex-1.
+             No afecta el canvas de la forma de onda ni el dock. */}
+        <AgentSidebar
+          sessionId={workflow.session?.session_id ?? null}
+          disabled={workflow.processing}
         />
       </main>
     </LicenseGuard>

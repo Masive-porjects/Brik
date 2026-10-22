@@ -1,12 +1,12 @@
 /**
- * AgentSidebar — el fantasma levitante es el control del rail de Brik.
+ * AgentSidebar — widget de chat flotante (pop-up) de Brik en la esquina inferior derecha.
  *
  * Contrato que fija este test:
- * - El fantasma se dibuja siempre, expandido o colapsado, y apunta al rail
- *   con `aria-controls`/`aria-expanded`.
- * - Tocarlo y tocar el chevron del header disparan el mismo `onToggle`.
- * - La levitación es un tween de GSAP en el eje Y, infinito y con yoyo.
- * - Colapsado no monta el panel: no queda contenido vivo fuera de pantalla.
+ * - El fantasma se dibuja siempre y es el control de apertura/cierre del widget.
+ * - Tocarlo abre/cierra el panel de chat flotante.
+ * - El panel cerrado no monta AgentPanel (no queda contenido vivo fuera de pantalla).
+ * - La levitación es un tween de GSAP en el eje Y del icono interno, infinito y con yoyo.
+ * - El fantasma permanece anclado fijo abajo a la derecha; su posición base no se mueve.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
@@ -20,6 +20,8 @@ const LABELS: Record<string, string> = {
   "productor.sidebarTitle": "Brik",
   "productor.sidebarCollapse": "Colapsar",
   "productor.sidebarExpand": "Expandir",
+  "productor.status.idle": "inactivo",
+  "common.close": "Cerrar",
 };
 
 vi.mock("@/i18n", () => ({
@@ -46,55 +48,48 @@ describe("AgentSidebar", () => {
 
   afterEach(cleanup);
 
-  it("dibuja el fantasma apuntando al rail cuando está colapsado", () => {
-    render(
-      <AgentSidebar sessionId={null} open={false} onToggle={() => {}} />,
-    );
+  it("dibuja el fantasma anclado abajo a la derecha, cerrado por defecto", () => {
+    render(<AgentSidebar sessionId={null} />);
 
     const ghost = screen.getByTestId("brik-ghost");
     expect(ghost.getAttribute("aria-expanded")).toBe("false");
-    expect(ghost.getAttribute("aria-controls")).toBe("brik-rail");
-    expect(screen.getByLabelText("Brik").id).toBe("brik-rail");
-    expect(screen.queryByTestId("agent-panel")).toBeNull();
-  });
-
-  it("el fantasma dispara el toggle", () => {
-    const onToggle = vi.fn();
-    render(
-      <AgentSidebar sessionId={null} open={false} onToggle={onToggle} />,
-    );
-
-    fireEvent.click(screen.getByTestId("brik-ghost"));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it("el chevron del header dispara el mismo toggle y monta el panel", () => {
-    const onToggle = vi.fn();
-    render(<AgentSidebar sessionId={null} open onToggle={onToggle} />);
-
-    expect(screen.getByTestId("agent-panel")).toBeTruthy();
-    expect(screen.getByTestId("brik-ghost").getAttribute("aria-expanded")).toBe(
-      "true",
-    );
-
-    fireEvent.click(screen.getByTestId("brik-rail-toggle"));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it("el fantasma está anclado abajo a la derecha y el botón no se mueve", () => {
-    render(<AgentSidebar sessionId={null} open onToggle={() => {}} />);
-
-    const ghost = screen.getByTestId("brik-ghost") as HTMLButtonElement;
     expect(ghost.className).toContain("fixed");
-    expect(ghost.className).toContain("bottom-32");
+    expect(ghost.className).toContain("bottom-16");
     expect(ghost.className).toContain("right-6");
     expect(ghost.className).toContain("z-50");
     // Nada de `right` dinámico: sólo el span interno levita.
+    expect((ghost as HTMLButtonElement).style.right).toBe("");
+    expect(screen.queryByTestId("agent-panel")).toBeNull();
+  });
+
+  it("el fantasma dispara la apertura y el cierre del widget", () => {
+    render(<AgentSidebar sessionId={null} />);
+
+    // Cerrado: no hay panel
+    expect(screen.queryByTestId("agent-panel")).toBeNull();
+
+    // Click abre el widget
+    fireEvent.click(screen.getByTestId("brik-ghost"));
+    expect(screen.getByTestId("agent-panel")).toBeTruthy();
+
+    // El botón X cierra el widget
+    fireEvent.click(screen.getByLabelText("Cerrar"));
+    expect(screen.queryByTestId("agent-panel")).toBeNull();
+  });
+
+  it("el fantasma está anclado fijo y solo el icono interno levita", () => {
+    render(<AgentSidebar sessionId={null} />);
+
+    const ghost = screen.getByTestId("brik-ghost") as HTMLButtonElement;
+    expect(ghost.className).toContain("fixed");
+    expect(ghost.className).toContain("bottom-16");
+    expect(ghost.className).toContain("right-6");
+    expect(ghost.className).toContain("z-50");
     expect(ghost.style.right).toBe("");
   });
 
   it("levita en el eje Y, infinito y con yoyo", () => {
-    render(<AgentSidebar sessionId={null} open={false} onToggle={() => {}} />);
+    render(<AgentSidebar sessionId={null} />);
 
     expect(mocks.to).toHaveBeenCalledTimes(1);
     const [target, vars] = mocks.to.mock.calls[0] as unknown as [
