@@ -99,7 +99,7 @@ export default function AgentSidebar({
         aria-expanded={open}
         aria-label={toggleLabel}
         data-testid="brik-ghost"
-        className="fixed bottom-16 right-6 z-50 grid size-11 place-items-center rounded-full border
+        className="fixed bottom-6 right-6 z-[101] grid size-11 place-items-center rounded-full border
           transition-colors duration-300 hover:border-[var(--accent-primary)]
           focus-visible:outline focus-visible:outline-2
           focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)]"
@@ -120,7 +120,7 @@ export default function AgentSidebar({
       {/* Widget de chat flotante — overlay independiente */}
       {open && (
         <div
-          className="fixed bottom-32 right-6 z-40 w-[350px] h-[550px] max-h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col border border-[var(--border-subtle)]"
+          className="fixed bottom-[120px] right-6 z-[100] w-[350px] shadow-2xl rounded-2xl bg-white flex flex-col border border-[var(--border-subtle)]"
         >
           <header
             className="flex shrink-0 gap-2 border-b px-4 py-3 items-center justify-between"

@@ -54,9 +54,9 @@ describe("AgentSidebar", () => {
     const ghost = screen.getByTestId("brik-ghost");
     expect(ghost.getAttribute("aria-expanded")).toBe("false");
     expect(ghost.className).toContain("fixed");
-    expect(ghost.className).toContain("bottom-16");
+    expect(ghost.className).toContain("bottom-6");
     expect(ghost.className).toContain("right-6");
-    expect(ghost.className).toContain("z-50");
+    expect(ghost.className).toContain("z-[101]");
     // Nada de `right` dinámico: sólo el span interno levita.
     expect((ghost as HTMLButtonElement).style.right).toBe("");
     expect(screen.queryByTestId("agent-panel")).toBeNull();
@@ -82,9 +82,9 @@ describe("AgentSidebar", () => {
 
     const ghost = screen.getByTestId("brik-ghost") as HTMLButtonElement;
     expect(ghost.className).toContain("fixed");
-    expect(ghost.className).toContain("bottom-16");
+    expect(ghost.className).toContain("bottom-6");
     expect(ghost.className).toContain("right-6");
-    expect(ghost.className).toContain("z-50");
+    expect(ghost.className).toContain("z-[101]");
     expect(ghost.style.right).toBe("");
   });
 
