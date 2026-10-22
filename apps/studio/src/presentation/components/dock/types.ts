@@ -6,7 +6,6 @@ import {
   Music2,
   Radio,
   Scissors,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,7 +39,4 @@ export const DOCK_MODULES: readonly DockModuleDef[] = [
   { key: "analysis", label: "Análisis", icon: Activity },
   { key: "stereo", label: "Estéreo", icon: Radio },
   { key: "album", label: "Álbum", icon: Music },
-  // Va al final a propósito: el orden de arriba define los dos grupos que
-  // separan las tiles de telemetría del dock, y meterlo en el medio los corre.
-  { key: "productor", label: "Brik", icon: Sparkles },
 ];
