@@ -12,9 +12,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from audiomind.main import app
-from audiomind.config import settings
 from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.main import app
 from audiomind.models.audio import (
     MasterResultMetrics,
     PresetMasterEntry,

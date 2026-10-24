@@ -3,10 +3,12 @@
 Tests the full REST API: generate, save, list, load, audio serve, delete.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import pytest
 from fastapi.testclient import TestClient
+
 from audiomind.main import app
 
 client = TestClient(app)

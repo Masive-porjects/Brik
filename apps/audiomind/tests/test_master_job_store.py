@@ -25,9 +25,9 @@ from fastapi.testclient import TestClient
 from audiomind.main import app
 from audiomind.services import dsp_worker
 from audiomind.services import job_store as job_store_mod
+from audiomind.services.dsp_worker import get_job_status, run_async_master_job
 from audiomind.services.job_store import JobStatus
 from audiomind.services.mix_jobs import _heartbeat_loop
-from audiomind.services.dsp_worker import get_job_status, run_async_master_job
 
 
 @pytest.fixture

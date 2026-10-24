@@ -1,5 +1,6 @@
 """Tests for demo-mode concurrency: single-flight dedup and global serialization."""
 import sys
+
 sys.path.insert(0, "src")
 
 import time
@@ -9,13 +10,13 @@ from threading import Lock
 
 import numpy as np
 import pytest
+import soundfile as sf
 from fastapi.testclient import TestClient
 
-from audiomind.main import app
-from audiomind.config import settings
 from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.main import app
 from audiomind.services import demo_guard
-import soundfile as sf
 
 client = TestClient(app)
 

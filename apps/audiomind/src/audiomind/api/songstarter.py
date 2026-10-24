@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -114,7 +114,7 @@ async def generate_beat(session_id: str, params: BeatGenParams) -> BeatData:
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Beat generation failed: {e}",
-        )
+        ) from e
 
     return BeatData(
         beat_id=beat_id,
@@ -200,7 +200,7 @@ async def save_beat(params: SaveBeatParams) -> dict[str, str]:
         "root_note": params.root_note,
         "swing_amount": params.swing_amount,
         "duration": params.duration,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
     beat_json_path = dest_dir / "beat.json"
@@ -215,7 +215,7 @@ async def save_beat(params: SaveBeatParams) -> dict[str, str]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to write beat metadata: {e}",
-        )
+        ) from e
 
     return {"message": "Beat saved successfully", "beat_id": params.beat_id}
 
@@ -263,7 +263,7 @@ async def get_beat(beat_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to read beat metadata: {e}",
-        )
+        ) from e
 
 
 @router.get("/beat/{beat_id}/audio")

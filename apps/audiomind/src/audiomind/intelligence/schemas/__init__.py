@@ -12,14 +12,39 @@ Módulos:
 - idea_knowledge: IdeaKnowledge — ideas de producto/ingeniería
 """
 
-from .preset_knowledge import PresetKnowledge, PluginRef, PresetMetrics, PresetGenreCompatibility
-from .plugin_knowledge import PluginKnowledge, PluginParameter, SonicImpact, PluginInteraction, UsageExample
-from .genre_knowledge import (
-    GenreKnowledge, BPMRange, EnergyProfile, TonalBalance, DynamicsProfile,
-    DSPRecommendation, PresetCompatibility, DetectionFeatures, ReferenceTrack, SubgenreVariant
+from .experiment_knowledge import (
+    ExperimentChanges,
+    ExperimentDesign,
+    ExperimentKnowledge,
+    ExperimentResults,
+    TechnicalMetrics,
 )
-from .experiment_knowledge import ExperimentKnowledge, ExperimentDesign, ExperimentChanges, ExperimentResults, TechnicalMetrics
+from .genre_knowledge import (
+    BPMRange,
+    DetectionFeatures,
+    DSPRecommendation,
+    DynamicsProfile,
+    EnergyProfile,
+    GenreKnowledge,
+    PresetCompatibility,
+    ReferenceTrack,
+    SubgenreVariant,
+    TonalBalance,
+)
 from .idea_knowledge import IdeaKnowledge, IdeaReference
+from .plugin_knowledge import (
+    PluginInteraction,
+    PluginKnowledge,
+    PluginParameter,
+    SonicImpact,
+    UsageExample,
+)
+from .preset_knowledge import (
+    PluginRef,
+    PresetGenreCompatibility,
+    PresetKnowledge,
+    PresetMetrics,
+)
 
 __all__ = [
     # Preset

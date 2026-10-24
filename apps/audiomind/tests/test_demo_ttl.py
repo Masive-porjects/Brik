@@ -1,12 +1,14 @@
 """Tests for demo-mode session TTL pruning."""
 import sys
+
 sys.path.insert(0, "src")
 
 import pytest
-from audiomind.config import settings
+
 from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.models.audio import ProcessingStatus, SessionData
 from audiomind.services import demo_guard
-from audiomind.models.audio import SessionData, ProcessingStatus
 
 
 @pytest.fixture(autouse=True)

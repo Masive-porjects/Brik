@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import soundfile as sf
 import pedalboard
+import soundfile as sf
 from pedalboard import (
     Compressor,
     Distortion,
@@ -24,13 +24,13 @@ from pedalboard import (
     LowpassFilter,
 )
 
+from audiomind.config import settings
+
 # pedalboard's __init__ re-exports Pedalboard via a plain named import and
 # defines no __all__; with implicit_reexport=False (mypy strict) the name is
 # not treated as exported. Bind the module attribute explicitly — identical
 # runtime behavior, satisfies mypy.
 Pedalboard = pedalboard.Pedalboard
-
-from audiomind.config import settings
 
 # ── Types ────────────────────────────────────────────────────────────────
 SampleBuffer = np.ndarray  # 1-D float32 array
@@ -221,7 +221,7 @@ class BeatGenerator:
               "hihat_open": [...], "clap": [...]}``
         """
         steps_per_bar = 16
-        total_steps = steps_per_bar * num_bars
+        _total_steps = steps_per_bar * num_bars
         beat_duration = 60.0 / bpm
         step_duration = beat_duration / 4.0  # 16th note
 
@@ -387,7 +387,7 @@ class BeatGenerator:
         root_midi = _note_name_to_midi(root_note)
         beat_duration = 60.0 / bpm
         bar_duration = beat_duration * 4
-        total_duration = bar_duration * num_bars
+        _total_duration = bar_duration * num_bars
 
         notes: list[dict[str, Any]] = []
 
@@ -471,11 +471,11 @@ class BeatGenerator:
         root_midi = _note_name_to_midi(root_note)
         beat_duration = 60.0 / bpm
         bar_duration = beat_duration * 4
-        total_duration = bar_duration * num_bars
+        _total_duration = bar_duration * num_bars
 
         # Get chord types per degree for this mode
         degree_chords = _DEGREE_CHORDS.get(scale, _DEGREE_CHORDS["major"])
-        degree_indices = _DEGREE_MAP.get(scale, _DEGREE_MAP["major"])
+        _degree_indices = _DEGREE_MAP.get(scale, _DEGREE_MAP["major"])
 
         chords: list[dict[str, Any]] = []
 

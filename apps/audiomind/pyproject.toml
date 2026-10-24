@@ -30,7 +30,9 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23.0",
-    "ruff>=0.5.0",
+    # Pinned exactly: the rule set changes between releases, so a floating
+    # bound turns the CI lint gate red without a single line of code moving.
+    "ruff==0.16.10",
     "mypy>=1.10.0",
     "psutil>=6.0",
 ]
@@ -55,6 +57,29 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B"]
+# E501 off: line length is the formatter's concern, and this codebase is not
+# formatter-normalized yet (371 findings, all cosmetic). Keeps the gate focused
+# on real defects instead of a repo-wide reflow.
+ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter factories are called in argument defaults by design.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Header",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Dev scripts insert the package root into sys.path before importing it.
+"scripts/*" = ["E402"]
+# str-Enum is kept instead of StrEnum: these members are serialized through
+# pydantic/JSON contracts the frontend already consumes.
+"src/audiomind/models/audio.py" = ["UP042"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -1,6 +1,6 @@
 """License validation endpoints and middleware dependency."""
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from audiomind.config import settings

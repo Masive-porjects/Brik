@@ -3,10 +3,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from audiomind.config import settings
-from audiomind.models.audio import SessionData, ProcessingStatus
+from audiomind.models.audio import ProcessingStatus, SessionData
 from audiomind.services import demo_guard
 from audiomind.session_store import load_sessions, save_sessions
 

@@ -9,6 +9,7 @@ if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
 import soundfile as sf
+
 from audiomind.processing.songstarter import BeatGenerator
 
 

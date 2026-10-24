@@ -133,7 +133,7 @@ class TestGainReductionMatchesCrest:
         # cannot catch), the later hits must come out with REDUCED peaks
         # relative to the input — the transients are being controlled.
         n = int(0.5 * SR)
-        t = np.arange(n) / SR
+        _t = np.arange(n) / SR
         hits = np.zeros(n)
         for start in range(0, n, 8820):
             m = min(882, n - start)

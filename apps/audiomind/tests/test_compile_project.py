@@ -16,8 +16,8 @@ from typing import Any
 import pytest
 
 from audiomind.models.project_document import (
-    default_document,
     MasterIntent,
+    default_document,
 )
 
 
@@ -63,7 +63,7 @@ def mock_state():
 
 def test_compile_no_doc_no_state():
     """compile(None, StateProjection()) -> neutral defaults."""
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.services.compile_project import StateProjection, compile
     plan = compile(None, StateProjection())
     assert plan.stem_trims is None
     assert plan.dimension_enabled is True
@@ -78,8 +78,8 @@ def test_compile_no_doc_no_state():
 
 
 def test_compile_carries_a_known_character():
-    from audiomind.models.project_document import default_document, MixIntent
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.models.project_document import MixIntent, default_document
+    from audiomind.services.compile_project import StateProjection, compile
 
     doc = default_document()
     doc.mix_intent = MixIntent(character="commercial_alt_pop")
@@ -88,8 +88,8 @@ def test_compile_carries_a_known_character():
 
 
 def test_compile_drops_an_unknown_character():
-    from audiomind.models.project_document import default_document, MixIntent
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.models.project_document import MixIntent, default_document
+    from audiomind.services.compile_project import StateProjection, compile
 
     doc = default_document()
     doc.mix_intent = MixIntent(character="warm analog")
@@ -98,7 +98,7 @@ def test_compile_drops_an_unknown_character():
 
 
 def test_compile_defaults_to_no_character_without_a_document():
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.services.compile_project import StateProjection, compile
 
     plan = compile(None, StateProjection())
     assert plan.character is None
@@ -106,7 +106,7 @@ def test_compile_defaults_to_no_character_without_a_document():
 
 def test_compile_no_doc_no_state_no_overrides():
     """compile(None, StateProjection()) with no document: all neutral."""
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.services.compile_project import StateProjection, compile
     plan = compile(None, StateProjection())
     assert plan.stem_trims is None
     assert plan.dimension_enabled is True  # default
@@ -115,7 +115,7 @@ def test_compile_no_doc_no_state_no_overrides():
 
 def test_compile_all_zero_faders():
     """compile() with all faders 0.0 -> stem_trims = None (bypass)."""
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.services.compile_project import StateProjection, compile
     state = StateProjection(faders={"drums_db": 0.0, "bass_db": 0.0, "other_db": 0.0, "vocals_db": 0.0})
     plan = compile(None, state)
     assert plan.stem_trims is None
@@ -123,7 +123,7 @@ def test_compile_all_zero_faders():
 
 def test_compile_some_nonzero_faders():
     """compile() with some non-zero faders -> stem_trims dict con claves {stem}_db."""
-    from audiomind.services.compile_project import compile, StateProjection
+    from audiomind.services.compile_project import StateProjection, compile
     state = StateProjection(faders={"drums_db": 1.5, "bass_db": 0.0, "other_db": -0.5, "vocals_db": 0.0})
     plan = compile(None, state)
     assert plan.stem_trims == {"drums_db": 1.5, "other_db": -0.5}
@@ -257,7 +257,7 @@ def test_load_inputs_bad_stored_document_raises_value_error():
 
 def test_compile_full_pipeline():
     """End-to-end: compile with doc and state produces consistent MixPlan."""
-    from audiomind.services.compile_project import compile, StateProjection, MixPlan
+    from audiomind.services.compile_project import MixPlan, StateProjection, compile
 
     doc = _MockProjectDocument()
     state = StateProjection(

@@ -6,8 +6,9 @@ whether to retry processing; this module only judges.
 """
 from __future__ import annotations
 
-from audiomind.models.audio import AnalysisResult, MasterResultMetrics
 from typing import Any
+
+from audiomind.models.audio import AnalysisResult, MasterResultMetrics
 
 # ── Layer 2 tolerances ────────────────────────────────────────────────
 LUFS_TOLERANCE_DB = 1.5      # |measured − target| above this → issue

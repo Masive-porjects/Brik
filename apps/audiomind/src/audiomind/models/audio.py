@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from enum import Enum
 
 
 # ── Chat Transcript (T4) ──────────────────────────────────────────────────
@@ -969,7 +969,7 @@ class BeatData(BaseModel):
     duration: float = 0.0
     output_path: str = ""
     stems: dict[str, str] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

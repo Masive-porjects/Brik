@@ -1,6 +1,7 @@
 """Tests for demo-mode client behavior: on_demand upload, preset processing,
 cache hit, multi-preset, download, normal mode prerender, duration limit, MP3."""
 import sys
+
 sys.path.insert(0, "src")
 
 import shutil
@@ -11,15 +12,15 @@ from threading import Lock
 
 import numpy as np
 import pytest
+import soundfile as sf
 from fastapi.testclient import TestClient
 
-from audiomind.main import app
-from audiomind.config import settings
-from audiomind.api.upload import sessions
 from audiomind.api.mastering import _prerender_cache
-from audiomind.services import demo_guard
+from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.main import app
 from audiomind.models.audio import AnalysisResult, ProcessingStatus
-import soundfile as sf
+from audiomind.services import demo_guard
 
 client = TestClient(app)
 

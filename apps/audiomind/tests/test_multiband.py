@@ -8,6 +8,7 @@ integration (neutral flag toggle bit-exact; engaged stage changes output),
 and the Sprint 4 A/B (per-band GR, makeup, output LUFS/true peak off vs on).
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import numpy as np
@@ -353,7 +354,7 @@ def test_ab_multiband_on_vs_off_metrics():
 
     print("A/B multiband on vs off (3-band program)")
     for name, gr, mu in zip(
-        ("low", "mid", "high"), diag["gr_mean_db"], diag["makeup_db"]
+        ("low", "mid", "high"), diag["gr_mean_db"], diag["makeup_db"], strict=False
     ):
         print(f"  {name:>4}: GR mean {gr:7.2f} dB   makeup {mu:7.2f} dB")
     print(f"  LUFS: off {lufs_off:7.2f}  on {lufs_on:7.2f}  (delta {lufs_on - lufs_off:+.2f})")

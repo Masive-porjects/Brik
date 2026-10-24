@@ -14,6 +14,7 @@ feature extraction + rule pipeline:
 - A bright, bass-less mid-tempo loop must still classify as pop.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import librosa

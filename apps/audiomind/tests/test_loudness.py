@@ -5,6 +5,7 @@ gating, per-channel weighting, ffmpeg ``ebur128`` oracle agreement, and
 silence robustness.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import shutil
@@ -17,17 +18,17 @@ import pytest
 import soundfile as sf
 from scipy.signal import sosfreqz
 
+from audiomind.processing.engine import target_lufs
 from audiomind.processing.loudness import (
     ABS_ZERO_OFFSET,
-    k_weighting_sos,
     integrated_loudness,
-    measure_lufs,
+    k_weighting_sos,
     match_lufs,
+    measure_lufs,
     momentary_loudness,
     short_term_loudness,
 )
 from audiomind.processing.truepeak import measure_lufs as tp_measure_lufs
-from audiomind.processing.engine import target_lufs
 
 SR = 48000
 TONE_FREQ = 997.0  # prime — avoids FFT bin alignment in band-energy helpers

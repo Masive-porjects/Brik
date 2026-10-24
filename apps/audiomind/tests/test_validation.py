@@ -5,6 +5,7 @@ status/verdict shape, the low-confidence "universal" suggestion and
 null-safety guarantees.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 from audiomind.models.audio import AnalysisResult, MasterResultMetrics

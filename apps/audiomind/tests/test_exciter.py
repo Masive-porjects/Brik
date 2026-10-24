@@ -10,6 +10,7 @@ plus the pure-DSP exciter module — never the pedalboard-backed engine — so
 these tests run on any machine.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import numpy as np

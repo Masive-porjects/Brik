@@ -6,6 +6,7 @@ the ceiling, explicit lookahead with length preservation, adaptive
 engine.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import numpy as np

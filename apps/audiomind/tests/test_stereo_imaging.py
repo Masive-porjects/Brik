@@ -37,8 +37,11 @@ def _rng(seed: int = 42) -> np.random.Generator:
 
 
 def _corr(audio: np.ndarray) -> float:
-    l, r = audio[0], audio[1]
-    return float(np.dot(l, r) / (np.linalg.norm(l) * np.linalg.norm(r) + 1e-10))
+    left, right = audio[0], audio[1]
+    return float(
+        np.dot(left, right)
+        / (np.linalg.norm(left) * np.linalg.norm(right) + 1e-10)
+    )
 
 
 def _band_rms(stereo: np.ndarray, sr: int, low: float, high: float) -> np.ndarray:
@@ -247,9 +250,12 @@ class TestMonoLows:
         sos = butter(4, 120.0 / (SR / 2.0), btype="low", output="sos")
 
         def low_corr(a: np.ndarray) -> float:
-            l = sosfilt(sos, a[0])
-            r = sosfilt(sos, a[1])
-            return float(np.dot(l, r) / (np.linalg.norm(l) * np.linalg.norm(r) + 1e-10))
+            left = sosfilt(sos, a[0])
+            right = sosfilt(sos, a[1])
+            return float(
+                np.dot(left, right)
+                / (np.linalg.norm(left) * np.linalg.norm(right) + 1e-10)
+            )
 
         # The input low region is weakly correlated; mono collapse improves it.
         assert low_corr(y) > low_corr(x)

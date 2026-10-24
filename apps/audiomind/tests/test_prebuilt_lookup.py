@@ -4,6 +4,7 @@ Verifies that ``POST /session/{id}/process?preset_id=...`` serves a cached
 master from ``settings.prebuilt_dir`` and never touches the DSP pipeline.
 """
 import sys
+
 sys.path.insert(0, "src")
 from pathlib import Path
 
@@ -11,9 +12,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from audiomind.main import app
-from audiomind.config import settings
 from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.main import app
 from audiomind.models.audio import ProcessingStatus
 
 client = TestClient(app)

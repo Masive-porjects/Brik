@@ -7,13 +7,14 @@ GET  /api/session/{id}/stem/{stem} — serve individual stem WAV
 
 from pathlib import Path
 from typing import Any
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from audiomind.config import settings
-from audiomind.api.upload import sessions
 from audiomind.api.license import require_license
-from audiomind.processing.splitter import split_audio, STEM_NAMES
+from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.processing.splitter import STEM_NAMES, split_audio
 
 router = APIRouter()
 
@@ -58,7 +59,7 @@ async def split_session(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Stem separation failed: {str(e)}"
-        )
+        ) from e
 
 
 @router.get("/session/{session_id}/stems")

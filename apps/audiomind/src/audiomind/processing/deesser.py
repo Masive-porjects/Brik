@@ -49,10 +49,10 @@ tonal/dynamics chain — so existing masters pass through unchanged.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.signal import butter, sosfilt
-from typing import Any
 
 from audiomind.processing.multiband import (
     DEFAULT_ATTACK_MS,

@@ -1,4 +1,7 @@
-import wave, struct, random
+import random
+import struct
+import wave
+
 w = wave.open('C:/Users/brik3/Desktop/WaveAI/apps/audiomind/tests/test_upload.wav', 'w')
 w.setnchannels(1)
 w.setsampwidth(2)

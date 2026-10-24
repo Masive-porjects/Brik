@@ -147,7 +147,7 @@ def probe(base: str) -> bool:
         if job_id:
             print(f"          job_id = {job_id}")
             final: dict = {}
-            for attempt in range(40):
+            for _attempt in range(40):
                 response = client.get(f"{base}/api/jobs/master/{job_id}")
                 if response.status_code == 200:
                     try:

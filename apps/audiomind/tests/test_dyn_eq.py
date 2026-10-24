@@ -8,6 +8,7 @@ validation. Imports only numpy/scipy plus the pure-DSP modules — never the
 pedalboard-backed engine — so these tests run on any machine.
 """
 import sys
+
 sys.path.insert(0, "src")
 
 import numpy as np

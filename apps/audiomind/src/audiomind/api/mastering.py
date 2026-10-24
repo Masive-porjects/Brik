@@ -1,23 +1,24 @@
 """Mastering API endpoints."""
-from pathlib import Path
 import asyncio
 import logging
 import shutil
 import time
-import uuid
 import urllib.parse
 import urllib.request
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import NamedTuple
+from pathlib import Path
+from typing import Any, NamedTuple
 
+import numpy as np
+import soundfile as sf
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Any
-import numpy as np
-import soundfile as sf
 
+from audiomind.api.license import require_license
+from audiomind.api.upload import sessions
 from audiomind.config import settings
 from audiomind.models.audio import (
     AnalysisResult,
@@ -33,15 +34,15 @@ from audiomind.models.audio import (
     SessionData,
     ValidationReport,
 )
-from audiomind.services import demo_guard, storage
-from audiomind.session_store import save_sessions
-from audiomind.api.upload import sessions
+
 # Heavy DSP modules (librosa/pedalboard) are imported lazily inside the
 # functions that use them so FastAPI startup stays light and fast on
 # low-memory deployments (Railway 1GB) — see OOM/timeout mitigation.
 from audiomind.processing.presets import PRESET_CHAINS
 from audiomind.processing.validation import validate_master
-from audiomind.api.license import require_license
+from audiomind.services import demo_guard, storage
+from audiomind.session_store import save_sessions
+
 
 # Lazy module-level names for the heavy DSP entry points.
 #
@@ -1182,7 +1183,7 @@ async def process_session(
         except Exception as e:
             session.status = ProcessingStatus.ERROR
             session.error = f"Analysis failed: {str(e)}"
-            raise HTTPException(status_code=500, detail=session.error)
+            raise HTTPException(status_code=500, detail=session.error) from e
 
     # Process
     session.status = ProcessingStatus.PROCESSING
@@ -1264,7 +1265,7 @@ async def process_session(
             raise HTTPException(status_code=422, detail=str(e)) from e
         session.status = ProcessingStatus.ERROR
         session.error = f"Processing failed: {str(e)}"
-        raise HTTPException(status_code=500, detail=session.error)
+        raise HTTPException(status_code=500, detail=session.error) from e
 
     demo_guard.touch(session_id)
     save_sessions(sessions)
@@ -1315,7 +1316,7 @@ async def trigger_prerender(session_id: str, _: object = Depends(require_license
                 _dsp_executor, analyze_audio, session.original_path
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
 
     # Launch pre-render in background (non-blocking)
     _prerender_all_presets(
@@ -1448,7 +1449,7 @@ async def render_reference(
                 _dsp_executor, analyze_audio, session.original_path
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
 
     def _run_reference() -> None:
         """CPU-bound work executed in a thread so the event loop stays free."""
@@ -1462,7 +1463,7 @@ async def render_reference(
     try:
         await asyncio.get_running_loop().run_in_executor(_dsp_executor, _run_reference)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Reference render failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Reference render failed: {str(e)}") from e
 
     return ReferenceRenderResult(
         reference_path=str(output_path),
@@ -1851,8 +1852,8 @@ async def download_audio(
         display_name = "WaveAIFinal"
 
     if format == "mp3":
-        import subprocess
         import shutil
+        import subprocess
 
         mp3_path = Path(source).with_suffix(".mp3")
         ffmpeg = shutil.which("ffmpeg")
@@ -1953,7 +1954,7 @@ async def master_stateless(
         input_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=400, detail=f"Failed to download audio_url: {e}"
-        )
+        ) from e
 
     output_path = (
         settings.output_dir / f"stateless_{uuid.uuid4().hex}_mastered.wav"
@@ -1994,7 +1995,7 @@ async def master_stateless(
             # Strict-mode input QC rejection: 422 (request rejection), not
             # the generic processing-failure 500 below.
             raise HTTPException(status_code=422, detail=str(e)) from e
-        raise HTTPException(status_code=500, detail=f"Mastering failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Mastering failed: {e}") from e
 
     return {
         "audio": result.get("output_path", str(output_path)),

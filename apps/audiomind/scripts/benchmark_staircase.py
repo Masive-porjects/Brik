@@ -57,8 +57,8 @@ _BACKEND = _HERE.parent
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-from audiomind.config import settings  # noqa: E402
 from audiomind.api.mastering import _build_preset_params  # noqa: E402
+from audiomind.config import settings  # noqa: E402
 
 SR = 44100
 HOST = "127.0.0.1"
@@ -481,7 +481,7 @@ def main() -> int:
                  ["fuego", "cinta", "natural"], cache_last=True, timeout=600.0)
 
         # STEP C — 210 s, ONE preset
-        c = run_jobs("C_210s_one_preset", track_paths[210.0],
+        _c = run_jobs("C_210s_one_preset", track_paths[210.0],
                      ["fuego"], cache_last=False, timeout=1800.0)
         if no_go:
             print("\n=== SAFETY GATE: NO-GO — heavier stages not attempted ===")
@@ -497,24 +497,24 @@ def main() -> int:
 
         # STEP E — 240 s, 3 presets (fuego cached, then cinta + natural)
         if not no_go:
-            e = run_jobs("E_240s_3presets", track_paths[240.0],
+            _e = run_jobs("E_240s_3presets", track_paths[240.0],
                          ["cinta", "natural"], cache_last=False, timeout=2400.0)
 
         # STEP F — 240 s, add 2 more (claridad + espacial) + cache switching
         if not no_go:
-            f = run_jobs("F_240s_5presets", track_paths[240.0],
+            _f = run_jobs("F_240s_5presets", track_paths[240.0],
                          ["claridad", "espacial"], cache_last=False, timeout=2400.0)
             # Alternating cache switches, zero DSP.
             print("\n   -- cache switching loop (fuego/cinta/natural/claridad/espacial) --")
             switch_rows = []
-            sess_id = None  # reuse the F session: find it from the report
+            # reuse the F session: find it from the report
             fstage = report["stages"].get("F_240s_5presets", {})
             if fstage.get("jobs"):
                 # We lost the session id; re-derive it by scanning stats? Simpler:
                 # F ran on the same 240 track session as E; ask the server state.
                 pass
             # Recover the F session id from the last upload: track hosts it.
-            for preset_id in ["fuego", "cinta", "natural", "claridad", "espacial"]:
+            for _preset_id in ["fuego", "cinta", "natural", "claridad", "espacial"]:
                 pass
             print("   (session id not tracked here; switch evidence is in E/F rows "
                   "+ the dsp_total unchanged across the next stats call)")
@@ -547,7 +547,7 @@ def main() -> int:
         out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"\nFull report: {out}")
     finally:
-        crashed = proc is not None and proc.poll() is not None
+        _crashed = proc is not None and proc.poll() is not None
         stop_server(proc)
 
     if no_go:

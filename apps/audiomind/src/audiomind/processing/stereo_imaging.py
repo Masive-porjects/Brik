@@ -177,7 +177,7 @@ class StereoImaging:
             # 2. Per-band constant-power M/S width.
             left_out = np.zeros_like(left)
             right_out = np.zeros_like(right)
-            for band, width in zip(range(3), widths):
+            for band, width in zip(range(3), widths, strict=False):
                 if width == 1.0:
                     left_out += left_bands[band]
                     right_out += right_bands[band]

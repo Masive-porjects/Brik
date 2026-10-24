@@ -1,8 +1,10 @@
 """Tests for SongStarter — BeatGenerator (Module D, Phase 5)."""
 import sys
+
 sys.path.insert(0, "src")
 
 import numpy as np
+
 from audiomind.processing.songstarter import BeatGenerator
 
 

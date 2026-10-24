@@ -5,6 +5,7 @@ parameters with preset-overridden loudness targets, per session+preset
 caching, and the 404/400 guards. DSP is stubbed — route-level tests only.
 """
 import sys
+
 sys.path.insert(0, "src")
 from pathlib import Path
 
@@ -12,9 +13,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from audiomind.main import app
-from audiomind.config import settings
 from audiomind.api.upload import sessions
+from audiomind.config import settings
+from audiomind.main import app
 
 client = TestClient(app)
 

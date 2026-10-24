@@ -36,7 +36,7 @@ import numpy as np
 from scipy.signal import firwin
 from scipy.special import erf
 
-from .oversample import oversample_up, oversample_down
+from .oversample import oversample_down, oversample_up
 
 #: Oversampling factor for the clipper (roadmap Sprint 3, corrected to 16x).
 OVERSAMPLE = 16

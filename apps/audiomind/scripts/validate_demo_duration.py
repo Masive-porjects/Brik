@@ -209,7 +209,7 @@ def upload_dir_files() -> list[str]:
 
 def run_check(base_url: str, track: Path, duration_s: float) -> dict:
     before = upload_dir_files()
-    stats_before = demo_stats(base_url)
+    _stats_before = demo_stats(base_url)
     try:
         result = upload_wav(base_url, track)
         accepted = True
@@ -241,7 +241,7 @@ def run_check(base_url: str, track: Path, duration_s: float) -> dict:
 
 def main() -> int:
     print("=== WAVEAI demo duration validation (240 s gate, real HTTP) ===")
-    print(f"Server env demo: demo_max_duration_seconds=240, max_file_size_mb=100\n")
+    print("Server env demo: demo_max_duration_seconds=240, max_file_size_mb=100\n")
 
     track_paths: dict[float, Path] = {}
     for duration_s in DURATIONS:
@@ -329,7 +329,7 @@ def main() -> int:
         out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"\nReport: {out}")
     finally:
-        crashed = proc is not None and proc.poll() is not None
+        _crashed = proc is not None and proc.poll() is not None
         stop_server(proc)
 
     print("\nRESULT:", "PASS" if ok else "FAIL")

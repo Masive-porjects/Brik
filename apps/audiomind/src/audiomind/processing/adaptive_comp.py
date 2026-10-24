@@ -68,9 +68,9 @@ channels receive the same per-frame gain and the image is preserved
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
-from typing import Any
 
 from audiomind.processing.multiband import detect_envelope
 

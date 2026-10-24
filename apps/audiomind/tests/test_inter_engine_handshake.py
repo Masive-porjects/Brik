@@ -1,7 +1,7 @@
 """Tests for Mix→Master Handshake & Stereo Shuffler integration."""
 
-import pytest
 import numpy as np
+import pytest
 from pydantic import ValidationError
 
 # ─── Fixtures ────────────────────────────────────────────────────────────
@@ -71,11 +71,12 @@ class TestBuildMixIncludesMetadata:
 
     def test_build_mix_returns_mix_metadata(self, tmp_path):
         """build_mix returns mix_metadata with realistic ranges."""
-        from audiomind.processing.mix_engine import build_mix
         import soundfile as sf
+
+        from audiomind.processing.mix_engine import build_mix
         
-        wav_path = tmp_path / "test.wav"
-        t = np.linspace(0.0, 1.0, 44100, endpoint=False)
+        _wav_path = tmp_path / "test.wav"
+        _t = np.linspace(0.0, 1.0, 44100, endpoint=False)
         sf.write(str(tmp_path / "test.wav"), 0.25 * np.sin(2.0 * np.pi * 220.0 * np.linspace(0.0, 1.0, 44100, endpoint=False)), 44100)
         
         result = build_mix(session_id="test_meta", input_path=tmp_path / "test.wav")

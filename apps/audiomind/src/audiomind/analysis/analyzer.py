@@ -4,12 +4,12 @@ Includes genre detection, already-mastered detection, and
 genre-specific target spectral profiles for Match EQ.
 """
 from pathlib import Path
+
 import librosa
 import numpy as np
 
 from audiomind.models.audio import AnalysisResult
 from audiomind.processing.loudness import measure_lufs
-
 
 # ── Frequency bands for spectral analysis and EQ ──────────────────────
 # These eight bands cover the full audible spectrum with musical relevance.
@@ -276,11 +276,11 @@ def _detect_genre(
     zero_crossing = float(np.mean(librosa.feature.zero_crossing_rate(y=y)))
 
     # Bass energy ratio (energy below 200Hz vs total)
-    S = np.abs(librosa.stft(y))
+    s = np.abs(librosa.stft(y))
     freqs = librosa.fft_frequencies(sr=sr)
     bass_mask = freqs < 200
-    total_energy = float(np.sum(S**2))
-    bass_energy = float(np.sum(S[bass_mask, :] ** 2)) if bass_mask.any() else 0
+    total_energy = float(np.sum(s**2))
+    bass_energy = float(np.sum(s[bass_mask, :] ** 2)) if bass_mask.any() else 0
     bass_ratio = bass_energy / max(total_energy, 1e-10)
 
     scores: dict[str, float] = {}

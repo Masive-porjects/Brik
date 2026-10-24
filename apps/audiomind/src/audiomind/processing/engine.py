@@ -1,20 +1,3 @@
-import numpy as np
-def _match_peak(ref, tgt):
-    if np.max(np.abs(tgt))==0: return tgt
-    return tgt*(np.max(np.abs(ref))/np.max(np.abs(tgt)))
-
-from audiomind.processing.loudness import measure_lra
-def measure_correlation(*args, **kwargs): return 0.0
-
-from audiomind.processing.truepeak import compute_codec_safe_ceiling
-from audiomind.processing.loudness import integrated_loudness
-measure_lufs = integrated_loudness
-
-def calculate_crest_factor(audio):
-    peak = np.max(np.abs(audio))
-    rms = np.sqrt(np.mean(np.square(audio))) + 1e-12
-    return float(20 * np.log10(peak / rms)) if peak > 0 else 0.0
-
 """Audio processing engine — Dynamic, proportional mastering pipeline.
 
 Instead of applying fixed preset values, this engine:
@@ -28,8 +11,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import soundfile as sf
+import numpy as np
 import pedalboard
+import soundfile as sf
 from pedalboard import (
     Compressor,
     HighpassFilter,
@@ -38,12 +22,6 @@ from pedalboard import (
     PeakFilter,
 )
 from pedalboard.io import AudioFile
-
-# pedalboard's __init__ re-exports Pedalboard via a plain named import and
-# defines no __all__; with implicit_reexport=False (mypy strict) the name is
-# not treated as exported. Bind the module attribute explicitly — identical
-# runtime behavior, satisfies mypy.
-Pedalboard = pedalboard.Pedalboard
 
 from audiomind.analysis.analyzer import (
     TARGET_BANDS_HZ,
@@ -57,14 +35,9 @@ from audiomind.processing.adaptive_comp import (
     adaptive_compress,
 )
 from audiomind.processing.clipper import soft_clip
+from audiomind.processing.deesser import DeesserParams, deesser
 from audiomind.processing.delay import DelayParams, delay_pass
 from audiomind.processing.dither import apply_dither_noise_shaping
-from audiomind.processing.deesser import DeesserParams, deesser
-from audiomind.processing.multiband import (
-    BandParams,
-    MultibandParams,
-    multiband_compress,
-)
 from audiomind.processing.dyn_eq import (
     DynEqBandParams,
     DynEqParams,
@@ -77,19 +50,52 @@ from audiomind.processing.exciter import (
     excite,
 )
 from audiomind.processing.io_write import write_output
-from audiomind.processing.truepeak import true_peak_limit
-from audiomind.processing.loudness import integrated_loudness, true_peak_db
-measure_lufs = integrated_loudness
+from audiomind.processing.loudness import (
+    integrated_loudness,
+    measure_lra,
+    true_peak_db,
+)
 from audiomind.processing.mono import enforce_mono_compatibility
+from audiomind.processing.multiband import (
+    BandParams,
+    MultibandParams,
+    multiband_compress,
+)
 from audiomind.processing.resample import resample_audio
 from audiomind.processing.reverb import ReverbParams, reverb_pass
-from audiomind.processing.smart_gate import decide_smart_gate, SIGNATURE_SCALE_FLOOR
+from audiomind.processing.smart_gate import SIGNATURE_SCALE_FLOOR, decide_smart_gate
 from audiomind.processing.spatial import measure_stereo_correlation
 from audiomind.processing.stereo_imaging import (
     StereoImagingParams,
     apply_stereo_imaging,
 )
 from audiomind.processing.tape import TapeParams, tape_saturate
+from audiomind.processing.truepeak import compute_codec_safe_ceiling, true_peak_limit
+
+# pedalboard's __init__ re-exports Pedalboard via a plain named import and
+# defines no __all__; with implicit_reexport=False (mypy strict) the name is
+# not treated as exported. Bind the module attribute explicitly — identical
+# runtime behavior, satisfies mypy.
+Pedalboard = pedalboard.Pedalboard
+
+measure_lufs = integrated_loudness
+
+
+def _match_peak(ref, tgt):
+    if np.max(np.abs(tgt)) == 0:
+        return tgt
+    return tgt * (np.max(np.abs(ref)) / np.max(np.abs(tgt)))
+
+
+def measure_correlation(*args, **kwargs):
+    return 0.0
+
+
+def calculate_crest_factor(audio):
+    peak = np.max(np.abs(audio))
+    rms = np.sqrt(np.mean(np.square(audio))) + 1e-12
+    return float(20 * np.log10(peak / rms)) if peak > 0 else 0.0
+
 # ── Gain Staging ──────────────────────────────────────────────────────
 
 
@@ -538,7 +544,7 @@ def build_match_eq(
     #   delta > 0 → boost (band is quieter than target)
     #   delta < 0 → cut   (band is louder than target)
     plugins: list[PeakFilter] = []
-    for i, band in enumerate(eq_bands):
+    for _i, band in enumerate(eq_bands):
         band_freq = band["freq"]
         band_idx = _freq_to_band_index(band_freq)
 

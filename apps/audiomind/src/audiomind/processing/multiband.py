@@ -285,7 +285,7 @@ class MultibandCompressor:
         makeup: list[float] = []
         processed: list[np.ndarray] = []
 
-        for band, bp in zip(bands, self.params.bands):
+        for band, bp in zip(bands, self.params.bands, strict=False):
             joint = band.mean(axis=0)  # (L+R)/2 — one envelope, both channels
             level_db = _level_to_db(detect_envelope(joint, self.sr, bp.attack_ms, bp.release_ms))
             out_db = gain_computer(level_db, bp.threshold_db, bp.ratio, bp.knee_db)

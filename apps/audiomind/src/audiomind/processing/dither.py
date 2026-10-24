@@ -11,9 +11,8 @@ Reference:
   (AES 1993). Two-zero, two-pole error feedback topology.
 """
 
-import numpy as np
-from typing import Optional
 
+import numpy as np
 
 # ── Noise shaping filter coefficients ──────────────────────────────────
 #
@@ -32,7 +31,7 @@ above 15 kHz. Verified coefficients from Lipshitz 2-zero/2-pole.
 """
 
 
-def _estimate_bit_depth(audio: np.ndarray) -> Optional[int]:
+def _estimate_bit_depth(audio: np.ndarray) -> int | None:
     """Heuristic: estimate bit depth from float scale and quanta detection.
 
     Args:
@@ -65,7 +64,7 @@ def _estimate_bit_depth(audio: np.ndarray) -> Optional[int]:
 def apply_dither_noise_shaping(
     audio: np.ndarray,
     target_bit_depth: int = 16,
-    sample_rate: Optional[int] = None,
+    sample_rate: int | None = None,
 ) -> np.ndarray:
     """Apply TPDF dither with 2nd-order Lipshitz noise shaping.
 

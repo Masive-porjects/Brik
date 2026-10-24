@@ -1,15 +1,18 @@
 """Smoke test for the dynamic proportional mastering pipeline."""
 import sys
+
 sys.path.insert(0, "src")
 
 import numpy as np
 import soundfile as sf
+
+from audiomind.models.audio import MasteringParameters
 from audiomind.processing.engine import (
-    gain_stage, target_lufs,
+    gain_stage,
     process_audio,
+    target_lufs,
 )
 from audiomind.processing.presets import get_preset, list_presets
-from audiomind.models.audio import MasteringParameters
 from audiomind.processing.spatial import mid_side_encode
 
 

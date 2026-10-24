@@ -52,8 +52,8 @@ from audiomind.models.audio import (
     TranscriptEntry,
 )
 from audiomind.models.intent_profile import IntentProfile
-from audiomind.processing.agentic_loop import AgentState, default_transport
 from audiomind.processing import prompts
+from audiomind.processing.agentic_loop import default_transport
 from audiomind.session_store import load_sessions, save_sessions
 
 if TYPE_CHECKING:  # pragma: no cover - solo anotaciones; el config se importa perezoso
@@ -172,11 +172,11 @@ class EscalationDecision(BaseModel):
     intent_delta: dict[str, float] | None = None
 
     @classmethod
-    def escalate(cls, *, job_kind: Literal["agent", "master"], payload: dict[str, Any], reason: str) -> "EscalationDecision":
+    def escalate(cls, *, job_kind: Literal["agent", "master"], payload: dict[str, Any], reason: str) -> EscalationDecision:
         return cls(action="escalate_to_job", job_kind=job_kind, job_payload=payload, reason=reason)
 
     @classmethod
-    def answer_in_chat(cls, *, reason: str, updates_intent: bool = False, intent_delta: dict[str, float] | None = None) -> "EscalationDecision":
+    def answer_in_chat(cls, *, reason: str, updates_intent: bool = False, intent_delta: dict[str, float] | None = None) -> EscalationDecision:
         return cls(action="answer_in_chat", reason=reason, updates_intent=updates_intent, intent_delta=intent_delta)
 
 

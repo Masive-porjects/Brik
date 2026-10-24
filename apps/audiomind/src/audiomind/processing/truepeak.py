@@ -44,7 +44,7 @@ Target: -14 LUFS integrated with adaptive ceiling (-1.0 to -2.0 dBTP).
 import numpy as np
 from scipy.ndimage import maximum_filter1d
 
-from .oversample import oversample_up, oversample_down
+from .oversample import oversample_down, oversample_up
 
 #: Canonical true-peak oversampling factor (matches the 8x limiter).
 TP_OVERSAMPLE = 8

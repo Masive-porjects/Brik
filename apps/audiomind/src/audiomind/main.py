@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
 
 from audiomind.api.agent import router as agent_router
 from audiomind.api.batch import router as batch_router
@@ -54,7 +55,6 @@ app = FastAPI(
 # class exposes no such attribute — upload.py reads it at startup to enforce
 # the same limit); the ``# type: ignore[attr-defined]`` documents the
 # intentional deviation while keeping direct attribute assignment.
-from starlette.requests import Request
 Request.max_body_size = settings.max_file_size_mb * 1024 * 1024  # type: ignore[attr-defined]
 app.state.max_body_size = settings.max_file_size_mb * 1024 * 1024
 
