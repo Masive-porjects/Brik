@@ -19,8 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Copy pyproject.toml first for better layer caching
+# src/ must be present before the editable install: setuptools discovers the
+# package from src/ ([tool.setuptools.packages.find] where = ["src"]), so
+# `pip install -e .` fails if the tree is missing.
 COPY pyproject.toml ./
+COPY src/ ./src/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
@@ -32,12 +35,10 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 # and the model used in splitter.py (model="htdemucs")
 RUN python -c "from demucs.onnx import prewarm; prewarm(['htdemucs'], precision='fp16weights')"
 
-# Copy source code
-COPY src/ ./src/
-COPY samples/ ./samples/
-
-# Create necessary directories
-RUN mkdir -p uploads outputs projects prebuilt
+# Create necessary directories. samples/ is gitignored and excluded by
+# .dockerignore (fixtures come from scripts/generate_samples.py), so it is
+# created empty instead of copied — `COPY samples/` breaks the build.
+RUN mkdir -p uploads outputs projects prebuilt samples
 
 # Environment
 ENV PYTHONUNBUFFERED=1 \
@@ -56,9 +57,11 @@ ENV PYTHONUNBUFFERED=1 \
 # Expose port (Railway sets $PORT)
 EXPOSE 8000
 
-# Health check
+# Health check. Railway injects $PORT; the same default as the start command
+# keeps a plain `docker run` working.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5).raise_for_status()" || exit 1
+    CMD python -c "import os, httpx; httpx.get('http://localhost:' + os.environ.get('PORT', '8000') + '/health', timeout=5).raise_for_status()" || exit 1
 
-# Start command
-CMD ["uvicorn", "audiomind.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Start command: expands $PORT at runtime (exec keeps uvicorn as PID 1 so it
+# receives Railway's SIGTERM on redeploy).
+CMD ["sh", "-c", "exec uvicorn audiomind.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
