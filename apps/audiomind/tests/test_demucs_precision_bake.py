@@ -11,6 +11,7 @@ default, so the two cannot drift apart unnoticed.
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
@@ -49,7 +50,9 @@ class TestDockerfilePrewarm:
 
     def test_baked_precision_matches_runtime_precision(self) -> None:
         """The invariant: bake and request must name the same precision."""
-        match = re.search(r"prewarm\([^)]*precision='(?P<precision>\w+)'", _dockerfile_text())
+        match = re.search(
+            r"prewarm\([^)]*precision='(?P<precision>\w+)'", _dockerfile_text()
+        )
         assert match, "no precision= argument in the Dockerfile prewarm call"
 
         baked = match.group("precision")
@@ -63,14 +66,28 @@ class TestDockerfilePrewarm:
     def test_prewarm_log_does_not_use_json_dumps_on_paths(self) -> None:
         """prewarm() returns dict[str, Path]; json.dumps() fails on PosixPath."""
         prewarm_line = next(
-            line
-            for line in _dockerfile_text().splitlines()
-            if "prewarm(" in line
+            line for line in _dockerfile_text().splitlines() if "prewarm(" in line
         )
         assert "json.dumps" not in prewarm_line, (
             "json.dumps() on prewarm()'s dict[str, Path] raises TypeError and "
             "fails the whole build after the weights already downloaded"
         )
+
+    def test_prewarm_imports_the_module_the_wheel_actually_ships(self) -> None:
+        """demucs-onnx installs ``demucs_onnx``; ``demucs.onnx`` is not a module.
+
+        51a18e1 rewrote this import as ``from demucs.onnx import prewarm``, and
+        every Railway image build from 2026-10-22 on died on that line with
+        ModuleNotFoundError. CI stayed green the whole time, which is the real
+        gap this test closes: CI runs pytest but never builds the image, so an
+        import that only exists at build time had no gate at all.
+        """
+        prewarm_line = next(
+            line for line in _dockerfile_text().splitlines() if "prewarm(" in line
+        )
+        match = re.search(r"from ([\w.]+) import", prewarm_line)
+        assert match, "the prewarm step must import the module it calls"
+        importlib.import_module(match.group(1))
 
 
 class TestSplitterRequestsBakedPrecision:

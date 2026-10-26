@@ -32,8 +32,14 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 
 # Prewarm Demucs ONNX weights at build time to avoid runtime downloads
 # This must match the precision in config.py (demucs_precision = "fp16weights")
-# and the model used in splitter.py (model="htdemucs")
-RUN python -c "from demucs.onnx import prewarm; prewarm(['htdemucs'], precision='fp16weights')"
+# and the model used in splitter.py (model="htdemucs").
+#
+# The distribution is called demucs-onnx but it installs the module as
+# demucs_onnx, and this step and the app both import that name. 51a18e1 rewrote
+# it as `from demucs.onnx import prewarm`, which no package provides, so the
+# image build died here on every deploy from 2026-10-22 on, while CI stayed
+# green because CI never builds the image.
+RUN python -c "from demucs_onnx import prewarm; baked = prewarm(['htdemucs'], precision='fp16weights'); print('baked:', {k: str(v) for k, v in baked.items()})"
 
 # Create necessary directories. samples/ is gitignored and excluded by
 # .dockerignore (fixtures come from scripts/generate_samples.py), so it is
