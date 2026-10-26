@@ -628,6 +628,8 @@
   "errors": {
     "serverRestartTitle": "El servidor se reinició",
     "serverRestartMessage": "La sesión se perdió mientras se procesaba. Recarga la página: si la sesión no se recupera sola, sube el audio de nuevo.",
+    "processingFailedTitle": "El procesamiento falló",
+    "processingFailedMessage": "El motor no pudo terminar el proceso. Revisa el audio y vuelve a intentarlo.",
     "sessionExpiredTitle": "Tu sesión anterior expiró",
     "sessionExpiredMessage": "El servidor se reinició y no pudo recuperarla. Sube el audio otra vez para continuar."
   },

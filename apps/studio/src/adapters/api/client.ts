@@ -211,13 +211,19 @@ export async function getSession(sessionId: string): Promise<SessionData> {
 export interface ProcessingProgress {
   progress: number; // 0.0 - 1.0 from the backend
   status: string;
+  /** Motivo del fallo cuando `status === "error"` ("Analysis failed: ..."). */
+  error: string | null;
 }
 
 export async function getProcessingProgress(sessionId: string): Promise<ProcessingProgress> {
   const res = await fetch(`${API_BASE}/session/${sessionId}`);
   if (!res.ok) throw new ApiError(`Progress fetch failed: ${res.status}`, res.status);
   const data = (await res.json()) as SessionData;
-  return { progress: data.progress ?? 0, status: data.status ?? "" };
+  return {
+    progress: data.progress ?? 0,
+    status: data.status ?? "",
+    error: data.error ?? null,
+  };
 }
 
 export async function processAudio(

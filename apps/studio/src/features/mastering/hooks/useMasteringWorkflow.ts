@@ -187,14 +187,29 @@ export function useMasteringWorkflow(
     enabled: processing,
     sessionId: session?.session_id ?? null,
     onComplete: () => setProcessing(false),
-    onError: () => {
+    onError: (failure) => {
       setProcessing(false);
+      if (failure.kind === "session_lost") {
+        setErrorModal({
+          title: t("errors.serverRestartTitle", "El servidor se reinició"),
+          message: t(
+            "errors.serverRestartMessage",
+            "La sesión se perdió mientras se procesaba. Recarga la página: si la sesión no se recupera sola, sube el audio de nuevo.",
+          ),
+        });
+        return;
+      }
+      // Falla del motor o del sondeo: la sesión sigue viva, así que el
+      // mensaje de "reinicio" sería mentira. Se muestra el motivo real que
+      // reportó el backend cuando existe.
       setErrorModal({
-        title: t("errors.serverRestartTitle", "El servidor se reinició"),
-        message: t(
-          "errors.serverRestartMessage",
-          "La sesión se perdió mientras se procesaba. Recarga la página: si la sesión no se recupera sola, sube el audio de nuevo.",
-        ),
+        title: t("errors.processingFailedTitle", "El procesamiento falló"),
+        message:
+          failure.message ??
+          t(
+            "errors.processingFailedMessage",
+            "El motor no pudo terminar el proceso. Revisa el audio y vuelve a intentarlo.",
+          ),
       });
     },
   });

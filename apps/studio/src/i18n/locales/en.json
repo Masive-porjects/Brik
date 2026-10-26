@@ -628,6 +628,8 @@
   "errors": {
     "serverRestartTitle": "Server restarted",
     "serverRestartMessage": "The session was lost during processing. Reload the page: if the session is not restored, upload your audio again.",
+    "processingFailedTitle": "Processing failed",
+    "processingFailedMessage": "The engine could not finish processing. Check your audio and try again.",
     "sessionExpiredTitle": "Your previous session expired",
     "sessionExpiredMessage": "The server was restarted and could not recover it. Upload your audio again to continue."
   },
