@@ -89,7 +89,7 @@ ae4a202 2026-10-13 docs: sync documentation with verified project state
 
 ### 3.1 Motor 1 — Mastering (AudioMind, backend FastAPI)
 
-**Ubicación**: `apps/audiomind/src/audiomind/` · Python 3.11+ · FastAPI, librosa, pedalboard, numpy, demucs-onnx.
+**Ubicación**: `apps/audiomind/src/audiomind/` · Python 3.12+ · FastAPI, librosa, pedalboard, numpy, demucs-onnx.
 
 **Módulos**: `analysis`, `api`, `intelligence`, `models`, `processing`, `services`, `storage`.
 

@@ -1,7 +1,12 @@
 # AudioMind Backend - Python FastAPI service
 # Builds the DSP mastering engine with all dependencies
 
-FROM python:3.11-slim
+# Python 3.12 is required by librosa 1.0, and it must match the version CI
+# installs and pyproject declares: while the image ran 3.11 and development ran
+# 3.12, librosa resolved to 0.11 in production and 1.0 locally, and the two
+# disagreed about beat detection. tests/test_runtime_python_contract.py keeps
+# the three declarations from drifting apart again.
+FROM python:3.12-slim
 
 # System deps for audio processing (librosa, pedalboard, demucs, soxr)
 RUN apt-get update && apt-get install -y --no-install-recommends \
