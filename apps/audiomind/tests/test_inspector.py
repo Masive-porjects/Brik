@@ -79,15 +79,29 @@ def _click_track(
     accent_period: int = 4,
     sr: int = INSPECTOR_SR,
 ) -> np.ndarray:
-    """A click track whose loud beat repeats every ``accent_period`` beats."""
+    """A click track whose loud beat repeats every ``accent_period`` beats.
+
+    The click lasts 80 ms with a flat top on purpose. ``_beat_accents``
+    measures the RMS of a 50 ms window that STARTS at the detected beat time,
+    so a 5 ms click is only measured when beat detection lands early. On the
+    Linux CI runner the grid came out marginally late, the accent series read
+    irregular, and the 4/4 test failed there while passing on Windows. A flat
+    80 ms burst means any 50 ms window opened near the beat measures the same
+    level, so this test stays about the meter instead of about onset-detection
+    rounding. A decaying envelope would not do: it concentrates energy in the
+    first milliseconds and reintroduces the same variance (measured: a 30 ms
+    decaying click read 1.8 dB of false contrast on a flat grid).
+    """
     y = np.zeros(int(sr * seconds), dtype=np.float32)
     step = 60.0 / bpm
     rng = np.random.default_rng(7)
-    click = rng.standard_normal(int(0.005 * sr)).astype(np.float32)
-    click *= np.hanning(len(click)).astype(np.float32)
+    click = rng.standard_normal(int(0.080 * sr)).astype(np.float32)
+    ramp = max(1, int(0.002 * sr))
+    click[:ramp] *= np.linspace(0.0, 1.0, ramp).astype(np.float32)
+    click[-ramp:] *= np.linspace(1.0, 0.0, ramp).astype(np.float32)
     for index in range(int(seconds / step)):
         start = int(round(index * step * sr))
-        segment = click * (1.0 if index % accent_period == 0 else 0.45)
+        segment = click * (1.0 if index % accent_period == 0 else 0.30)
         y[start : start + len(segment)] += segment[: max(0, len(y) - start)]
     return y
 

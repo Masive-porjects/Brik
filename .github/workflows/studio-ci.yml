@@ -62,6 +62,12 @@ jobs:
           pip install -e ".[dev]"
       - name: Ruff lint
         run: ruff check .
+      # SongStarter reads samples/*.wav at runtime. The directory is
+      # gitignored, so a clean checkout has none and test_songstarter* fails
+      # with "Sample not found: .../samples/kick.wav". The generator only uses
+      # numpy, so it is cheap and deterministic.
+      - name: Generate audio samples
+        run: python scripts/generate_samples.py
       - name: Pytest suite
         run: pytest tests/ -q --tb=short
         env:
