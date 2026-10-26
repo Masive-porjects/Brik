@@ -280,17 +280,25 @@ def _beat_accents(
     function, so a beat window measured on it also catches the next beat's
     release. Measured on a click track, that fabricates a two-beat accent
     cycle out of a four-beat one.
+
+    Only beats whose whole window lies inside ``percussive`` are reported. A
+    window that leaves the signal measures the end of the file, not a quieter
+    beat, and librosa 0.11's beat tracker returns a beat close enough to the
+    end for that to happen (1.0 does not). Reporting 0.0 there put a phantom
+    silence into the accent series and the autocorrelation read it as part of
+    the pattern: a clean 4/4 grid scored 0.385 at lag 4 against a 0.40 gate,
+    failing the grouping it should have found, only on the librosa that
+    production installs.
     """
     window = max(1, int(ACCENT_WINDOW_S * sr))
-    accents = np.zeros(len(beat_times), dtype=np.float64)
-    for index, beat in enumerate(beat_times):
+    accents: list[float] = []
+    for beat in beat_times:
         start = int(beat * sr)
-        if start >= percussive.size:
+        end = start + window
+        if start < 0 or end > percussive.size:
             continue
-        segment = percussive[start : start + window]
-        if segment.size:
-            accents[index] = float(np.sqrt(np.mean(np.square(segment))))
-    return accents
+        accents.append(float(np.sqrt(np.mean(np.square(percussive[start:end])))))
+    return np.asarray(accents, dtype=np.float64)
 
 
 def _accent_grouping(

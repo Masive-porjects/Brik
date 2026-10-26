@@ -81,16 +81,13 @@ def _click_track(
 ) -> np.ndarray:
     """A click track whose loud beat repeats every ``accent_period`` beats.
 
-    The click lasts 80 ms with a flat top on purpose. ``_beat_accents``
-    measures the RMS of a 50 ms window that STARTS at the detected beat time,
-    so a 5 ms click is only measured when beat detection lands early. On the
-    Linux CI runner the grid came out marginally late, the accent series read
-    irregular, and the 4/4 test failed there while passing on Windows. A flat
-    80 ms burst means any 50 ms window opened near the beat measures the same
-    level, so this test stays about the meter instead of about onset-detection
-    rounding. A decaying envelope would not do: it concentrates energy in the
-    first milliseconds and reintroduces the same variance (measured: a 30 ms
-    decaying click read 1.8 dB of false contrast on a flat grid).
+    The click lasts 80 ms with a flat top because of the flat-grid test, not
+    because of the meter itself: a 5 ms click is only measured through the
+    smear left by HPSS, and on librosa 0.11 that residue reached 2.08 dB of
+    false accent contrast on a grid with none (the refusal gate is 3.0 dB, so
+    the invariant had about 1 dB of headroom). The flat burst measures 0.04 dB
+    on the same grid. Both widths read the 4/4 cycle once ``_beat_accents``
+    stops inventing a zero for the beat past the end of the signal.
     """
     y = np.zeros(int(sr * seconds), dtype=np.float32)
     step = 60.0 / bpm
@@ -240,6 +237,26 @@ def test_rhythm_refuses_to_group_a_flat_grid(click_flat: Path) -> None:
     assert profile.accent_contrast_db < ACCENT_CONTRAST_MIN_DB
     assert profile.accent_period_beats is None
     assert profile.accent_grouping == "unknown"
+
+
+def test_a_beat_whose_window_leaves_the_signal_is_not_measured_as_a_level() -> None:
+    """A trailing beat must not become a phantom accent.
+
+    librosa 0.11's ``beat_track`` can return a beat close enough to the end of
+    the signal that its ``ACCENT_WINDOW_S`` measurement window leaves it
+    (librosa 1.0 does not, which is why this reached production and CI -- both
+    on Python 3.11 -- while a 3.12 checkout stayed green). Recording 0.0 for
+    that beat conflates "not measured" with "silent", and the phantom silence
+    then fights the real period inside the autocorrelation: a clean 4/4 grid
+    scored 0.385 at lag 4 against a 0.40 gate only because of it.
+    """
+    sr = INSPECTOR_SR
+    percussive = np.full(sr, 0.5, dtype=np.float32)
+
+    accents = inspector._beat_accents(percussive, sr, [0.10, 0.50, 0.98])
+
+    assert len(accents) == 2, "a window that leaves the signal measures nothing"
+    assert np.allclose(accents, 0.5, atol=1e-4)
 
 
 def test_rhythm_reports_a_thin_grid_on_unpitched_material(noise_flat: Path) -> None:
