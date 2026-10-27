@@ -472,6 +472,25 @@ def _snapshot_to_context_text(snapshot: SessionSnapshot) -> str:
             f"  Ya masterizado: {'sí' if a.is_already_mastered else 'no'}"
         )
 
+    # Fase B (metrics contract): the agent diagnoses with the same measured
+    # numbers the metrics endpoint publishes - same session analysis, no
+    # re-decoded audio, no new scale. Legacy analyses (empty bands) render
+    # without this block at all, never as fabricated zeros.
+    if snapshot.analysis and snapshot.analysis.band_energies_db:
+        a = snapshot.analysis
+        hz_list = a.bands_hz or []
+        db_list = a.band_energies_db
+        if hz_list and len(hz_list) == len(db_list):
+            band_line = ", ".join(
+                f"{hz} Hz: {db:+.1f} dBFS"
+                for hz, db in zip(hz_list, db_list, strict=False)
+            )
+            parts.append(
+                f"CONTRATO DE METRICAS:\n"
+                f"  Estandar de sonoridad: {a.loudness_standard}\n"
+                f"  Balance espectral: {band_line}"
+            )
+
     if snapshot.verdict:
         v = snapshot.verdict
         routes_str = ", ".join(f"{r.id.value} ({r.label_es})" for r in v.routes)
@@ -660,7 +679,8 @@ def chat_with_brik(payload: ChatRequest) -> ChatResponse:
         f"--- CONTEXTO DE LA SESIÓN ACTUAL ---\n{context_text}\n\n"
         "Responde en español neutro latinoamericano, sin voseo. "
         "Si el usuario pide un ajuste, describe el cambio en sensaciones "
-        "(ej. 'subo un toque el bass_weight') y NO menciones dB, Hz ni knobs. "
+        "(ej. 'subo un toque el bass_weight'). El DIAGNOSTICO cita las mediciones "
+        "reales con su valor y su estandar; la RECETA, en sensaciones. "
         "Máximo 3 párrafos cortos."
     )
 
