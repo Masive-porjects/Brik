@@ -1745,6 +1745,85 @@ async def get_audio(
     )
 
 
+@router.get("/session/{session_id}/metrics")
+async def get_session_metrics(session_id: str) -> dict[str, Any]:
+    """Full measurement bundle for the adaptive agent (metrics contract).
+
+    Everything echoes the session's own measured values; nothing is
+    synthesized here. The inspector block is measured on demand against the
+    original file, using drum/vocal stems when the session carries them and
+    both still exist. When the inspector cannot read the material the
+    response degrades with ``profile: null`` and a reason instead of
+    failing the whole contract.
+    """
+    session = sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.original_path or not Path(session.original_path).exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    if session.analysis is None:
+        raise HTTPException(
+            status_code=409, detail="Session analysis not available yet"
+        )
+
+    # Lazy import on purpose (same pattern as api/agent.py): the inspector
+    # resolves disk paths at import time and must never take down the boot.
+    from audiomind.analysis.inspector import inspect_input
+
+    profile: dict[str, Any] | None = None
+    profile_error: str | None = None
+    try:
+        # The wiring stays ready for stems-bearing sessions; SessionData does
+        # not carry the field today (other session models in models/audio.py
+        # do), so getattr keeps this read-only and honest instead of crashing.
+        stems = {
+            name: path
+            for name, path in (getattr(session, "stems", {}) or {}).items()
+            if name in ("drums", "vocals") and path and Path(path).exists()
+        }
+        profile = inspect_input(
+            session.original_path, stems=stems or None
+        ).model_dump()
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "inspector profile failed for session %s", session_id, exc_info=True
+        )
+        profile_error = "inspector profile unavailable"
+
+    analysis = session.analysis
+    return {
+        "session_id": session_id,
+        "loudness": {
+            "integrated_lufs": analysis.integrated_lufs,
+            "true_peak_db": analysis.true_peak_db,
+            "dynamic_range_db": analysis.dynamic_range_db,
+            "crest_factor_db": analysis.crest_factor_db,
+            "standard": analysis.loudness_standard,
+        },
+        "spectral": {
+            "bands_hz": analysis.bands_hz,
+            "energies_db": analysis.band_energies_db,
+            "centroid_hz": analysis.spectral_centroid,
+        },
+        "tempo": {"bpm": analysis.tempo_bpm},
+        "genre": {
+            "detected": analysis.detected_genre,
+            "confidence": analysis.genre_confidence,
+        },
+        "state": {
+            "is_already_mastered": analysis.is_already_mastered,
+            "confidence": analysis.mastering_confidence,
+        },
+        "duration_seconds": analysis.duration_seconds,
+        "sample_rate": analysis.sample_rate,
+        "channels": analysis.channels,
+        "profile": profile,
+        "profile_error": profile_error,
+    }
+
+
 @router.get("/session/{session_id}/raw")
 async def get_raw_audio(session_id: str) -> dict[str, Any]:
     """Return raw PCM audio data as JSON for Web Audio API.

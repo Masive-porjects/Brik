@@ -91,7 +91,12 @@ def analyze_band_energies(
         bands_hz: List of center frequencies.
 
     Returns:
-        List of band energy levels in dB (normalized to 0 dB = full scale).
+        List of band energy levels in dB.
+            INTERNAL SCALE: raw FFT-magnitude dB, which scales with the
+            analysis length. verdict, match-EQ and reference_compare share
+            this scale for their relative comparisons, so it must stay as
+            is. FS-referenced numbers for the agent-facing metrics contract
+            come from ``band_energies_dbfs`` instead.
     """
     fft_mag = np.abs(np.fft.rfft(audio_mono))
     freqs = np.fft.rfftfreq(len(audio_mono), 1.0 / sr)
@@ -109,6 +114,42 @@ def analyze_band_energies(
         band_rms = np.sqrt(np.mean(fft_mag[mask] ** 2))
         db = 20.0 * np.log10(max(band_rms, 1e-20))
         energies.append(db)
+
+    return energies
+
+
+def band_energies_dbfs(
+    audio_mono: np.ndarray, sr: int, bands_hz: list[int]
+) -> list[float]:
+    """Per-band energy in true dBFS (full-scale referenced).
+
+    Parseval-normalized: the band's share of spectral power applied to the
+    time-domain RMS, so the reported level is independent of how long the
+    analysis buffer is. The octave-band masks match
+    ``analyze_band_energies`` for band-membership consistency.
+
+    A pure-tone band below the -120 dBFS floor is clipped to -120.0 so the
+    agent-facing contract never reports absurd dynamic ranges from silence.
+    """
+    y = np.asarray(audio_mono, dtype=np.float64)
+    total_rms_sq = float(np.mean(np.square(y)))
+    power = np.abs(np.fft.rfft(y)) ** 2
+    freqs = np.fft.rfftfreq(len(y), 1.0 / sr)
+    total_power = float(power.sum())
+
+    energies: list[float] = []
+    for cf in bands_hz:
+        low = max(1.0, cf / 1.414)
+        high = min(sr / 2 - 1.0, cf * 1.414)
+        mask = (freqs >= low) & (freqs <= high)
+
+        if not np.any(mask) or total_power <= 0.0 or total_rms_sq <= 0.0:
+            energies.append(-120.0)
+            continue
+
+        band_rms = np.sqrt(total_rms_sq * (float(power[mask].sum()) / total_power))
+        db = 20.0 * float(np.log10(max(band_rms, 1e-10)))
+        energies.append(max(db, -120.0))
 
     return energies
 
@@ -244,6 +285,12 @@ def analyze_audio(
         crest_factor_db=crest_factor_db,
     )
 
+    # Band energies for the metrics contract (Fase A): one computation per
+    # analyze, aligned to TARGET_BANDS_HZ, so the agent never re-decodes the
+    # audio. FS-referenced on purpose: the agent-facing numbers must not
+    # depend on the analysis length (see band_energies_dbfs).
+    band_energies = band_energies_dbfs(y_mono, sr, TARGET_BANDS_HZ)
+
     return AnalysisResult(
         integrated_lufs=round(integrated_lufs, 1),
         true_peak_db=round(true_peak_db, 1),
@@ -258,6 +305,8 @@ def analyze_audio(
         crest_factor_db=round(crest_factor_db, 1),
         is_already_mastered=is_mastered,
         mastering_confidence=round(mastering_conf, 2),
+        bands_hz=list(TARGET_BANDS_HZ),
+        band_energies_db=[round(e, 2) for e in band_energies],
     )
 
 
