@@ -904,3 +904,94 @@ class TestBuildAgentResult:
         assert result["master_metrics"] is None
         assert result["tools_executed"][0]["ok"] is False
         assert result["tools_executed"][0]["error"] == "mastering falló"
+
+
+class TestAgentJobChangeReport:
+    """S6 (metrics contract): a completed job publishes its change report.
+
+    The report rides inside ``result.change_report`` of the poll payload and
+    is mirrored on the session so later chat turns can read it. A corrupt or
+    vanished output degrades the report WITHOUT failing the job.
+    """
+
+    def test_completed_job_publishes_a_change_report_block(self, agent_env):
+        session_id = _register_session(agent_env.tmp_path)
+        job_id = client.post(
+            f"/api/jobs/agent/{session_id}", json={"prompt": "mas cuerpo"}
+        ).json()["job_id"]
+
+        body = client.get(f"/api/jobs/agent/{job_id}").json()
+        assert body["status"] == "completed"
+
+        block = body["result"]["change_report"]
+        assert set(block) >= {"report", "r2_key", "url", "durable"}
+
+        # The harness master is a stub (4 valid RIFF bytes): the report is
+        # honest about NOT being measurable instead of failing the job or
+        # fabricating deltas.
+        report = block["report"]
+        assert report["status"] == "error"
+        assert report["message"]
+
+        # Unconfigured R2 (conftest default) is not a reason to drop the
+        # payload: it travels inline, explicitly marked not durable.
+        assert block["durable"] is False
+        assert block["r2_key"] is None
+        assert block["url"] is None
+        assert block["note"] is None or "R2" in block["note"]
+
+        # The session mirror lets later chat turns read the report too.
+        assert upload_mod.sessions[session_id].change_report is not None
+
+    def test_a_real_master_uploads_the_report_and_marks_it_durable(
+        self, agent_env, monkeypatch
+    ):
+        monkeypatch.setattr(
+            storage, "upload_file", lambda path, key, **kw: Path(path).read_bytes()
+        )
+
+        def presign(key, **kw):
+            return f"https://r2.example/{key}"
+
+        monkeypatch.setattr(storage, "presigned_url", presign)
+
+        def real_master(**kwargs):
+            output = Path(kwargs["output_path"])
+            output.parent.mkdir(parents=True, exist_ok=True)
+            t = np.linspace(0.0, 1.0, int(_SR * 1.0), endpoint=False)
+            wave = (0.2 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+            sf.write(output, np.stack([wave, wave], axis=1), _SR, subtype="FLOAT")
+            return {
+                "output_path": str(output),
+                "integrated_lufs": -14.0,
+                "true_peak_db": -1.0,
+                "crest_factor_db": 9.0,
+                "lra": 5.0,
+                "duration_seconds": 1.0,
+                "output_bit_depth": kwargs["params"].output_bit_depth,
+            }
+
+        monkeypatch.setattr(al, "process_audio", real_master)
+
+        session_id = _register_session(agent_env.tmp_path)
+        job_id = client.post(f"/api/jobs/agent/{session_id}", json={}).json()["job_id"]
+
+        body = client.get(f"/api/jobs/agent/{job_id}").json()
+        assert body["status"] == "completed"
+
+        block = body["result"]["change_report"]
+        report = block["report"]
+        assert report["status"] == "ready"
+        assert report["before_bands_hz"] == [
+            60, 150, 400, 1000, 2500, 6000, 10000, 15000
+        ]
+        assert len(report["band_deltas_db"]) == 8
+
+        # The JSON asset lives under the reports/ prefix, durable this time.
+        assert block["durable"] is True
+        assert block["r2_key"] is not None
+        assert block["r2_key"].startswith("reports/")
+        assert block["url"] == f"https://r2.example/{block['r2_key']}"
+
+        mirror = upload_mod.sessions[session_id].change_report
+        assert mirror["status"] == "ready"

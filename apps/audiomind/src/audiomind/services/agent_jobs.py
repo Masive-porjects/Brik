@@ -27,7 +27,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -402,12 +405,14 @@ def run_agent_job(
             decision=decision,
             transport=transport,
         )
+        result = build_agent_result(state, _deliver(state))
+        result["change_report"] = _change_report_block(state)
         store.update(
             job_id,
             status=JobStatus.COMPLETED,
             progress=_DONE_PROGRESS,
             stage="done",
-            result=build_agent_result(state, _deliver(state)),
+            result=result,
         )
         logger.info("Agent job %s completed", job_id)
     except Exception as exc:  # noqa: BLE001 -- the job record is the report
@@ -638,3 +643,90 @@ def _upload(
         "durable": True,
         "note": None,
     }
+
+
+def _change_report_block(state: AgentState) -> dict[str, Any]:
+    """Compute, publish and mirror the before/after change report (S6).
+
+    The job's completion never depends on the report: measurement and the
+    R2 asset both degrade to honest statuses, mirroring ``_upload``'s
+    degrade-not-fail contract. The block goes into ``result`` under
+    ``change_report`` and the report itself is mirrored on the session so
+    later chat turns can read it.
+    """
+    from audiomind.analysis.change_report import build_change_report
+    from audiomind.api.upload import sessions as runtime_sessions
+    from audiomind.session_store import save_sessions
+
+    session = runtime_sessions.get(state.session_id)
+    block: dict[str, Any] = {
+        "report": {
+            "status": "error",
+            "message": "The change report was not available",
+        },
+        "r2_key": None,
+        "url": None,
+        "durable": False,
+        "note": None,
+    }
+    try:
+        report = build_change_report(
+            before=session.analysis if session else None,
+            input_path=(
+                str(session.original_path)
+                if session and session.original_path
+                else None
+            ),
+            output_path=state.master_path,
+        )
+        payload = report.model_dump(mode="json")
+    except Exception as exc:  # noqa: BLE001 -- the job record is the report
+        logger.warning(
+            "Agent job %s: change report could not be built: %s",
+            state.session_id,
+            exc,
+        )
+        payload = dict(block["report"])
+    block["report"] = payload
+
+    if session is not None:
+        try:
+            session.change_report = payload
+            save_sessions(runtime_sessions)
+        except Exception:  # noqa: BLE001 -- the mirror is best-effort
+            logger.warning(
+                "Agent job %s: the session mirror of the change report failed",
+                state.session_id,
+                exc_info=True,
+            )
+
+    if payload.get("status") == "ready":
+        tmp_name: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                suffix=".json", delete=False, mode="w", encoding="utf-8"
+            ) as fh:
+                tmp_name = fh.name
+                json.dump(payload, fh)
+            key = storage.build_key("reports", state.session_id, "change-report.json")
+            storage.upload_file(tmp_name, key, content_type="application/json")
+            block.update(
+                r2_key=key, url=storage.presigned_url(key), durable=True
+            )
+        except storage.StorageError as exc:
+            logger.warning(
+                "R2 unavailable for the agent %s change report (%s); the "
+                "inline payload still travels in the job result.",
+                state.session_id,
+                exc,
+            )
+            block["note"] = (
+                "R2 is not configured: the inline report is served from the "
+                "job result, this asset is not durable."
+            )
+        finally:
+            if tmp_name:
+                with suppress(OSError):
+                    os.unlink(tmp_name)
+
+    return block

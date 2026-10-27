@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from audiomind.processing.loudness import LOUDNESS_STANDARD
+
 
 # ── Chat Transcript (T4) ──────────────────────────────────────────────────
 # Entrada individual del historial de chat. Se guarda en SessionData para que
@@ -61,6 +63,18 @@ class AnalysisResult(BaseModel):
     crest_factor_db: float = 0.0
     is_already_mastered: bool = False
     mastering_confidence: float = 0.0
+    # Metrics contract (retro-compatible: sessions analyzed before these
+    # fields existed keep loading with empty bands and the standard default,
+    # because BS.1770-4 has always been the meter behind measure_lufs).
+    bands_hz: list[int] = Field(
+        default_factory=list,
+        description="Center frequencies (Hz) of the measured bands; index-aligned with band_energies_db.",
+    )
+    band_energies_db: list[float] = Field(
+        default_factory=list,
+        description="Measured band energy (dB, full-scale referenced).",
+    )
+    loudness_standard: str = LOUDNESS_STANDARD
 
 
 class MasteringParameters(BaseModel):
@@ -685,6 +699,50 @@ class ReferenceRenderResult(BaseModel):
     source_preset_id: str
 
 
+class ChangeReport(BaseModel):
+    """Before/after deltas of one completed DSP job (metrics contract, S6).
+
+    Both sides are measured with the SAME meters: ``band_energies_dbfs``
+    for the bands (full-scale referenced, so the numbers never depend on
+    the analysis length) and the BS.1770-4 LUFS meter behind
+    ``processing/loudness.py``. Band deltas are ``after - before``: a
+    positive delta is energy the master added.
+
+    Never raises: a report that cannot be computed returns a status that
+    says exactly why, because a completed DSP job must not fail over its
+    own report.
+    """
+
+    status: Literal["ready", "no_before", "no_after", "error"]
+    message: str | None = Field(
+        None,
+        description="Human reason when the status is not 'ready'.",
+    )
+    before_bands_hz: list[int] = Field(
+        default_factory=list,
+        description="Band centers (Hz); index-aligned with the three lists below.",
+    )
+    before_band_levels_dbfs: list[float] = Field(default_factory=list)
+    after_band_levels_dbfs: list[float] = Field(default_factory=list)
+    band_deltas_db: list[float] = Field(
+        default_factory=list,
+        description="after - before, per band, in dBFS-referenced dB.",
+    )
+    biggest_increase_band_hz: int | None = None
+    biggest_decrease_band_hz: int | None = None
+    before_integrated_lufs: float | None = None
+    after_integrated_lufs: float | None = None
+    lufs_delta_db: float | None = Field(
+        None,
+        description="after - before integrated loudness, as measured by "
+        "the standard named in loudness_standard.",
+    )
+    before_true_peak_db: float | None = None
+    after_true_peak_db: float | None = None
+    true_peak_delta_db: float | None = None
+    loudness_standard: str = LOUDNESS_STANDARD
+
+
 class ReferenceComparison(BaseModel):
     """External-reference comparison (Phase C, P1-1).
 
@@ -927,6 +985,12 @@ class SessionData(BaseModel):
     mix_status: MixStatus = "none"
     # Mix Engine metadata for adaptive mastering (Mix → Master handshake).
     # Populated by POST /mix via build_mix._compute_mix_metadata().
+    change_report: dict[str, Any] | None = Field(
+        default=None,
+        description=("Before/after change report of the last completed agent "
+            "job, mirroring dsp_jobs.result.change_report.report (metrics "
+            "contract)."),
+    )
     mix_metadata: dict | None = Field(
         default=None,
         description="Metadatos de mezcla serializados (MixMetadata.model_dump()) para master adaptativo"
