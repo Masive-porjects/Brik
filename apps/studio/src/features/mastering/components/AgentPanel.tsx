@@ -18,6 +18,7 @@ import {
   submitAgentJob,
   submitMasterJob,
   type AgentAudioAsset,
+  type AgentNarrativeItem,
   type AgentRunResult,
   type AgentToolExecution,
   type AudioVerdict,
@@ -26,6 +27,9 @@ import {
 } from "@/lib/api";
 import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
+
+import { narrativeSentence } from "./narrativeText";
+import AgentStemStack from "./AgentStemStack";
 
 /**
  * Módulo Brik — Capa de decisión interactiva (T6-T8).
@@ -835,6 +839,19 @@ function AgentResultView({ result }: { result: AgentRunResult }) {
         </section>
       )}
 
+      <AgentNarrative items={result.narrative} />
+
+      {/* Las pistas sólo aparecen si la corrida realmente separó audio: la
+          narrativa es la prueba de que la herramienta corrió, no la existencia
+          de un archivo. Un master directo no tiene nada que mostrar acá. */}
+      {result.session_id &&
+        result.narrative?.some((item) => item.code === "separated") && (
+          <section>
+            <SectionTitle>{t("productor.stemsTitle")}</SectionTitle>
+            <AgentStemStack sessionId={result.session_id} />
+          </section>
+        )}
+
       <section>
         <SectionTitle>{t("productor.toolsTitle")}</SectionTitle>
         {result.tools_executed.length === 0 ? (
@@ -853,6 +870,46 @@ function AgentResultView({ result }: { result: AgentRunResult }) {
       <AgentMetrics result={result} />
       <AgentAudio audio={result.audio} />
     </motion.div>
+  );
+}
+
+/* ────────────────── Narrativa del productor ────────────────── */
+
+/** Severity → the colour of the item's left rule. */
+const SEVERITY_COLOR: Record<AgentNarrativeItem["severity"], string> = {
+  info: "var(--border-strong)",
+  success: OK_COLOR,
+  warning: "var(--accent-warning)",
+  error: "var(--accent-error)",
+};
+
+/** What the agent did to the audio, in order, in the producer's language.
+ *
+ *  The sentence itself lives in `narrativeText.ts`, where it is pure and can be
+ *  pinned by a test without mounting a component. */
+function AgentNarrative({ items }: { items?: AgentNarrativeItem[] }) {
+  const { t } = useTranslation();
+
+  if (!items || items.length === 0) return null;
+
+  return (
+    <section>
+      <SectionTitle>{t("productor.narrativeTitle")}</SectionTitle>
+      <ol className="space-y-1.5">
+        {items.map((item, i) => (
+          <li
+            key={`${i}-${item.code}`}
+            className="py-0.5 pl-2.5 text-xs leading-relaxed"
+            style={{
+              borderLeft: `2px solid ${SEVERITY_COLOR[item.severity]}`,
+              color: "var(--text-primary)",
+            }}
+          >
+            {narrativeSentence(t, item)}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -892,12 +949,19 @@ function ToolRow({
           <span style={{ color: "var(--text-muted)" }}>{index}.</span>{" "}
           {t(`productor.tools.${tool.tool}`, tool.tool)}
         </p>
-        <p
-          className="text-[11px] leading-snug break-words"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          {tool.ok ? tool.detail : (tool.error ?? tool.detail)}
-        </p>
+        {/* The successful `detail` is model-facing text: it carries absolute
+            server paths and never the user's language. The narrative above is
+            what explains a step; this row is the evidence that it ran. A
+            failure still shows its error, because the user has to know what
+            broke. */}
+        {!tool.ok && (
+          <p
+            className="text-[11px] leading-snug break-words"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {tool.error ?? tool.detail}
+          </p>
+        )}
       </div>
     </li>
   );

@@ -27,7 +27,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +46,7 @@ from audiomind.processing.agentic_loop import (
 )
 from audiomind.services import demo_guard, storage
 from audiomind.services.job_store import JobRecord, JobStatus, get_job_store
+from audiomind.services.narrative import build_narrative
 
 logger = logging.getLogger(__name__)
 
@@ -402,12 +406,15 @@ def run_agent_job(
             decision=decision,
             transport=transport,
         )
+        _remember_treatment(state)
+        result = build_agent_result(state, _deliver(state))
+        result["change_report"] = _change_report_block(state)
         store.update(
             job_id,
             status=JobStatus.COMPLETED,
             progress=_DONE_PROGRESS,
             stage="done",
-            result=build_agent_result(state, _deliver(state)),
+            result=result,
         )
         logger.info("Agent job %s completed", job_id)
     except Exception as exc:  # noqa: BLE001 -- the job record is the report
@@ -452,6 +459,9 @@ def _execute(
         session = sessions.get(session_id)
         verdict = session.verdict if session else None
         reference = session.reference_comparison if session else None
+        # El TRATAMIENTO del barrido anterior, si hubo uno. ``None`` (sesión
+        # nueva) deja el loop en neutral, el comportamiento histórico.
+        initial_intent = session.agent_intent if session else None
         # ``reference_is_mastered`` is NOT derivable from anything the session
         # stores today: ``ReferenceComparison`` measures bands, LUFS, crest and
         # LRA, and none of those says whether the reference is already mastered.
@@ -469,6 +479,7 @@ def _execute(
             verdict=verdict,
             reference_comparison=reference,
             reference_is_mastered=reference_is_mastered,
+            initial_intent=initial_intent,
         )
 
     future = demo_guard.get_or_create_flight(session_id, f"job:{job_id}", _work)
@@ -527,16 +538,20 @@ def build_agent_result(
 
     Nothing is inferred from a field being populated. ``intent`` and ``analysis``
     are dumped in JSON mode so the payload is safe for the durable store.
-    """
-    master_runs = [
-        result
-        for result in state.tool_log
-        if result.tool == "send_to_master" and result.ok
-    ]
 
+    ``master_metrics`` is the ACCEPTED master: a correction reverted by the
+    crest guardrail measured something real, but that file is not what the user
+    takes home.
+
+    ``narrative`` is the producer-facing explanation (``services.narrative``):
+    stable codes plus their numbers, rendered in the studio's language. It is
+    built from the same ``tool_log`` the panel shows as evidence, so the story
+    cannot drift from what ran.
+    """
     return {
         "session_id": state.session_id,
         "diagnosis": state.diagnosis,
+        "narrative": [item.model_dump(mode="json") for item in build_narrative(state)],
         "iterations": state.iteration,
         "intent": state.intent.model_dump(mode="json"),
         "analysis": (
@@ -545,7 +560,7 @@ def build_agent_result(
         # A report only exists when a render did; `bus_metrics` on a missing
         # render would describe a bus nobody built.
         "mix_metrics": agentic_loop.bus_metrics(state) if state.render else None,
-        "master_metrics": _master_metrics(master_runs[-1]) if master_runs else None,
+        "master_metrics": _active_master_metrics(state),
         "tools_executed": [
             {
                 "tool": result.tool,
@@ -564,16 +579,74 @@ def build_agent_result(
 #: how it measures. They are ephemeral on Railway and already delivered as an
 #: asset, so advertising them inside the metrics is the same mistake the mix job
 #: avoids by dropping ``mix_path``.
-_MASTER_LOCATION_KEYS = frozenset({"master_path", "source_path"})
+_MASTER_LOCATION_KEYS = frozenset({"master_path", "source_path", "active_master_path"})
 
 
-def _master_metrics(result: ToolResult) -> dict[str, Any]:
-    """The measured numbers from a successful master, without its locations."""
+def _master_metrics(payload: dict[str, Any]) -> dict[str, Any]:
+    """The measured numbers from a master payload, without its locations."""
     return {
         key: value
-        for key, value in result.payload.items()
+        for key, value in payload.items()
         if key not in _MASTER_LOCATION_KEYS
     }
+
+
+def _active_master_metrics(state: AgentState) -> dict[str, Any] | None:
+    """The measurements of the master the user actually keeps.
+
+    ``state.master_payload`` is the ACCEPTED master. A correction reverted by
+    the crest guardrail still leaves its own payload in the log, but that file
+    is not what the user gets -- reporting it would describe a master that was
+    thrown away. Falling back to the log keeps directly-built states (tests,
+    older callers) working.
+    """
+    if state.master_payload is not None:
+        return _master_metrics(state.master_payload)
+
+    master_runs = [
+        result
+        for result in state.tool_log
+        if result.tool == "send_to_master" and result.ok
+    ]
+    return _master_metrics(master_runs[-1].payload) if master_runs else None
+
+
+def _remember_treatment(state: AgentState) -> None:
+    """Persist the treatment so the next run continues instead of restarting.
+
+    A second pass of the same session is a NEW job: ``_execute`` builds a fresh
+    ``AgentState`` and the intent would fall back to neutral, redoing the work
+    from scratch. Writing the final intent (and the last master's measurements)
+    onto the session is what turns "no me gustó, otra vez" into a continuation.
+
+    Best-effort by contract, like ``_deliver``: the audio is already rendered and
+    the metrics already computed, so a persistence hiccup must not fail a
+    finished run. The failure is logged and the run still reports completed.
+    """
+    from audiomind.api.upload import sessions
+    from audiomind.session_store import save_sessions
+
+    session = sessions.get(state.session_id)
+    if session is None:
+        return
+
+    try:
+        # La sesión guarda SU copia: el loop conserva la suya y una mutación
+        # futura de ``state.intent`` no puede reescribir en silencio lo que ya
+        # quedó persistido como punto de partida del próximo barrido.
+        session.agent_intent = state.intent.model_copy(deep=True)
+        # A run that never mastered keeps the previous measurements: the last
+        # master that actually happened is still the last one that happened.
+        metrics = _active_master_metrics(state)
+        if metrics is not None:
+            session.agent_master_metrics = metrics
+        save_sessions(sessions)
+    except Exception as exc:  # noqa: BLE001 — never fail a finished run here
+        logger.warning(
+            "Could not persist the agent treatment for session %s: %s",
+            state.session_id,
+            exc,
+        )
 
 
 def _deliver(state: AgentState) -> dict[str, dict[str, Any] | None]:
@@ -638,3 +711,90 @@ def _upload(
         "durable": True,
         "note": None,
     }
+
+
+def _change_report_block(state: AgentState) -> dict[str, Any]:
+    """Compute, publish and mirror the before/after change report (S6).
+
+    The job's completion never depends on the report: measurement and the
+    R2 asset both degrade to honest statuses, mirroring ``_upload``'s
+    degrade-not-fail contract. The block goes into ``result`` under
+    ``change_report`` and the report itself is mirrored on the session so
+    later chat turns can read it.
+    """
+    from audiomind.analysis.change_report import build_change_report
+    from audiomind.api.upload import sessions as runtime_sessions
+    from audiomind.session_store import save_sessions
+
+    session = runtime_sessions.get(state.session_id)
+    block: dict[str, Any] = {
+        "report": {
+            "status": "error",
+            "message": "The change report was not available",
+        },
+        "r2_key": None,
+        "url": None,
+        "durable": False,
+        "note": None,
+    }
+    try:
+        report = build_change_report(
+            before=session.analysis if session else None,
+            input_path=(
+                str(session.original_path)
+                if session and session.original_path
+                else None
+            ),
+            output_path=state.master_path,
+        )
+        payload = report.model_dump(mode="json")
+    except Exception as exc:  # noqa: BLE001 -- the job record is the report
+        logger.warning(
+            "Agent job %s: change report could not be built: %s",
+            state.session_id,
+            exc,
+        )
+        payload = dict(block["report"])
+    block["report"] = payload
+
+    if session is not None:
+        try:
+            session.change_report = payload
+            save_sessions(runtime_sessions)
+        except Exception:  # noqa: BLE001 -- the mirror is best-effort
+            logger.warning(
+                "Agent job %s: the session mirror of the change report failed",
+                state.session_id,
+                exc_info=True,
+            )
+
+    if payload.get("status") == "ready":
+        tmp_name: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                suffix=".json", delete=False, mode="w", encoding="utf-8"
+            ) as fh:
+                tmp_name = fh.name
+                json.dump(payload, fh)
+            key = storage.build_key("reports", state.session_id, "change-report.json")
+            storage.upload_file(tmp_name, key, content_type="application/json")
+            block.update(
+                r2_key=key, url=storage.presigned_url(key), durable=True
+            )
+        except storage.StorageError as exc:
+            logger.warning(
+                "R2 unavailable for the agent %s change report (%s); the "
+                "inline payload still travels in the job result.",
+                state.session_id,
+                exc,
+            )
+            block["note"] = (
+                "R2 is not configured: the inline report is served from the "
+                "job result, this asset is not durable."
+            )
+        finally:
+            if tmp_name:
+                with suppress(OSError):
+                    os.unlink(tmp_name)
+
+    return block

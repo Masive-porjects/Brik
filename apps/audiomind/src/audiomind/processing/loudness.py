@@ -48,6 +48,11 @@ CHANNEL_WEIGHTS = (1.0, 1.0, 1.0, 1.41, 1.41)
 
 GATE_ABS_DB = -70.0               # absolute gating threshold (LKFS)
 GATE_REL_LU = -10.0               # relative gating offset below gated mean
+
+#: The standard these implementations follow. Surfaced verbatim by the
+#: metrics contract (AnalysisResult.loudness_standard) so consumers never
+#: attribute a measurement to a standard it does not meet.
+LOUDNESS_STANDARD = "ITU-R BS.1770-4"
 ABS_ZERO_OFFSET = -0.691          # calibration constant
 FLOOR_LUFS = GATE_ABS_DB          # sentinel returned for silence/empty
 

@@ -1,0 +1,35 @@
+// Cloudflare orchestrator for the AudioMind DSP backend.
+// Phase 1 spike: one keyed container class with a health passthrough.
+// Deliberately deferred to later phases (see README.md):
+//   - Queues producer/consumer (phase 3)
+//   - presigned-URL minting from the Worker (phase 2+)
+//   - OpenNext frontend routing (phase 4)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "waveai-orchestrator",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-20",
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "class_name": "DSPContainer",
+      // Wrangler builds this Dockerfile and pushes it to the managed registry;
+      // no external registry account is needed.
+      "image": "../audiomind/Dockerfile",
+      // 4 vCPU / 12 GiB RAM / 20 GB disk. Sized for headroom above the
+      // htdemucs peak RSS with AUDIOMIND_MAX_CONCURRENT_DSP=1.
+      "instance_type": "standard-4"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DSP", "class_name": "DSPContainer" }]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      // Containers run on the modern SQLite-backed DO classes; if wrangler
+      // rejects the migration on deploy, switch to "new_classes".
+      "new_sqlite_classes": ["DSPContainer"]
+    }
+  ]
+}
