@@ -659,12 +659,19 @@ export async function logTrackEvent(
 ): Promise<void> {
   try {
     const supabase = createClient();
-    await supabase.from("track_events").insert({
+    // supabase-js no lanza cuando PostgREST rechaza el insert: resuelve con
+    // `{ error }`. Sin leerlo, un 409 (FK o unique) quedaba totalmente mudo.
+    const { error } = await supabase.from("track_events").insert({
       track_id: trackId,
       user_id: userId,
       event_type: eventType,
       details,
     });
+    if (error) {
+      console.warn(
+        `[Audit Notice] Could not log event '${eventType}' for track ${trackId}: ${error.code} ${error.message}`,
+      );
+    }
   } catch (err) {
     console.warn(`[Audit Notice] Could not log event '${eventType}':`, err);
   }
