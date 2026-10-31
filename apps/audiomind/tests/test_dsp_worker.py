@@ -170,6 +170,54 @@ class TestJobsApiEndpoints:
         assert data["job_id"] == "job_test123"
         assert data["status"] == "completed"
 
+    @patch("audiomind.api.jobs.execute_master_job")
+    def test_submit_master_job_reports_pipeline_failure(self, mock_exec, client):
+        """`success=False` is a 500 whose detail is the worker's own reason.
+
+        The stateless endpoint resolves its input from `public.tracks`; when the
+        row does not exist the worker returns `success=False` with that message.
+        The client must keep seeing the real reason, not a generic 500 body.
+        """
+        track_id = str(uuid.uuid4())
+        reason = f"No input audio source provided or found for track {track_id}"
+        mock_exec.return_value = MasterJobResult(
+            success=False,
+            job_id="job_fail123",
+            track_id=track_id,
+            master_id="",
+            status="error",
+            error=reason,
+        )
+
+        resp = client.post(
+            "/api/jobs/master",
+            json={
+                "track_id": track_id,
+                "preset_id": "universal",
+                "is_async": False,
+            },
+        )
+
+        assert resp.status_code == 500
+        assert resp.json()["detail"] == reason
+
+    @patch("audiomind.api.jobs.execute_master_job")
+    def test_submit_master_job_reports_exception(self, mock_exec, client):
+        """An exception becomes a 500 carrying its message, not a bare error."""
+        mock_exec.side_effect = RuntimeError("ffmpeg exploded")
+
+        resp = client.post(
+            "/api/jobs/master",
+            json={
+                "track_id": str(uuid.uuid4()),
+                "input_audio_url": "https://example.com/audio.wav",
+                "is_async": False,
+            },
+        )
+
+        assert resp.status_code == 500
+        assert resp.json()["detail"] == "ffmpeg exploded"
+
     @patch("audiomind.api.jobs.run_async_master_job")
     def test_submit_master_job_async(self, mock_async_run, client):
 

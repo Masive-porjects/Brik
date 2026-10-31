@@ -7,6 +7,7 @@ that read from and write to Supabase Cloud Storage and PostgreSQL.
 from __future__ import annotations
 
 import logging
+import traceback
 import uuid
 from pathlib import Path
 from typing import Any
@@ -92,11 +93,36 @@ async def submit_master_job(
 
     # Synchronous execution
     job_id = f"job_{uuid.uuid4().hex[:12]}"
-    result = execute_master_job(payload, job_id=job_id)
-    if not result.success:
+    try:
+        result = execute_master_job(payload, job_id=job_id)
+    except Exception as exc:  # noqa: BLE001 -- the HTTP error is the report
+        # Railway only shows the access log line ("500 Internal Server Error")
+        # unless the handler prints the traceback itself. This app configures no
+        # logging handlers, so `print` is the one sink guaranteed to be visible.
+        print(
+            f"--- ERROR EN /api/jobs/master (job={job_id}, "
+            f"track={payload.track_id}) ---"
+        )
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.error or "Mastering pipeline failed",
+            detail=str(exc) or exc.__class__.__name__,
+        ) from exc
+
+    if not result.success:
+        reason = result.error or "Mastering pipeline failed"
+        # A pipeline that reports `success=False` raised nothing, so there is no
+        # traceback: the reason plus the exact inputs it resolved ARE the
+        # diagnosis. Printing them is what makes the next 500 readable.
+        print(
+            f"--- ERROR EN /api/jobs/master (job={job_id}, "
+            f"track={payload.track_id}, "
+            f"input_audio_url={payload.input_audio_url!r}, "
+            f"input_storage_path={payload.input_storage_path!r}) --- {reason}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=reason,
         )
     return result
 
