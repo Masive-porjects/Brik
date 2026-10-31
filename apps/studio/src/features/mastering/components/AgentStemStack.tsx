@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 
 import { useTranslation } from "@/i18n";
-import { getStemUrl } from "@/lib/api";
+import { getAudioUrl, getMixAudioUrl, getStemUrl } from "@/lib/api";
 import { STEMS, type StemName } from "@/presentation/components/StemSplitter";
 
 /**
@@ -241,15 +241,13 @@ export default function AgentStemStack({ sessionId }: { sessionId: string }) {
 
   /** Reproduce el archivo de mezcla completo (viene del job). */
   const playMix = useCallback(() => {
-    const mixUrl = `${API_BASE}/session/${sessionId}/mix`;
-    const audio = new Audio(mixUrl);
+    const audio = new Audio(getMixAudioUrl(sessionId));
     audio.play();
   }, [sessionId]);
 
   /** Reproduce el archivo master completo (viene del job). */
   const playMaster = useCallback(() => {
-    const masterUrl = `${API_BASE}/session/${sessionId}/master`;
-    const audio = new Audio(masterUrl);
+    const audio = new Audio(getAudioUrl(sessionId, "mastered"));
     audio.play();
   }, [sessionId]);
 
