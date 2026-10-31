@@ -16,7 +16,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgentJobStatus,
   submitAgentJob,
-  submitMasterJob,
   type AgentAudioAsset,
   type AgentNarrativeItem,
   type AgentRunResult,
@@ -29,6 +28,7 @@ import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
 
 import { narrativeSentence } from "./narrativeText";
+import { escalationDecision } from "./escalationJob";
 import AgentStemStack from "./AgentStemStack";
 
 /**
@@ -198,19 +198,33 @@ export default function AgentPanel({
       // Handle escalation
       if (response.escalation?.action === "escalate_to_job") {
         const { job_kind, job_payload } = response.escalation;
-        if (job_kind && job_payload) {
+        if (job_kind) {
           setEscalateNotice(true);
           setTimeout(() => setEscalateNotice(false), 4000);
 
-          // Fire the job asynchronously (fire-and-forget)
+          // Fire the job asynchronously (fire-and-forget). Both kinds go
+          // through the session-based agent job: `master` is the loop's
+          // `master_only` route, because the stateless `/jobs/master` endpoint
+          // resolves its audio from `public.tracks` and only has the upload
+          // session id here.
           const controller = new AbortController();
-          if (job_kind === "agent") {
-            submitAgentJob(sessionId, userMessage, job_payload.decision as "auto" | "mix_then_master" | "master_only", controller.signal)
-              .catch(() => {}); // Ignore errors; job runs in background
-          } else if (job_kind === "master") {
-            submitMasterJob({ track_id: sessionId, ...job_payload })
-              .catch(() => {});
-          }
+          submitAgentJob(
+            sessionId,
+            userMessage,
+            escalationDecision(job_kind, job_payload),
+            controller.signal,
+          ).catch(() => {
+            // A swallowed failure looked like a frozen panel: the toast said
+            // "process launched" and nothing ever came back.
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: t("productor.chat.escalateError"),
+                ts: Date.now(),
+              },
+            ]);
+          });
         }
       }
 
