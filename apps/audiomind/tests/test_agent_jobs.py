@@ -905,6 +905,39 @@ class TestBuildAgentResult:
         assert result["tools_executed"][0]["ok"] is False
         assert result["tools_executed"][0]["error"] == "mastering falló"
 
+    def test_the_payload_carries_the_producer_narrative(self):
+        """The panel reads ``narrative``; a run that did nothing narrates nothing."""
+        state = al.AgentState(session_id="s", input_path=Path("x.wav"))
+
+        empty = agent_jobs.build_agent_result(state, {"mix": None, "master": None})
+        assert empty["narrative"] == []
+
+        state.tool_log.append(
+            al.ToolResult(
+                ok=True,
+                tool="send_to_master",
+                detail="Master listo.",
+                payload={
+                    "source": "original",
+                    "attempt": 1,
+                    "integrated_lufs": -14.0,
+                    "true_peak_db": -1.0,
+                    "crest_factor_db": 11.0,
+                    "crest_delta_db": -2.0,
+                },
+            )
+        )
+
+        result = agent_jobs.build_agent_result(state, {"mix": None, "master": None})
+
+        assert result["narrative"] == [
+            {
+                "code": "master_from_original",
+                "severity": "success",
+                "params": {"attempt": 1, "lufs": -14.0, "peak": -1.0, "crest": 11.0},
+            }
+        ]
+
 
 class TestAgentJobChangeReport:
     """S6 (metrics contract): a completed job publishes its change report.
@@ -995,3 +1028,91 @@ class TestAgentJobChangeReport:
 
         mirror = upload_mod.sessions[session_id].change_report
         assert mirror["status"] == "ready"
+
+
+def _second_pass_script() -> list[al.ModelTurn]:
+    """diagnose -> render -> inspect -> master, SIN mover el intent.
+
+    La ausencia de ``adjust_stem_parameters`` es lo que hace observable el
+    intent inicial por la API pública: el intent final es exactamente el que
+    el loop recibió al arrancar.
+    """
+    return [
+        al.ModelTurn(text="Retomo el barrido anterior."),
+        al.ModelTurn(tool_calls=[al.ToolCall(name="render_mix", args={})]),
+        al.ModelTurn(tool_calls=[al.ToolCall(name="analyze_mix_bus", args={})]),
+        al.ModelTurn(
+            tool_calls=[al.ToolCall(name="send_to_master", args={"source": "mix"})]
+        ),
+    ]
+
+
+class TestSecondPassContinuity:
+    """HUECO 1 — el segundo barrido arranca desde el tratamiento anterior.
+
+    El loop ya recordaba la CONVERSACIÓN (``chat_transcript``). Lo que no
+    recordaba era el TRATAMIENTO: cada job construía un ``AgentState`` nuevo y
+    el intent volvía a neutral, así que "no me gustó, otra vez" rehacía el
+    trabajo desde cero. Estos tests fijan el contrato nuevo: el intent y las
+    métricas del último máster sobreviven entre jobs de la MISMA sesión, y una
+    sesión que nunca corrió un job sigue arrancando neutral.
+    """
+
+    def test_the_second_job_starts_from_the_previous_intent(
+        self, agent_env, monkeypatch
+    ):
+        session_id = _register_session(agent_env.tmp_path)
+
+        first = client.post(f"/api/jobs/agent/{session_id}", json={}).json()["job_id"]
+        first_intent = client.get(f"/api/jobs/agent/{first}").json()["result"]["intent"]
+        assert first_intent["vocal_focus"] == 0.8
+
+        # Segundo barrido sin ``adjust_stem_parameters``: si el intent arrancara
+        # neutral el resultado final sería 0.5. Hereda 0.8 solo si el job
+        # anterior lo persistió y éste lo recargó.
+        monkeypatch.setattr(
+            al,
+            "default_transport",
+            lambda **kwargs: _ScriptedTransport(_second_pass_script()),
+        )
+
+        second = client.post(f"/api/jobs/agent/{session_id}", json={}).json()["job_id"]
+        result = client.get(f"/api/jobs/agent/{second}").json()["result"]
+
+        assert result["intent"]["vocal_focus"] == 0.8
+
+    def test_the_master_metrics_are_remembered(self, agent_env):
+        session_id = _register_session(agent_env.tmp_path)
+        job_id = client.post(f"/api/jobs/agent/{session_id}", json={}).json()["job_id"]
+        client.get(f"/api/jobs/agent/{job_id}")
+
+        session = upload_mod.sessions[session_id]
+
+        assert session.agent_intent is not None
+        assert session.agent_intent.vocal_focus == 0.8
+        assert session.agent_master_metrics is not None
+        assert session.agent_master_metrics["integrated_lufs"] == -14.0
+        # A location is not a measurement: the same keys ``_master_metrics``
+        # already drops from the client payload must stay out of the memory.
+        assert "master_path" not in session.agent_master_metrics
+
+    def test_a_session_that_never_ran_starts_neutral(self, agent_env, monkeypatch):
+        monkeypatch.setattr(
+            al,
+            "default_transport",
+            lambda **kwargs: _ScriptedTransport(_second_pass_script()),
+        )
+        session_id = _register_session(agent_env.tmp_path)
+
+        job_id = client.post(f"/api/jobs/agent/{session_id}", json={}).json()["job_id"]
+        result = client.get(f"/api/jobs/agent/{job_id}").json()["result"]
+
+        assert result["intent"]["vocal_focus"] == 0.5
+
+
+def test_old_session_data_without_the_agent_fields_still_loads():
+    """Sessions persisted before this feature load with the safe default."""
+    session = SessionData(session_id="legacy")
+
+    assert session.agent_intent is None
+    assert session.agent_master_metrics is None

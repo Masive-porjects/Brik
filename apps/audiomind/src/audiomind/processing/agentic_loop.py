@@ -70,6 +70,37 @@ log = logging.getLogger(__name__)
 #: Tope duro de iteraciones del bucle de mezcla (S3.c).
 MAX_MIX_ITERATIONS = 3
 
+#: Intentos de máster por corrida: el primero + UNA corrección acotada.
+#: La spec (§13.4.7) permite una sola corrección por pasada — medir, mover UN
+#: parámetro, volver a medir, parar. El techo es presupuesto real: se gasta.
+MAX_MASTER_ITERATIONS = 2
+
+#: Guardrail dinámico (§13.4.8): si el crest factor del máster baja más que
+#: esto respecto del audio que ENTRA al máster, el intento se revierte.
+MAX_CREST_DROP_DB = 4.0
+
+#: Tolerancia de sonoridad. El motor apunta a ``target_lufs_db``; errarle más
+#: que esto es una medición que no convergió.
+MAX_LUFS_ERROR_DB = 1.0
+
+#: Techo de true peak. Por encima de esto el máster pide clipping en la
+#: decodificación del consumidor.
+MAX_TRUE_PEAK_DB = -1.0
+
+#: Turnos de la ventana de corrección: una lectura + una corrección. Un techo
+#: duro, para que un modelo charlatán no gaste turnos sin converger.
+MAX_FEEDBACK_TURNS = 2
+
+#: Lo único que puede llamar el modelo dentro de la ventana de corrección.
+#: ``render_mix`` afuera: la corrección es del máster, no una re-mezcla.
+MASTER_FEEDBACK_TOOLS: tuple[str, ...] = (
+    "analyze_master_output",
+    "send_to_master",
+)
+
+#: Los knobs que ``send_to_master`` puede mover. Una corrección cambia UNO.
+_MASTER_KNOBS: tuple[str, ...] = ("target_lufs_db", "output_bit_depth")
+
 #: Consulta al RAG: ``(query, k) -> [{"citation", "text", "book_id", ...}]``.
 #: Sin inyección, el agente no ve la herramienta de conocimiento.
 RAGQuery = Callable[[str, int], list[dict[str, Any]]]
@@ -193,6 +224,12 @@ class SendToMasterArgs(BaseModel):
     output_bit_depth: Literal[16, 24, 32] = 24
 
 
+class AnalyzeMasterOutputArgs(BaseModel):
+    """S2.6 — lectura de las métricas del máster vigente. Sin side effects."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 TOOL_ARG_MODELS: dict[str, type[BaseModel]] = {
     "analyze_original_audio": AnalyzeOriginalAudioArgs,
     "trigger_stem_separation": TriggerStemSeparationArgs,
@@ -201,6 +238,7 @@ TOOL_ARG_MODELS: dict[str, type[BaseModel]] = {
     "adjust_stem_parameters": AdjustStemParametersArgs,
     "search_knowledge": SearchKnowledgeArgs,
     "send_to_master": SendToMasterArgs,
+    "analyze_master_output": AnalyzeMasterOutputArgs,
 }
 
 #: Herramientas que la spec pidió (S2). ``search_knowledge`` queda afuera: es
@@ -250,23 +288,36 @@ _TOOL_DOCS: dict[str, str] = {
         "Cierra la mezcla y empuja el bus al mastering engine. Última "
         "llamada, Fase 4."
     ),
+    "analyze_master_output": (
+        "Devuelve LUFS integrado, true peak, crest, LRA y el delta de crest "
+        "contra la entrada del máster vigente, más cuántas correcciones "
+        "quedan. Lectura pura, sin costo."
+    ),
 }
 
 
-def tool_definitions(*, include_rag: bool = False) -> list[dict[str, Any]]:
+def tool_definitions(
+    *, include_rag: bool = False, names: tuple[str, ...] | None = None
+) -> list[dict[str, Any]]:
     """Definiciones listas para el `tools=[...]` de Gemini function calling.
 
     El JSON Schema sale de Pydantic — una sola fuente de verdad entre el
     schema que ve el modelo y el modelo que valida la respuesta.
+
+    ``names`` acota la lista: la ventana de corrección del máster expone sólo
+    sus dos herramientas, para que el modelo no vuelva a mezclar.
     """
-    names = [*_SPEC_TOOLS, "search_knowledge"] if include_rag else list(_SPEC_TOOLS)
+    if names is not None:
+        selected = list(names)
+    else:
+        selected = [*_SPEC_TOOLS, "search_knowledge"] if include_rag else list(_SPEC_TOOLS)
     return [
         {
             "name": name,
             "description": _TOOL_DOCS[name],
             "parameters": TOOL_ARG_MODELS[name].model_json_schema(),
         }
-        for name in names
+        for name in selected
     ]
 
 
@@ -364,6 +415,18 @@ class AgentState:
     # Fase 4
     mix_path: str | None = None
     master_path: str | None = None
+
+    #: Payload del máster VIGENTE (el que ``master_path`` apunta hoy). Un
+    #: intento revertido por el guardrail de crest NO lo reemplaza: su archivo
+    #: queda en disco como evidencia, pero no es el máster del usuario.
+    master_payload: dict[str, Any] | None = None
+    #: Args con los que se hizo el último máster ACEPTADO. Una corrección tiene
+    #: que diferir en exactamente un knob: "mover un parámetro" hecho código,
+    #: no una sugerencia del prompt.
+    master_args: dict[str, Any] | None = None
+    #: Intentos exitosos de masterización, revertidos incluidos. Es el
+    #: presupuesto que consume ``MAX_MASTER_ITERATIONS``.
+    master_runs: int = 0
 
     #: Todo ``ToolResult`` que pasó por ``dispatch``, en orden de ejecución.
     #: Es la evidencia de "qué corrió y cómo salió": se registra, no se deduce
@@ -616,6 +679,129 @@ def _search_knowledge(state: AgentState, args: SearchKnowledgeArgs) -> ToolResul
     )
 
 
+def _source_crest_db(state: AgentState, source: str) -> float | None:
+    """Crest factor del audio que ENTRA al máster. Medido, nunca inferido.
+
+    El original ya viene medido de la fase 1. Para el bus no hace falta volver
+    a medir el archivo: el QC del render ya calculó el crest del bus en
+    ``low_level_listen`` (``quality_checks._crest_db``). Se lee de ahí: es una
+    lectura, no DSP nuevo.
+    """
+    if source == "mix":
+        report = (state.render or {}).get("qc_report") or {}
+        details = (report.get("low_level_listen") or {}).get("details") or {}
+        value = details.get("crest_db")
+    else:
+        value = state.analysis.crest_factor_db if state.analysis else None
+    return None if value is None else float(value)
+
+
+def _lufs_error(payload: dict[str, Any]) -> float | None:
+    """Cuánto se desvió el máster de su objetivo. ``None`` = sin objetivo."""
+    lufs = payload.get("integrated_lufs")
+    target = payload.get("target_lufs_db")
+    if lufs is None or target is None:
+        return None
+    return round(float(lufs) - float(target), 2)
+
+
+def master_measurements(state: AgentState) -> dict[str, Any]:
+    """Métricas del máster VIGENTE y qué falta para converger.
+
+    Fuente ÚNICA de esta lista de campos: la consumen la herramienta
+    ``analyze_master_output`` y la decisión de abrir la ventana de corrección.
+    Duplicarlos dejaría al modelo viendo números que el guardrail no mira.
+    """
+    master = state.master_payload or {}
+    error = _lufs_error(master)
+    crest_delta = master.get("crest_delta_db")
+    peak = master.get("true_peak_db")
+
+    # Se normaliza a float una sola vez: los payloads vienen de un dict
+    # heterogéneo (JSON del motor), así que el tipo real es Any y el
+    # estrechamiento a ``float | None`` tiene que ser explícito.
+    crest_delta_db: float | None = (
+        None if crest_delta is None else float(crest_delta)
+    )
+    peak_db: float | None = None if peak is None else float(peak)
+
+    squashed = crest_delta_db is not None and crest_delta_db < -MAX_CREST_DROP_DB
+    unmet: list[str] = []
+    if squashed and crest_delta_db is not None:
+        unmet.append(
+            f"el crest bajó {abs(crest_delta_db):.1f} dB respecto de la "
+            f"entrada (límite {MAX_CREST_DROP_DB:.0f} dB)"
+        )
+    if peak_db is not None and peak_db > MAX_TRUE_PEAK_DB:
+        unmet.append(
+            f"true peak {peak_db:.1f} dBTP por encima del techo "
+            f"{MAX_TRUE_PEAK_DB:.1f} dBTP"
+        )
+    if error is not None and abs(error) > MAX_LUFS_ERROR_DB:
+        unmet.append(
+            f"sonoridad {float(master['integrated_lufs']):.1f} LUFS contra un "
+            f"objetivo de {float(master['target_lufs_db']):.1f} LUFS "
+            f"(error {error:+.1f} dB)"
+        )
+
+    return {
+        "integrated_lufs": master.get("integrated_lufs"),
+        "true_peak_db": peak_db,
+        "crest_factor_db": master.get("crest_factor_db"),
+        "lra": master.get("lra"),
+        "target_lufs_db": master.get("target_lufs_db"),
+        "lufs_error_db": error,
+        "source": master.get("source"),
+        "source_crest_factor_db": master.get("source_crest_factor_db"),
+        "crest_delta_db": crest_delta_db,
+        "crest_warning": bool(squashed),
+        "attempts": state.master_runs,
+        "corrections_left": max(0, MAX_MASTER_ITERATIONS - state.master_runs),
+        "unmet": unmet,
+    }
+
+
+def _measured(value: Any, unit: str) -> str:
+    """Un número con su unidad, o la verdad cuando no se midió."""
+    return "sin medir" if value is None else f"{float(value):.1f} {unit}"
+
+
+def _master_summary(payload: dict[str, Any]) -> str:
+    """La lectura del máster en una línea que el modelo pueda citar."""
+    summary = (
+        f"Máster vigente: {_measured(payload['integrated_lufs'], 'LUFS')}, "
+        f"true peak {_measured(payload['true_peak_db'], 'dBTP')}, "
+        f"crest {_measured(payload['crest_factor_db'], 'dB')} "
+        f"(delta {_measured(payload['crest_delta_db'], 'dB')} vs la entrada)."
+    )
+    unmet = payload.get("unmet") or []
+    if unmet:
+        return (
+            f"{summary} No converge: {'; '.join(unmet)}. "
+            f"Quedan {payload['corrections_left']} correcciones."
+        )
+    return f"{summary} Converge: no hace falta corregir."
+
+
+def _analyze_master_output(
+    state: AgentState, args: AnalyzeMasterOutputArgs
+) -> ToolResult:
+    """S2.6 — lectura pura del máster vigente. Cero side effects, cero costo."""
+    if state.master_payload is None:
+        return ToolResult.fail(
+            "analyze_master_output",
+            "no hay máster todavía: correr send_to_master primero.",
+        )
+
+    payload = master_measurements(state)
+    return ToolResult(
+        ok=True,
+        tool="analyze_master_output",
+        detail=_master_summary(payload),
+        payload=payload,
+    )
+
+
 def _send_to_master(state: AgentState, args: SendToMasterArgs) -> ToolResult:
     """S2.5 — cierra la mezcla y empuja el bus al mastering engine.
 
@@ -623,12 +809,56 @@ def _send_to_master(state: AgentState, args: SendToMasterArgs) -> ToolResult:
     la API de mastering. La intención que movió la mezcla mueve también el
     master (`map_intent_to_mastering`), y `mix_metadata` viaja al motor para el
     handshake adaptativo (`MOTOR_DSP_MIX_Y_MASTER.md` §3).
+
+    Desde la fase de corrección esta herramienta es un intento MÁS, no un
+    cierre ciego, y por eso aplica tres reglas que el modelo no puede saltar:
+
+    * **Presupuesto**: ``MAX_MASTER_ITERATIONS`` intentos por corrida.
+    * **Un parámetro por corrección** (§13.4.7): sin esto no se sabría qué
+      movimiento causó el cambio, y "medir → mover → medir" pierde sentido.
+    * **Guardrail de crest** (§13.4.8): si el crest baja más de
+      ``MAX_CREST_DROP_DB`` respecto de la entrada, el intento se revierte y el
+      máster anterior sigue vigente. Se revierte NO moviendo el puntero: el
+      archivo del intento queda en disco, pero ``master_path`` no cambia.
     """
+    if state.master_runs >= MAX_MASTER_ITERATIONS:
+        return ToolResult.fail(
+            "send_to_master",
+            f"presupuesto de máster agotado: {MAX_MASTER_ITERATIONS} intentos "
+            f"({MAX_MASTER_ITERATIONS - 1} corrección). No hay más correcciones.",
+        )
+
     if args.source == "mix" and not state.can_master:
         return ToolResult.fail(
             "send_to_master",
             "source='mix' sin render completado: correr render_mix primero.",
         )
+
+    dumped = args.model_dump()
+    if state.master_args is not None:
+        if args.source != state.master_args.get("source"):
+            return ToolResult.fail(
+                "send_to_master",
+                "una corrección NO cambia la fuente: masterizá el mismo audio "
+                "que la pasada anterior.",
+            )
+        changed = [
+            knob
+            for knob in _MASTER_KNOBS
+            if dumped.get(knob) != state.master_args.get(knob)
+        ]
+        if not changed:
+            return ToolResult.fail(
+                "send_to_master",
+                "una corrección tiene que mover UN parámetro: estos argumentos "
+                "repiten la pasada anterior.",
+            )
+        if len(changed) > 1:
+            return ToolResult.fail(
+                "send_to_master",
+                f"una corrección mueve UN parámetro y recibí {len(changed)}: "
+                f"{', '.join(changed)}.",
+            )
 
     source_path = state.mix_path if args.source == "mix" else str(state.input_path)
     if not source_path:
@@ -643,8 +873,12 @@ def _send_to_master(state: AgentState, args: SendToMasterArgs) -> ToolResult:
         params.target_lufs_db = args.target_lufs_db
     params.output_bit_depth = args.output_bit_depth
 
+    attempt = state.master_runs + 1
+    # La corrección escribe SU archivo: reusar el nombre de la primera pasada
+    # haría imposible revertir el intento — el máster bueno ya no existiría.
+    suffix = "" if attempt == 1 else f"_pass{attempt}"
     output_path = (
-        settings.output_dir / f"{state.session_id}_agentic_mastered.wav"
+        settings.output_dir / f"{state.session_id}_agentic_mastered{suffix}.wav"
     ).resolve()
 
     try:
@@ -665,26 +899,67 @@ def _send_to_master(state: AgentState, args: SendToMasterArgs) -> ToolResult:
     except Exception as exc:  # noqa: BLE001 — el envelope absorbe el fallo
         return ToolResult.fail("send_to_master", f"mastering falló: {exc}")
 
-    state.master_path = str(result.get("output_path") or output_path)
-    log.info("[TIMING] send_to_master %.2fs -> %s", elapsed, state.master_path)
+    written = str(result.get("output_path") or output_path)
+    crest = result.get("crest_factor_db")
+    source_crest = _source_crest_db(state, args.source)
+    crest_delta = (
+        round(float(crest) - source_crest, 2)
+        if crest is not None and source_crest is not None
+        else None
+    )
+    squashed = crest_delta is not None and crest_delta < -MAX_CREST_DROP_DB
+    reverted = squashed and state.master_payload is not None
+
+    payload: dict[str, Any] = {
+        "source": args.source,
+        "source_path": source_path,
+        "master_path": written,
+        "attempt": attempt,
+        "target_lufs_db": params.target_lufs_db,
+        "output_bit_depth": result.get("output_bit_depth"),
+        "integrated_lufs": result.get("integrated_lufs"),
+        "true_peak_db": result.get("true_peak_db"),
+        "crest_factor_db": crest,
+        "lra": result.get("lra"),
+        "duration_seconds": result.get("duration_seconds"),
+        "source_crest_factor_db": source_crest,
+        "crest_delta_db": crest_delta,
+        "crest_warning": bool(squashed),
+        "reverted": reverted,
+        "revert_reason": (
+            f"el crest bajó {abs(crest_delta):.1f} dB respecto de la entrada "
+            f"(límite {MAX_CREST_DROP_DB:.0f} dB): se mantiene el máster anterior"
+            if reverted and crest_delta is not None
+            else None
+        ),
+        "seconds": round(elapsed, 2),
+    }
+
+    state.master_runs = attempt
+    if reverted:
+        payload["active_master_path"] = (state.master_payload or {}).get("master_path")
+    else:
+        state.master_path = written
+        state.master_payload = payload
+        state.master_args = dumped
+        payload["active_master_path"] = written
+
+    log.info("[TIMING] send_to_master %.2fs -> %s", elapsed, written)
+
+    detail = f"Master listo en {written} ({elapsed:.2f}s)."
+    if reverted:
+        detail = (
+            f"Corrección revertida: {payload['revert_reason']}. "
+            f"El máster vigente sigue siendo {payload['active_master_path']}."
+        )
+    elif squashed:
+        detail += " El crest quedó aplastado respecto de la entrada."
 
     return ToolResult(
         ok=True,
         tool="send_to_master",
-        detail=f"Master listo en {state.master_path} ({elapsed:.2f}s).",
-        payload={
-            "source": args.source,
-            "source_path": source_path,
-            "master_path": state.master_path,
-            "target_lufs_db": params.target_lufs_db,
-            "output_bit_depth": result.get("output_bit_depth"),
-            "integrated_lufs": result.get("integrated_lufs"),
-            "true_peak_db": result.get("true_peak_db"),
-            "crest_factor_db": result.get("crest_factor_db"),
-            "lra": result.get("lra"),
-            "duration_seconds": result.get("duration_seconds"),
-            "seconds": round(elapsed, 2),
-        },
+        detail=detail,
+        payload=payload,
     )
 
 
@@ -696,6 +971,7 @@ TOOL_IMPLS: dict[str, Callable[[AgentState, Any], ToolResult]] = {
     "adjust_stem_parameters": _adjust_stem_parameters,
     "search_knowledge": _search_knowledge,
     "send_to_master": _send_to_master,
+    "analyze_master_output": _analyze_master_output,
 }
 
 #: Orden contractual de las fases (S3). El agente no puede saltearlo.
@@ -707,27 +983,51 @@ PHASE_GATE: dict[str, str] = {
     "adjust_stem_parameters": "phase3",
     "search_knowledge": "phase3",
     "send_to_master": "phase4",
+    "analyze_master_output": "phase4",
 }
 
 
-def dispatch(state: AgentState, tool: str, raw_args: dict[str, Any]) -> ToolResult:
+def dispatch(
+    state: AgentState,
+    tool: str,
+    raw_args: dict[str, Any],
+    *,
+    allowed: tuple[str, ...] | None = None,
+) -> ToolResult:
     """Ejecuta la herramienta y la registra en ``state.tool_log``.
 
     Punto ÚNICO de paso: las cuatro fases entran por acá (por diseño, ver
     ``phase1_diagnose``), así que el log tampoco puede perder el camino de
     argumentos inválidos ni el de herramienta desconocida.
+
+    ``allowed`` acota lo que una ventana concreta acepta (la corrección del
+    máster). Se aplica acá y no en cada fase para que el rechazo también quede
+    registrado como evidencia.
     """
-    result = _dispatch(state, tool, raw_args)
+    result = _dispatch(state, tool, raw_args, allowed=allowed)
     state.tool_log.append(result)
     return result
 
 
-def _dispatch(state: AgentState, tool: str, raw_args: dict[str, Any]) -> ToolResult:
+def _dispatch(
+    state: AgentState,
+    tool: str,
+    raw_args: dict[str, Any],
+    *,
+    allowed: tuple[str, ...] | None = None,
+) -> ToolResult:
     """Valida argumentos contra el modelo Pydantic y ejecuta la herramienta.
 
     Un argumento inválido no explota: vuelve como `ToolResult.fail` para que el
     modelo se corrija en el turno siguiente.
     """
+    if allowed is not None and tool not in allowed:
+        return ToolResult.fail(
+            tool,
+            f"herramienta no disponible en esta ventana: {tool} "
+            f"(sólo {', '.join(allowed)}).",
+        )
+
     model = TOOL_ARG_MODELS.get(tool)
     if model is None:
         return ToolResult.fail(tool, f"herramienta desconocida: {tool}")
@@ -1026,16 +1326,120 @@ def phase3_mix_loop(
     return results
 
 
+def _force_master_only_source(state: AgentState, call: ToolCall) -> ToolCall:
+    """Con la compuerta cerrada, el modelo no tiene voto sobre la fuente.
+
+    ``master_only`` masteriza el original: pedir ``mix`` por inercia haría
+    fallar el envelope pidiendo un render que esa ruta nunca produjo. La
+    decisión ya está tomada; se aplica acá, no en el prompt.
+    """
+    if state.decision.applied != "master_only":
+        return call
+    if call.args.get("source") not in (None, "original"):
+        log.warning(
+            "Ruta 'master_only': se ignora source=%r y se masteriza el original.",
+            call.args.get("source"),
+        )
+    return call.model_copy(update={"args": {**call.args, "source": "original"}})
+
+
+def _last_master(state: AgentState) -> ToolResult:
+    """El último ``send_to_master`` exitoso del log, si hubo alguno."""
+    for result in reversed(state.tool_log):
+        if result.tool == "send_to_master" and result.ok:
+            return result
+    return ToolResult.fail("send_to_master", "no hay máster en el log.")
+
+
+def _master_feedback_loop(
+    state: AgentState,
+    transport: ModelTransport,
+    transcript: list[dict[str, Any]],
+    *,
+    accepted: ToolResult,
+) -> ToolResult:
+    """Ventana de corrección: medir → mover UN parámetro → medir, o parar.
+
+    Se abre SÓLO si una medición dice que el máster no convergió (crest
+    aplastado, techo de true peak pasado, sonoridad fuera de objetivo). Un
+    máster sano no gasta un turno más: el bucle cierra donde cerraba antes.
+
+    Dentro de la ventana el modelo ve dos herramientas y nada más. El
+    presupuesto, el "un parámetro" y el guardrail de crest viven en
+    ``_send_to_master``: acá sólo se acota el alcance y se corta el bucle.
+    """
+    measurements = master_measurements(state)
+    if not measurements["unmet"]:
+        return accepted
+
+    transcript.append(
+        {
+            "role": "user",
+            "text": (
+                _master_summary(measurements)
+                + "\n\nEl máster no convergió. Podés corregirlo una sola vez: "
+                "mové UN parámetro con `send_to_master` después de mirar las "
+                "mediciones con `analyze_master_output`. Si no hay nada que "
+                "corregir, respondé con texto y el bucle cierra."
+            ),
+        }
+    )
+
+    system = prompts.master_feedback_system_prompt(
+        MAX_MASTER_ITERATIONS,
+        max_crest_drop_db=MAX_CREST_DROP_DB,
+        max_true_peak_db=MAX_TRUE_PEAK_DB,
+    )
+    tools = tool_definitions(names=MASTER_FEEDBACK_TOOLS)
+
+    for _ in range(MAX_FEEDBACK_TURNS):
+        turn = transport.turn(
+            phase="phase4", system=system, transcript=transcript, tools=tools
+        )
+
+        if not turn.tool_calls:
+            if turn.text:
+                transcript.append({"role": "model", "text": turn.text})
+            return accepted
+
+        for call in turn.tool_calls:
+            if call.name == "send_to_master":
+                call = _force_master_only_source(state, call)
+            result = dispatch(
+                state, call.name, call.args, allowed=MASTER_FEEDBACK_TOOLS
+            )
+            _record_exchange(transcript, call, result)
+
+            if not result.ok:
+                # Una corrección fallida NO borra el máster aceptado: ese audio
+                # existe, se midió y es lo que el usuario se lleva. El intento
+                # queda registrado en el log del job como evidencia.
+                return accepted
+            if result.tool == "send_to_master":
+                if result.payload.get("reverted"):
+                    return accepted
+                return result
+
+    return accepted
+
+
 def phase4_send_to_master(
     state: AgentState, transport: ModelTransport, transcript: list[dict[str, Any]]
 ) -> ToolResult:
-    """FASE 4 · CIERRE (S3.d). Empuja el bus al mastering engine.
+    """FASE 4 · CIERRE (S3.d) — máster y, si no convergió, UNA corrección.
 
     Con la compuerta cerrada (``applied="master_only"``) el argumento se FUERZA
-    a ``source="original"``. No es una preferencia: el modelo podría pedir
-    ``mix`` por inercia y el envelope fallaría pidiendo un render que esta ruta
-    nunca produjo. La decisión ya está tomada; el modelo no tiene voto acá.
+    a ``source="original"``: ver ``_force_master_only_source``.
+
+    Si la fase 3 ya masterizó (el modelo puede cerrar el bucle de mezcla
+    llamando ``send_to_master``), no se vuelve a pagar el motor: se entra
+    directo a la ventana de corrección.
     """
+    if state.master_runs >= 1:
+        return _master_feedback_loop(
+            state, transport, transcript, accepted=_last_master(state)
+        )
+
     turn = transport.turn(
         phase="phase4",
         system=prompts.mix_loop_system_prompt(MAX_MIX_ITERATIONS),
@@ -1048,19 +1452,13 @@ def phase4_send_to_master(
         log.warning("Fase 4 recibió %s; se fuerza send_to_master.", call.name)
         call = ToolCall(name="send_to_master")
 
-    if state.decision.applied == "master_only":
-        if call.args.get("source") not in (None, "original"):
-            log.warning(
-                "Ruta 'master_only': se ignora source=%r y se masteriza el original.",
-                call.args.get("source"),
-            )
-        call = call.model_copy(update={"args": {**call.args, "source": "original"}})
-
+    call = _force_master_only_source(state, call)
     result = dispatch(state, call.name, call.args)
     _record_exchange(transcript, call, result)
-    if result.ok:
-        state.master_path = result.payload.get("master_path")
-    return result
+    if not result.ok:
+        return result
+
+    return _master_feedback_loop(state, transport, transcript, accepted=result)
 
 
 def resolve_decision(
@@ -1107,6 +1505,7 @@ def run(
     verdict: AudioVerdict | None = None,
     reference_comparison: ReferenceComparison | None = None,
     reference_is_mastered: bool = False,
+    initial_intent: IntentProfile | None = None,
     **transport_kwargs: Any,
 ) -> AgentState:
     """Corre el flujo: diagnóstico -> [desmontaje -> bucle] -> cierre.
@@ -1130,6 +1529,9 @@ def run(
     ``verdict`` y ``reference_comparison`` son los artefactos que la explican.
     ``chat_transcript`` (si existe en la sesión) se inyecta como contexto previo
     para que el agente "recuerde" la conversación.
+    ``initial_intent`` es el punto de partida del TRATAMIENTO: el intent con el
+    que terminó el barrido anterior de esta sesión. ``None`` arranca en
+    ``IntentProfile.neutral()``, el comportamiento histórico exacto.
     Todo con default: llamar ``run()`` como se llamaba antes corre las cuatro
     fases igual que siempre.
     """
@@ -1137,6 +1539,11 @@ def run(
         transport = default_transport(**transport_kwargs)
 
     state = AgentState(session_id=session_id, input_path=Path(input_path), rag=rag)
+    # El tratamiento heredado entra ANTES de la fase 1: el contexto del
+    # diagnóstico (``prompts.context_block(state.intent...)``) ya lo ve, así
+    # que el segundo barrido diagnostica desde donde quedó, no desde cero.
+    if initial_intent is not None:
+        state.intent = initial_intent
     state.verdict = verdict
     state.reference_comparison = reference_comparison
     state.reference_is_mastered = reference_is_mastered

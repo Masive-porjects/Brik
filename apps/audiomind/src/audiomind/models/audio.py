@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from audiomind.models.intent_profile import IntentProfile
 from audiomind.processing.loudness import LOUDNESS_STANDARD
 
 
@@ -1015,6 +1016,31 @@ class SessionData(BaseModel):
     chat_transcript: list[TranscriptEntry] = Field(
         default_factory=list,
         description="Últimos 20 turnos de chat (user/assistant) con timestamps."
+    )
+
+    # ── Agent continuity (second pass) ────────────────────────────────────
+    # El loop ya recordaba la CONVERSACIÓN; estos dos campos le agregan el
+    # TRATAMIENTO. Un segundo barrido de la misma sesión arranca desde el
+    # intent y las métricas con los que terminó el anterior, en vez de volver
+    # a neutral y rehacer el trabajo desde cero.
+    #
+    # ``None`` = nunca corrió un job del agente, y el loop arranca neutral
+    # exactamente como antes de que estos campos existieran: las sesiones
+    # persistidas con anterioridad cargan sin cambios.
+    agent_intent: IntentProfile | None = Field(
+        default=None,
+        description=(
+            "IntentProfile final del último job del agente. Punto de partida "
+            "del siguiente barrido; None deja el loop en neutral."
+        ),
+    )
+    agent_master_metrics: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Métricas medidas del último máster exitoso del agente "
+            "(integrated_lufs, true_peak_db, crest_factor_db, lra). Las rutas "
+            "locales quedan fuera: no son mediciones."
+        ),
     )
 
 

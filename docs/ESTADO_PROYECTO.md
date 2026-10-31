@@ -1,8 +1,9 @@
 # Estado del proyecto WaveAI / BrikMaster2027
 
-> **Fecha de relevamiento**: 2026-09-21 · **Última actualización**: 2026-10-19 (reconciliación `develop` → `main`: el Character Stage y el Productor IA conviven en una sola entrega; el boot del API deja de depender de la resolución de rutas del RAG; ambas suites re-medidas sobre la unión). Antes, 2026-10-18 (rama `feat/agentic-mix-loop`: el Productor IA queda disparable por HTTP y montado como módulo del Studio). Antes, 2026-10-17 (P5 integración carácter: backend + frontend; PR #33; ver §3.1.5, §3.2.2, §4.1, §7 #34). Antes, 2026-10-16 (relevamiento completo sobre `develop` @ `95a90c8`; ver §3.2.1, §3.4, §4.1.1, §4.2, §6.5 y §6.6).
-> **Alcance**: repositorio completo — los dos motores vivos (Mastering, Mix), el flujo de proyectos multitenant, landing, Studio, agent de voz/IA, capa de inteligencia, contratos, entorno, ramas y pendientes. El Live Engine se retiró; ver §3.3.
-> **Fuentes**: código (`apps/`, `packages/`, `supabase/`, `e2e/`), documentos ODD (`odd/tasks/`), documentación (`docs/`), estado git real y suites de verificación **ejecutadas el 2026-10-19**.
+> **Fecha del relevamiento**: 2026-10-29 · **Actualización previa**: 2026-10-19 (reconciliación `develop` → `main`, fix del boot del API en contenedor, suites re-medidas 1,410/134).
+> **Novedades de este ciclo (20→27-oct)**: gate de backend en CI (pytest + ruff **bloqueante**, deuda de 483 errores de ruff pagada a **0**), despliegue del backend de Railway desde su **Dockerfile** con healthcheck `/health`, correcciones de backend (import del módulo demucs del wheel, acento silencioso del beat, suite en verde + contrato HTTP del chat de Brik), y el **contrato de métricas reales para el agente adaptativo** (Fases A/B/C) mergeado a `develop` por el PR #37. **Nueva área**: orquestador en **Cloudflare Containers** (spike local, Fase 1 pendiente de deploy).
+> **Alcance**: repositorio completo — los dos motores DSP vivos (Mastering, Mix), el flujo de proyectos multitenant, landing, Studio, agentes de IA, capa de inteligencia, contratos, orquestador Cloudflare, entorno, CI/CD, ramas y pendientes — más la **guía de cómo funciona el sistema de extremo a extremo (§9)**: topología, vida de una sesión, jobs, agente, mix, frontend, auth, almacenamiento y release. El Live Engine, Convex, `apps/bridge` y `simulator/` ya no existen; ver §5.
+> **Fuentes**: código (`apps/`, `packages/`, `supabase/`, `e2e/`), documentos ODD (`odd/tasks/`, excluidos de git), estado git real verificado hoy, workflow de CI leído en el árbol y suites de verificación ejecutadas (fechas citadas en cada cifra).
 
 ---
 
@@ -10,78 +11,67 @@
 
 | Área | Estado |
 |---|---|
-| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena DSP proporcional + cohesión textura (P4) + guardia NaN/Inf y fingerprint portable (P5) · **1,410 passed, 0 failed** (medido 19-Oct sobre la unión con `main`: 152.6 s, 1 warning) |
-| **Motor de Mezcla (Mix Engine)** | ✅ Pasos 01–08 (TDD estricto) + Stem Balance T1–T7 + **Character Stage P3** (slapback, wow/flutter, hiss/crackle, sample-level delay comp, HF-droop) + **recipe handshake P4** (texture_recipe v2, measured deltas) + **P5 wiring** (async `/jobs/mix`, proyecto `/projects/{id}/jobs/mix`) · el defecto del camino async está **corregido y commiteado** (`a3fd00c`) · UI "Mezcla de Audio" cerrada, con toggle de carácter · falta prueba manual E2E |
-| **Flujo de proyectos multitenant ("Moises")** | 🟡 **Backend completo** (WU1–WU5, cerrado 09-Oct) + subida directa a R2 verificada · **UI dormida**: `ProjectContext`/`useProject` y los stores no tienen consumidores · falta cargar tablas y env en producción |
+| **Motor de Mastering (AudioMind)** | ✅ Operativo · cadena proporcional + cohesión textura (P4) + Character Stage (P5, `main`) + **contrato de métricas reales**: `band_energies_dbfs` (Parseval, dBFS, piso −120), `GET /api/session/{id}/metrics`, `ChangeReport` before/after al terminar un job de agente (`dsp_jobs.result.change_report` + JSON en R2 bajo `reports/` + espejo en la sesión) · suite **1,591 passed, 0 failed** (re-medida hoy 29-oct: 204 s, 1 warning preexistente de Starlette; idéntico al 27-oct sobre el head limpio `a31a09c` — el árbol de `apps/audiomind` en `develop` es el mismo) · **ruff 0 errores, gate en CI** |
+| **Motor de Mezcla (Mix Engine)** | ✅ Pasos 01–08 (TDD estricto) + Stem Balance T1–T7 + Character Stage P3/P4 (`texture_recipe` v2 con deltas medidos) + P5 wiring async/proyecto · defecto del camino async corregido y commiteado (`a3fd00c`) · queda el A/B auditivo con la sesión hip_hop del productor (su WAV no está en el repo) |
+| **Flujo de proyectos multitenant ("Moises")** | 🟡 Backend completo (WU1–WU5) + subida directa de originales a R2 verificada · **UI dormida**: `ProjectContext`/`useProject` y los stores siguen sin consumidores · falta cargar las 4 tablas y env en producción |
+| **Orquestador Cloudflare Containers** | 🆕🟡 **Spike completo y local** (`feat/cf-orchestrator-spike` @ `dc22418`, rebased sobre `develop`): Worker `waveai-orchestrator` + `DSPContainer` keyed `dsp-smoke` (standard-4: 4 vCPU / 12 GiB / 20 GB) sobre `apps/audiomind/Dockerfile` · **deploy bloqueado**: falta Workers **Paid** (compra en curso) y Docker Desktop (instalación en curso) · plan de fases 1–4 en §6.7 |
 | **Motor en vivo (Live Engine)** | ❌ **Removido del producto** (`ba3b4a6`, 27-Sep). Queda el schema como contrato dormido |
-| **Landing page** | ✅ Nueva, en producción (Vercel) — GSAP, i18n completo, A/B demo local, SEO/JSON-LD · 3 decisiones de producto abiertas (§7 #37) · ver §4.2 |
-| **Frontend y Mobile (web)** | ✅ Studio + landing con variantes mobile propias (`MobileMasteringView`, `MobileDrawer`, strip de presets, menú mobile de la landing) · **P5: toggle "Carácter analógico" en MixPanel + badge en MixAnalysisGrid + persistencia proyecto (`updateMixCharacter`)** · sin app nativa, sin PWA (0 manifest / 0 service worker) · estado por React Context + `useState` (sin zustand/redux) · ver §4.1 y §4.1.1 |
-| **Agent de interpretación (IA)** | 🟡 Compila · `vocal_focus` añadido al contrato (13-Oct) · **llamada real sin probar** (faltan credenciales) |
-| **Productor IA (bucle agéntico, Python)** | 🟡 Bucle de 4 fases + tool calling + transporte model-agnostic · disparable por HTTP en `POST /api/jobs/agent/{session_id}` (polling `GET /api/jobs/agent/{id}`) · **corrida real sin probar** (falta credencial LLM válida) |
-| **Capa de inteligencia (RAG)** | 🟡 Implementada como **CLI local** sobre los libros de mezcla (OCR, chunks, búsqueda híbrida BM25+vector RRF, Ollama) · expuesta por `POST /api/agent/rag/search` (ya en `develop`; en el contenedor responde **503** si el índice no está construido) · el bucle agéntico todavía **no la consume** |
+| **Landing page** | ✅ Nueva, en producción (Vercel) — GSAP, i18n completo, A/B demo local, SEO/JSON-LD · 3 decisiones de producto abiertas (#P3) |
+| **Frontend y Mobile (web)** | ✅ Studio + landing con variantes mobile propias · sin app nativa, sin PWA · estado por React Context + `useState` · chats de Brik (`POST /api/agent/chat`) consumidos por `AgentPanel`/`ChatPanel` · **la UI aún no renderiza el `change_report`** (Fase C lo entrega en backend; consumidor frontend pendiente) |
+| **Agent de interpretación (IA)** | 🟡 Compila · `vocal_focus` en el contrato · **llamada real sin probar** (faltan credenciales Gemini) |
+| **Productor IA (bucle agéntico, Python)** | 🟡 Bucle de 4 fases + tool calling + transporte model-agnostic · `POST /api/jobs/agent/{session_id}` + polling · **ahora diagnostica con métricas reales citadas y publica el ChangeReport del job** (Fases B/C) · corrida real sin probar (falta credencial LLM válida) |
+| **Capa de inteligencia (RAG)** | 🟡 CLI local sobre los libros de mezcla (OCR, BM25+vector RRF, Ollama) · expuesto por `POST /api/agent/rag/search` (en el contenedor responde 503 sin índice) · el bucle agéntico **todavía no lo consume** · **aprobado como backlog**: RAG de producción "Opción A" (R2) |
 | **Voz (chat/TTS)** | 🟡 Rutas implementadas · TTS pagado off por defecto (fallback navegador) |
-| **Convex** | ❌ **Eliminado** — el scaffold `convex/` ya no existe (0 archivos trackeados, 0 deps, 0 referencias). El job `deploy-convex` de la CI también fue removido (`3d9f8ae`) |
-| **Bridge MIDI / Simulator Python** | ❌ **Removidos** del repositorio |
-| **Deploy (Vercel + Railway + R2 + Supabase)** | 🚀 **Ejecutado y verificado** (02-Oct), con trabajo posterior: originales subidos a R2 por presigned URL (14-Oct). Ver §6.6 |
-| **Sesiones del backend** | ✅ **Durables en Postgres** (`sessions`, backend `auto`) con fallback a archivo — reemplaza el "dict en memoria + espejo best-effort" de la versión anterior de este documento |
-| **Suites de verificación (19-Oct)** | Backend **1,410 passed / 0 failed** (152.6 s, 1 warning) · Studio vitest **11 archivos / 134 tests** · eslint **0 errores / 37 warnings** · `tsc --noEmit` limpio · build Next **✓ Compiled successfully (exit 0)** · ruff backend **482** (`ruff check .`; clases `F401`/`F811`/`F821` en 0, **sin gate en CI**: §7 #34) · e2e no ejecutado |
+| **Convex** | ❌ **Eliminado** (repo + CI) |
+| **Bridge MIDI / Simulator Python** | ❌ **Removidos** |
+| **Deploy (Vercel + Railway + R2 + Supabase)** | ✅ Backend de Railway ahora se construye desde `apps/audiomind/Dockerfile` (Python 3.12-slim) con healthcheck `/health` y `uvicorn` en `$PORT` (`a7264d1`, 24-oct) · migración a Cloudflare en Fase 1 (§6.7) |
+| **Sesiones del backend** | ✅ Durables en Postgres (`sessions`, backend `auto`) con fallback a archivo · **aplicación en prod sin verificar** |
+| **Suites de verificación** | Backend **1,591 passed / 0 failed** (re-medida 29-oct, 204 s; 84 archivos `test_*.py`) · vitest **11 archivos / 134 tests** (19-oct) · eslint **0 errores / 37 warnings** (19-oct) · build Next **exit 0** (19-oct; 27-oct en CI, con warnings pre-existentes de Studio) · **ruff 0** (verificado 29-oct con ruff 0.16.10; gate bloqueante en CI desde 22-oct) · e2e no ejecutado (1 spec `demo_flow`) |
 
 ---
 
-## 2. Estado del repositorio (git)
+## 2. Estado del repositorio (git, verificado 2026-10-29)
 
-### 2.1 Rama actual y remotes
+### 2.1 Ramas y remotes
 
-- **Rama actual**: `develop` @ `95a90c8` (14-Oct), **trackea `brik/develop`** y está **sincronizada (0 ahead / 0 behind)**. Working tree **limpio** (0 cambios sin commitear).
-- **`main`** @ `927a090` (06-Oct, *release: sync develop into main*), trackea `brik/main`, sincronizada.
-- **Remotes** (se sumaron `brik` y `masive` respecto de la versión anterior de este documento):
+Los remotes cambiaron respecto de la versión anterior de este documento: ya **no existen** `brik`, `masive`, `team`. Quedan dos:
 
-| Remote | URL |
-|---|---|
-| `brik` / `masive` | `https://github.com/Masive-porjects/Brik.git` |
-| `origin` | `https://github.com/brikpaul569-cmd/BrikMaster2027.git` |
-| `team` / `waveia` | `https://github.com/Masive-porjects/WaveIA.git` |
-
-- **Working tree**: limpio en lo versionado. Siguen **excluidas localmente** (`.git/info/exclude`, no en git): `odd/`, `.atl/`, `docs/proposals/`, `docs/postmortems/`.
-
-> ⚠️ **Aviso de medición**: los refs de `team/dev` (tip 2026-09-25) y `origin/main` (tip 2026-09-07) están **stale** (no hubo `fetch` en este relevamiento). Contra esos refs, `develop` aparece 123 commits adelante y `main` 237 — números **no fiables** hasta hacer `git fetch`. Lo que sí es fiable: `develop` == `brik/develop` y `main` == `brik/main` por igualdad de refs.
-
-### 2.2 Ramas locales relevantes
+| Remote | URL | Rol |
+|---|---|---|
+| `waveia` | `https://github.com/Masive-porjects/Brik.git` | **Producción/staging**: `main` y `develop` viven aquí |
+| `origin` | `https://github.com/brikpaul569-cmd/BrikMaster2027.git` | Espejo de trabajo local (**stale**: `main` @ `1c0379b`, sin `develop`)|
 
 | Rama | Tip | Estado |
 |---|---|---|
-| `develop` | `95a90c8` | En sync con `brik/develop` |
-| `main` | `927a090` | En sync con `brik/main` (release del 06-Oct) |
-| `feature/moises-architecture-migration` | `8efe2a2` | **Absorbida por `develop`** (`95a90c8` merge R2-native project flow) |
-| `chore/landing-visual-cleanup` | `8c8cd72` | Absorbida por `develop` |
-| `fix/backend-suite-green-docs-sync` | `f3d3085` | Absorbida por `develop` |
-| `feat/ia-asistente-mezcla` | `43cafe9` | Absorbida por `develop` (`cb7b267`) |
-| `fix/studio-three-bugs` | `371afb3` | Absorbida por `develop` (`9169143`) |
-| `feat/mix-async-infra` | `6ac10b5` | **Sin merge explícito en el historial de `develop`** — verificar si es trabajo descartado o superseded |
-| `feat/landing-gsap-microinteractions` | `ff8758b` | **Sin merge explícito** — ídem |
-| `feature/remove-deprecated-modules` | `f293c73` | Absorbida por `develop` |
-| `feat/mix-engine/01…08` | — | Ramas históricas del Mix Engine, locales |
+| `develop` | `e12f65e` | **== `waveia/develop`** · trackea `waveia/develop` · = main + PR #37 mergeado |
+| `main` | `0372037` | **== `waveia/main`** · el 29-oct se le aplicó un fast-forward (`61c9d5d` → `0372037`): estaba 8 commits atrás de producción por trabajo previo; quedó alineada (ff puro, sin riesgo) |
+| `feat/cf-orchestrator-spike` | `dc22418` | **Local-only** (decisión del usuario): orquestador Cloudflare, rebased sobre `develop` (`e12f65e`) — la imagen del container llevará el contrato de métricas adentro · **única rama local sin mergear** |
+| `feat/agent-metrics-contract` | `a31a09c` | Ya **mergeada** al PR #37; su copia en `waveia` es redundante (higiene opcional: borrarla) |
 
-### 2.3 Historial reciente (develop, 14 últimos)
+**Todas las demás ramas locales están mergeadas a `develop`** (verificado con `git branch --merged`): `feature/moises-architecture-migration`, `fix/deploy-backend-config-and-lint`, `fix/ci-samples-rhythm-chat-contract`, `feat/texture-modulation-dsp`, `feat/brik-chat-router`, `feat/brik-decision-layer`, `feat/brik-ghost-toggle`, `feat/brik-sidebar-branding`, `feat/agent-sidebar`, `feat/agent-character-tool`, `feat/ia-asistente-mezcla`, `feat/landing-gsap-microinteractions`, `feat/mix-async-infra` (confirmado mergeado: antes figuraba "sin merge explícito"), `chore/landing-visual-cleanup`, `fix/backend-suite-green-docs-sync`, `fix/studio-three-bugs`, `feature/remove-deprecated-modules`.
 
-```
-95a90c8 2026-10-14 feat(architecture): merge moises R2-native project flow into develop
-8efe2a2 2026-10-14 fix(audiomind): raise original_filename limit to 1024 (A5)
-c2862ca 2026-10-14 feat(studio): upload originals to R2 via presigned URLs
-654079e 2026-10-14 feat(studio): add project asset API client for direct-to-R2 upload
-03c4388 2026-10-14 feat(audiomind): add presigned asset download endpoint
-8c8cd72 2026-10-14 feat(landing): theme-aware colors, SEO metadata and structured data
-f3d3085 2026-10-14 perf(frontend): add exponential backoff to polling hooks (useProcessingProgress, useMasteringJob)
-2aa40b6 2026-10-14 chore(mix_engine): restore correct version from develop (LF + UTF-8, fix EOL churn)
-001cc26 2026-10-13 docs: purge phantom HUMANMIDI_REMOVAL_REPORT references and stale engine claims
-34651bb 2026-10-13 docs: correct false auth claims, dead archive links, and specs/08 staleness
-ae4a202 2026-10-13 docs: sync documentation with verified project state
-4e95f50 2026-10-13 fix(audiomind): add vocal_focus axis to IntentProfile to match contract schema
-256027e 2026-10-09 fix(studio): sync latest-ref callbacks in an effect, not during render
-24145a6 2026-10-09 feat(landing): ship real footer links and next/image assets
-```
+### 2.2 Historial reciente de `develop` (delta real del ciclo 24→27-oct)
 
-> Entre el 02-Oct (última verificación real del documento) y el 16-Oct hay **73 commits** en `develop`. Los bloques temáticos fueron: landing (04→14-Oct), estabilidad DSP/Demucs (05-Oct), sesiones durables + R2 (02-Oct), RAG local (05-Oct), flujo multitenant (08→14-Oct) y sync de documentación (13-Oct).
+| Commit | Qué trajo |
+|---|---|
+| `e12f65e` | Merge PR #37 (contrato de métricas, Fases A/B/C) |
+| `a31a09c` | Phase C: `ChangeReport` + hook de job completado |
+| `633a392` | Phase B: métricas al contexto de diagnóstico de Brik |
+| `2f2e9ac` | Phase A: campos de contrato + `GET /api/session/{id}/metrics` |
+| `0372037` | fix(studio): el poller de progreso no gira tras un fallo |
+| `9ba3a2f` | build(backend): imagen, CI y piso de paquete en Python 3.12 |
+| `877f768` | fix(deploy): importa el módulo demucs que el wheel distribuye |
+| `350928f` | ci(backend): recorta el costo de apt y falla rápido ante mirror trabado |
+| `86ee1e8` | fix(analysis): stop inventing a silent accent for the beat past the end |
+| `96a46bd` | fix(backend): suite de CI en verde + contrato HTTP del chat de Brik pinneado |
+| `9579a65` | chore(backend): lint gate reproducible y verde (deuda de ruff a 0) |
+| `a7264d1` | fix(deploy): servicio de Railway desde el Dockerfile, sirve en `$PORT` |
+
+El diff `0372037..develop` = **12 archivos, todos en `apps/audiomind`** (7 src + 4 tests + `change_report.py`).
+
+**Working tree**: limpio en lo versionado. Sigue **excluido localmente** (`.git/info/exclude`): `odd/`, `.atl/`, `docs/proposals/`, `docs/postmortems/`. Untracked permanente acordado: `commit_msg.txt` en la raíz (no tocar).
+
+`develop` va **4 commits adelante de `main`** (los 3 del contrato de métricas + su merge) — el merge a `main` sigue pendiente de validar staging (#P1).
 
 ---
 
@@ -89,173 +79,70 @@ ae4a202 2026-10-13 docs: sync documentation with verified project state
 
 ### 3.1 Motor 1 — Mastering (AudioMind, backend FastAPI)
 
-**Ubicación**: `apps/audiomind/src/audiomind/` · Python 3.12+ · FastAPI, librosa, pedalboard, numpy, demucs-onnx.
+**Ubicación**: `apps/audiomind/src/audiomind/` · Python 3.12 · FastAPI, librosa, pedalboard, numpy, demucs-onnx. **Dockerfile**: `python:3.12-slim`, `pip install -e .` con `src/` copiada antes, escucha en `${PORT:-8000}` (hay `tests/test_runtime_python_contract.py` que pinnea el contraste CI↔imagen).
 
-**Módulos**: `analysis`, `api`, `intelligence`, `models`, `processing`, `services`, `storage`.
+**Pipeline del engine** (`processing/engine.py`, **2,093 líneas** al 29-oct):
 
-**Pipeline del engine** (`processing/engine.py`, **1 640 líneas totales**): cadena **proporcional y dinámica** (no presets fijos):
-
-1. **QC de entrada** (`strict_mode`) → rechaza HTTP 422 si clipping duro o true peak ≥ −0.3 dBTP (InputQcError).
+1. **QC de entrada** (`strict_mode`) → rechaza HTTP 422 si clipping duro o true peak ≥ −0.3 dBTP.
 2. **Gain staging** a −6 dBFS.
 3. **De-esser dinámico** 3–8 kHz (neutral = bit-exacto).
 4. **Match EQ por género** contra `TARGET_BANDS_HZ` [60,150,400,1000,2500,6000,10000,15000].
-5. **Cadena de carácter** del preset (low/high shelf, peaking, exciter, imagen estéreo).
-6. **Smart gate** (`smart_gate.py`): si la entrada ya cumple objetivos, omite corrección tonal (tier `full`/`conservative` — nunca gatea módulos de firma).
-7. **Bloque M/S**: side HPF <100 Hz (off por defecto), reverb solo en el canal side (mono-safe).
+5. **Cadena de carácter** del preset (shelfs, peaking, exciter, imagen estéreo).
+6. **Smart gate**: si la entrada ya cumple objetivos, omite corrección tonal (nunca gatea módulos de firma).
+7. **M/S**: side HPF <100 Hz (off por defecto), reverb solo en side (mono-safe).
 8. **Colapso mono** <120 Hz al centro.
-9. **Soft clipper** 16× (knee erf) → **limiter true-peak** 8× con lookahead.
-10. **Dither** TPDF + noise shaping Lipshitz 2º (16-bit) · resample libsoxr VHQ.
-11. **Validación final**: LUFS, DR (LRA), correlación/phase del crest.
+9. **Soft clipper** 16× (knee erf) → **limiter true-peak 8×** con lookahead.
+10. **Dither** TPDF + noise shaping Lipshitz 2º · resample libsoxr VHQ.
+11. **Validación final**: LUFS, DR (LRA), correlación/cristal de fase.
+12. *(nuevo)* **Análisis del contrato de métricas**: `band_energies_dbfs()` integra los band-power por Parseval y los reporta en **dBFS reales** (piso −120 dB) — la escala del legacy `analyze_band_energies` (FFT-dB dependiente de N) **no se toca**: es la escala interna compartida con `compare_tracks`. `loudness_standard = "ITU-R BS.1770-4"` declara honestamente el medidor que el código implementa (`processing/loudness.py`).
 
-**Revisión contra práctica profesional** (`docs/reference/DSP_INDUSTRY_REVIEW.md`): 17 recomendaciones — 16 cumplen, 1 parcial (preservar carácter tonal; diseño aceptado).
+**El contrato de métricas reales (Fases A/B/C, PR #37 mergeado 27-oct)**:
 
-**Compliance Phase 1** (`docs/reference/COMPLIANCE_PHASE1.md`): `processing_mode: transparent` = passthrough bit-exacto; `platform_target` (spotify −14/−1.0, apple_music −16/−1.0, youtube, tidal, custom); `output_sr`/`output_bit_depth`; `strict_mode` 422.
+- **A — Contrato retro-compatible**: `AnalysisResult` gana `bands_hz`, `band_energies_db`, `loudness_standard` (todos opcionales con defaults → payload legacy sigue validando). Endpoint **`GET /api/session/{id}/metrics`** con bloques ensamblados y perfil de inspector on-demand con degradación honesta.
+- **B — Brik deja de adivinar**: el contexto de chat lleva un bloque **`CONTRATO DE METRICAS`** con las mediciones reales; `DIAGNOSIS_SYSTEM_PROMPT` exige `DIAGNOSTICO + RECETA` citando métrica/valor/punto de referencia con cláusula de honestidad numérica (sin inventar dB). El "prohibido hablar de dB" del tail quedó scoping a lo que corresponde.
+- **C — Reporte de cambios**: al completar un job de agente se mide before/after con los **mismos metros** y se publica `ChangeReport` (`ready|no_before|no_after|error`, **never-raise**: un informe que falla nunca tumba el job de DSP → `dsp_jobs.result.change_report` jsonb + JSON en **R2 bajo `reports/`** (degradación no destructiva con `StorageError`) + espejo `SessionData.change_report` para turnos de chat posteriores). El legacy re-mide su lado "before" desde disk. Reutiliza convenciones de `reference_compare` pero mide en la escala nueva; `compare_tracks` queda intocado (master vs. referencia, escala interna).
+- Suite: 4 tests nuevos de A RED→GREEN en su commit, 4 de B, 6 unit + 2 integration de C — ganancia neta al pasar de 1,546 a **1,591** (84 archivos `test_*.py` hoy; 77 al 19-oct).
 
-**Features adicionales**: demo mode (pool gated + TTL + janitor + `/api/demo/stats`), prerender por preset, referencia externa (upload + `compare-reference`), álbum (`negotiate` + `process`), splitter Demucs, SongStarter/Beats, `LicenseGuard`.
+**Endpoints** (recontados hoy por decoradores, 29-oct): **63 operaciones** — 61 en 10 routers (`agent` **2** ← *nuevo* `POST /api/agent/chat`; `mastering` 16, incluye `GET /session/{id}/metrics`; `jobs` 9; `projects` 15; `songstarter` 7; `upload` 3; `splitter` 3; `batch` 2; `license` 2; `mix` 2) + 2 de nivel app (`/health`, `/api/demo/stats`). Montados en `main.py:73-86`. Nota: ese corte por router **no es** el corte por prefijo de URL (`mastering`/`mix`/`songstarter` publican bajo `/api/session`, `/api/beat`, `/api/album`; `jobs` bajo `/api/jobs` con `poll_url` de mix y agent). No se re-medidió el inventario vía OpenAPI (no se boot-eó el app en este ciclo).
 
-**Endpoints — inventario corregido (19-Oct, re-medido sobre la unión `develop` + `main`)**: **60 operaciones HTTP** sobre **55 paths únicos** (el merge **no agregó rutas**: el P5 de carácter reusa las existentes), contadas desde el schema OpenAPI que arma el app (no a mano) = **58 decoradores en 10 routers** (`api/`: `agent`, `batch`, `jobs`, `license`, `mastering`, `mix`, `projects`, `songstarter`, `splitter`, `upload`; montados en `main.py:73-86`) + **2 rutas de nivel app** (`/health`, `/api/demo/stats`). Reparto por router: mastering 15, **projects 15**, jobs 8, songstarter 7, splitter 3, upload 3, batch 2, license 2, mix 2, agent 1. Reparto por prefijo de URL — **no es el mismo corte**, `batch` y `upload` publican bajo `/api/session`: `session` 23, `projects` 15, `jobs` 8, `beat` 4, `album` 2, `license` 2, `agent` 1, `beats` 1, `master` 1, `upload` 1, `demo` 1, `health` 1.
+**Infraestructura de jobs y sesiones** (sin cambios de fondo):
 
-> ⚠️ **Correcciones respecto de la versión anterior de este documento**: (a) ya **no existe `api/vocal.py`** — la "Vocal chain" se removió (`remove-educational-panels-and-vocal-chain.md`, 28-Sep), así que el conteo de 38 endpoints y las entradas "vocal (2)" estaban stale; (b) existían **rutas duplicadas**: `POST /api/session/new` estaba registrada en `upload.py` **y** en `mastering.py`, igual que `GET /api/session/{id}` — FastAPI emitía `Duplicate Operation ID` al construir el OpenAPI · **corregido el 16-Oct** (`3f5c758`), ver §7 #36; (c) `api/auth.py` **nunca fue un router**: expone dependencias (`UserContext`, `get_user_context`, `require_user`, que `projects.py` consume vía `Depends`) y no declara un solo endpoint — el router que faltaba en esa lista era **`agent`** (`POST /api/agent/rag/search`); (d) el "Reparto" anterior mezclaba dos cortes distintos (router vs. prefijo de URL) y por eso no cerraba: `mastering`, `mix`, `splitter` y `songstarter` publican casi todo bajo `/api/session`, `/api/beat` y `/api/album`, no bajo su propio nombre.
+- `services/job_store.py`: Supabase (`dsp_jobs`) con `probe()` → fallback memoria. Lease+heartbeat; job interrumpido se marca `error`, **no se reanuda** (BackgroundTasks in-proceso). Migración de reparación `20261005180000` añadió `meta`/`lease_expires_at`.
+- **Masters durables en R2** (`master_r2_key`, `_persist_master_to_r2()` never-fail, `_resolve_master_file()` con precedencia local→R2). Hueco: paths de cache-hit sin aserción directa (#P10).
+- **Sesiones durables** (`session_backend.py`, default `auto`, write-behind con digest; archivo como fallback; un solo proceso). Verificar en prod: backend activo + migraciones (#P9).
+- **Estabilidad Demucs**: HTDemucs fp16 horneado (~158 MB), separación en proceso hijo (`demucs_worker.py`), tope de threads 4, timeout 1800 s. `877f768` (26-oct) corrigió el import del módulo demucs que el wheel distribuye — ese fix es parte de lo que puso verde la suite de CI.
 
-**Tests**: `apps/audiomind/tests/` — **77 archivos `test_*.py`** (80 `.py` contando `conftest.py`, `__init__.py`, `create_test_wav.py`) · suite **1,410 passed, 0 failed** (medida 19-Oct sobre la unión `develop` + `main`: 152.6 s, 1 warning preexistente `StarletteDeprecationWarning`) = **975** del punto de divergencia `5c1bafa` + **166** del bucle agéntico (`develop` medía 1,141) + **269** del Character Stage (`main` medía 1,244). La feature de textura aporta `test_character.py`, `test_character_integration.py`, `test_texture.py`, `test_texture_adaptation.py`, `test_texture_recipe.py`, `test_modulation.py` e `test_inspector.py`.
+**Limpieza y lint**: la deuda de **483 errores de ruff (0 en clases F)** quedó **pagada a 0** (`9579a65`/`96a46bd`, 24-26-oct) — `ruff check .` verificado **"All checks passed!"** hoy con ruff 0.16.10 y ahora es **gate bloqueante en CI**. El saneamiento del `engine.py` del 16-oct (código muerto, `generate_report()`, helper inalcanzable) sigue vigente; quedan stubs dudosos (`measure_correlation → 0.0`) como deuda menor.
 
-#### 3.1.1 Estado de jobs: `JobStore` compartido (30-Sep)
-
-El estado de los jobs async ya no vive en un dict del proceso: `services/job_store.py` guarda en Supabase (tabla `dsp_jobs`) si está disponible, y en memoria si no. El endpoint **registra antes de encolar**; el worker sólo actualiza. Lease con heartbeat → un worker muerto se lee `error`, no `processing` para siempre. `GET /api/jobs/master/{id}` conserva el shape legacy.
-
-`SupabaseJobStore.probe()` hace un `SELECT ... LIMIT 1` al elegir store y cae a memoria con warning si la tabla no existe o la key está revocada.
-
-**Limitación honesta**: un job interrumpido se marca `error` ("interrupted"), **no se reanuda** (`BackgroundTasks` sigue siendo en-proceso). Ver §7 #19.
-
-**Drift de esquema corregido (05-Oct)**: la migración `20261005180000_repair_job_and_session_schema.sql` añade a `dsp_jobs` las columnas `meta` y `lease_expires_at`. Antes faltaban y el insert fallaba silenciosamente → primer poll 404.
-
-#### 3.1.2 Persistencia de los MASTERS en R2 (#30, 02-Oct, ya commiteado)
-
-- Estado durable: `SessionData.master_r2_key` y `PresetMasterEntry.r2_key`.
-- Escritura: `_persist_master_to_r2()` sube el WAV fuera del event loop y **nunca falla la request** (el master ya existe en disco; R2 es el seguro contra el redeploy).
-- Lectura: `_resolve_master_file()` centraliza los 4 consumidores con precedencia local → R2 (`{sid}_{preset}_mastered_from_r2.wav`). Objeto vacío o descarga fallida → **404 nombrando la clave**.
-- Cobertura: **6 rutas productoras** y **4 consumidoras**; `api/batch.py` tiene su helper propio.
-- Tests: `tests/test_master_r2_durability.py` (15) en 5 clases.
-
-**Hueco de cobertura honesto**: los paths de *cache hit* (preset prebuilt y prerender) están cableados pero **sin aserción directa** (ver §7 #46).
-
-#### 3.1.3 Sesiones durables en Postgres (02-Oct, `e64d093` — reemplaza la advertencia anterior)
-
-La versión previa de este documento decía "sesiones en memoria (`session_store`) — se pierden al reiniciar salvo espejo best-effort a `uploads/sessions.json`". **Eso ya no describe el sistema**:
-
-- `services/session_backend.py` define `FileSessionBackend` y `SupabaseSessionBackend` (tabla `sessions`), con `get_session_backend()` eligiendo por `settings.session_store_backend` (**default `auto`**).
-- El dict en memoria sigue siendo la fuente de lectura; la escritura es *write-behind* con digest por sesión hacia Postgres, y el archivo (`uploads/sessions.json`) queda como **fallback**.
-- Distinción deliberada: `load_all()` devuelve `None` ("ilegible") vs `{}` ("vacío") para no podar estado ante un error de lectura.
-- **Invariante documentada**: un solo proceso (el backend no soporta múltiples workers contra el mismo store).
-- Migraciones: `20261002230400_create_sessions.sql` (que hizo **no-op silencioso** por una tabla `sessions` preexistente con otra forma) + reparación en `20261005180000_repair_job_and_session_schema.sql`.
-
-> ⚠️ **No verificado en este relevamiento**: si `AUDIOMIND_SESSION_STORE_BACKEND` está en `auto` en producción y si la migración de reparación fue aplicada allí. Sin eso, el fallback a archivo sigue siendo el camino real en prod (ver §7 #47).
-
-#### 3.1.4 Estabilidad / OOM: Demucs aislado (05-Oct)
-
-El contenedor free tier ya había registrado OOM (#16). Se aplicaron cuatro cambios concretos:
-
-| Cambio | Evidencia |
-|---|---|
-| Pesos **HTDemucs fp16** horneados en la imagen (~158 MiB vs ~302 MiB) | `config.py` (`demucs_precision = "fp16weights"`), commit `0496a48` |
-| Separación **aislada en proceso hijo** para no envenenar el contenedor | `processing/demucs_worker.py` + `processing/splitter.py`, commit `dca53cb` |
-| **Tope de threads hijos** (`demucs_threads = 4`) | commit `6121704` |
-| Timeout de separación a **1800 s** | `config.py`, commit `cbdf356` |
-
-También se reparó `masters.status`, columna faltante que **bloqueaba la persistencia del master** (`20261005220000_add_masters_status_column.sql`).
-
-#### 3.1.5 Higiene de código: deuda de lint y código muerto en `engine.py` (hallazgo nuevo, 16-Oct)
-
-`ruff check` en `apps/audiomind` reportaba **524 errores**. **Saneado el 16-Oct** (`079d38a`, `211b9fb`): quedan **483** — se corrigieron las 35 de las clases `F401` (23), `F811` (7) y `F821` (5), más 6 de `E402` (imports eliminados de `engine.py`). Desglose actual: 331 `E501`, 69 `I001`, 37 `E402`, 14 `F841`, 11 `B904`, 3 `B008`, 3 `B007`, 3 `B905`, 2 `E741`, 2 `UP017`, 2 `UP045`, 2 `UP042`, 1 `F541`, 1 `E401`, 1 `E701`, 1 `N806`. No es un artefacto de CRLF: las líneas medidas tienen 89 caracteres reales.
-
-El caso material era `processing/engine.py`:
-
-- `generate_report()` (líneas 1573–1600) **no se llamaba desde ningún archivo** (0 referencias en `src/` y `tests/`), referenciaba un nombre **indefinido** (`target_dbtp`, F821 — es un parámetro de `validation_loop`, no un global) y comparaba contra el **objeto función** `target_lufs` en lugar de un valor numérico.
-- Después de su `return report` (línea 1600) quedó **código inalcanzable**: el docstring y el cuerpo de un helper de gain-match huérfano (líneas 1601–1613), que es el origen de `reference`/`processed` veces indefinidas.
-
-**Resuelto el 16-Oct** (`079d38a`): se eliminó el bloque completo (banner, `import json`, `generate_report()` y el helper inalcanzable) más los imports duplicados (`numpy` ×2, `true_peak_limit`, `true_peak_db`) y el `measure_true_peak` sin usar. `engine.py` queda con **0 errores `F`**, `−56` líneas netas y **cero** cambios de lógica — verificado por AST: ninguna sentencia ejecutable después de un `return`, y la superficie pública intacta (pinneada en `tests/test_cleanup_invariants.py`). Quedan los stubs dudosos (`measure_correlation` → `0.0`), fuera de este saneamiento: §7 #35.
+> **Único fix de Studio en el ciclo**: `0372037` — el poller de progreso dejaba de girar tras un fallo (y es el tip de `main`).
 
 ### 3.2 Motor 2 — Mix Engine (mezcla IA+DSP)
 
-**Ubicación**: `apps/audiomind/src/audiomind/processing/` (`mix_engine.py` + módulos) · API en `api/mix.py`.
+Sin cambios de código en este ciclo. Vigente lo del 19-oct, en resumen:
 
-**Pasos 01–08 implementados en TDD estricto** + **Stem Balance T1–T7** (faders ±6 dB, auto-balance por género con default OFF, `balance_report`, API y Studio, E2E de neutralidad). Queda sólo el **A/B auditivo** con la sesión hip_hop del productor (requiere su WAV, que no está en el repo).
+- **Pasos 01–08 TDD** + **Stem Balance T1–T7** (faders ±6 dB, auto-balance por género OFF por default, E2E de neutralidad) + **Character Stage** (`commercial_alt_pop`: slapback vocal, wow/flutter+chorus en `other`, saturación paralela en bass, hiss/crackle con compensación sample-level, HF-droop; solo render principal).
+- **P4 Recipe Handshake**: `texture_recipe` v2 en `MixMetadata` con deltas medidos (`loudness_delta_lu`, `hf_excess_db`, `crest_delta_db`, `centroid_delta_hz`, …). Mastering lee la receta y adapta (match EQ ±2 dB, de-esser skip, LUFS compensation). **Invariante de neutralidad**: sin receta → master byte-idéntico a baseline (SHA-256 pinneado cross-commit).
+- **P5 wiring**: `character`/`character_seed` en `POST /jobs/mix`, `MixJobOptions`, `MixPlan.character` desde `mix_intent` (proyectos).
+- **Pipeline por stem**: split Demucs → pan → EQ → comp → dimensión → bus → comp de bus → QC (informativos, nunca bloquean) → 5 versiones → modo creativo. Neutral = routing exacto; Demucs es lossy (aceptado).
+- Pendientes congelados: A/B auditivo con el WAV hip_hop del productor; `build_mix()` re-separa desde el original (#P11); EOL churn en `mix_engine.py` resuelto (`2aa40b6`).
 
-**Pipeline final por stem**: `split Demucs (4 stems) → pan por rol → EQ mágico → compresor por stem → dimensión (sends) → suma al bus → compresor de bus → QC → render de 5 versiones → modo creativo`.
+### 3.3 Flujo de proyectos multitenant ("Moises") — backend completo, UI dormida
 
-- **Neutralidad**: perfiles `{}` = routing exacto del paso previo; `creativity=0` → principal byte-idéntico con/sin bloque creativo. La suma 1:1 no es bit-exacta al original (Demucs es lossy — pitfall aceptado).
-- **QC** (`quality_checks.py`): mono/fase, sibilancia 4–7 kHz, muddy 200–300 Hz, honky 450–600 Hz — informativos, **nunca bloquean**.
-- **Versiones** (`render_versions.py`): principal 0 dB, vocal ±0.75 dB, instrumental, TV mix.
-- **Creativo** (`creative.py`): espacio continuo 0..1, semilla reproducible, rejection sampling contra QC.
-- **EOL churn resuelto (14-Oct)**: `2776bd1` + `2aa40b6` normalizan `mix_engine.py` a LF/UTF-8 y restauran la versión correcta (era el pendiente #3 de la versión anterior).
-- **Dependencia abierta**: `build_mix()` **re-separa desde el original** en cada corrida; el reuso de stems ya separados quedó como follow-up (§7 #43).
+Igual que el 19-oct (sin cambios de código; el ciclo no lo tocó):
 
-**P3 Character Stage (commercial_alt_pop)**: slapback vocal, wow/flutter + chorus en `other`, saturación paralela en bass, bed hiss/crackle con compensación sample-level `base_delay_ms` y droop HF. **Solo render principal**; versiones alternativas y variantes creativas quedan limpias. `tests/test_character.py` + `test_character_integration.py` → **150 passed** (con `test_texture_adaptation.py`).
+- **15 rutas** en `api/projects.py` (CRUD, assets presign/patch/list/download, `project_states`, documento V1 con OCC, jobs de proyecto mix/master/separate).
+- **Auth/RLS**: `get_user_context` (Supabase JWT) → cliente scoped al token → RLS `auth.uid() = user_id`; en dev `DEV_USER_ID`.
+- **4 tablas** (`projects`, `audio_assets`, `project_states`, `project_documents`) — **su carga en producción sigue sin verificar**.
+- **R2-native**: presign PUT 900 s / GET 3600 s; la subida del original en `/upload` → `r2:` (S1–S9 MET por verificador independiente).
+- **UI dormida**: `features/projects/` (context, stores, `audioEngine`) sin consumidores externos. Follow-ups: `deleteTrack` no borra el objeto R2 (huérfanos), `getOriginalSignedUrl` ignora `expiresInSeconds`.
+- Servicios: `compile_project.py`, `project_jobs.py`, `separate_jobs.py` (idempotente por `media_hash`). Spec: `docs/reference/specs/project_document_v1_spec.md`.
 
-**P4 Recipe Handshake**: `texture_recipe` v2 en `MixMetadata` (schema 2 cuando hay receta, 1 cuando no); deltas medidos: `loudness_delta_lu`, `hf_excess_db`, `crest_delta_db`, `centroid_delta_hz`, `band_limited_vocal`, `vocal_band_ratio`. Mastering lee la receta y adapta: match EQ ±2 dB bound (HF offset en delta, no en energía), de-esser skip por crackle/telephone-band, clarity shelf floor 0 dB, exciter held neutral, LUFS compensation `target − (measured − delta)`, gate correction por `crest_delta_db`/`centroid_delta_hz`. **Invariante neutralidad**: sin receta o `character=None` → master byte-idéntico a baseline (SHA-256 `6e3dd486…` cross-commit probado).
+### 3.4 Capa de inteligencia: RAG local (sin cambios; backlog de prod aprobado)
 
-**P5 Wiring**: `character`/`character_seed` en `POST /jobs/mix` + `MixJobOptions` + forwarding; `MixPlan.character` en `compile_project.py` lee `mix_intent.character` (solo si perfil conocido) + forwarding en `project_jobs::_execute_mix`. Tests: `test_async_mix_jobs.py` + `test_compile_project.py` + `test_project_jobs.py`.
-
-**API**: `POST /api/session/{id}/mix` (WAV + `X-Mix-Result`) · `GET /api/session/{id}/audio/mix` (WAV persistido) · `POST /jobs/mix/{id}` (async, 202 + poll) · `POST /projects/{id}/jobs/mix` (proyecto).
-
-### 3.2.1 ✅ Defecto corregido y **commiteado**: el camino async de mezcla no registraba la mezcla en la sesión
-
-> **Estado**: corregido el 02-Oct y **ya en git** (`a3fd00c` *fix(audiomind): persistir mezclas y masters en R2 con rehidratación*). La versión anterior de este documento lo describía como "sin commit": eso ya no aplica.
-
-Síntoma en producción: el job de mezcla terminaba `completed` al 100 %, pero el gate del frontend respondía *"Termina tu mezcla antes de masterizar."*
-
-**Causa raíz** — asimetría entre los dos caminos: el síncrono escribía `mix_path`/`mix_metadata`/`mix_analysis`/`mix_status` en la sesión; el async (`services/mix_jobs.py`) sólo actualizaba la fila de `dsp_jobs` y **borraba `mix_path` del payload a propósito** (path local efímero en Railway).
-
-**Consecuencias verificadas entonces**: (1) gate trabado; (2) `GET /api/session/{id}/audio/mix` → 404; (3) **fallo silencioso grave**: `api/mastering.py` caía a `source="original"` y masterizaba el **original** en vez de la mezcla; (4) sin endpoint para corregir el estado a mano.
-
-**Fix aplicado**: `SessionData.mix_r2_key`; `_record_mix_on_session()` (escribe sólo si el path local existe → en Railway persiste la clave R2, nunca un path muerto); `_mark_mix_failed()`; `_hydrate_mix_from_r2()`; `_mix_is_deliverable()`; escritura **atómica** de `sessions.json` (`tmp` + `Path.replace()` bajo lock).
-
-**Decisión de diseño deliberada**: si la resolución inteligente ya eligió un mix entregable y la descarga desde R2 falla, el endpoint devuelve **400, no el original** — reintroducir el fallback silencioso sería reintroducir el bug. Cubierto por `test_unreachable_r2_refuses_instead_of_silently_mastering_the_original`.
-
-### 3.3 Motor 3 — Live Engine — REMOVIDO (27-Sep, `ba3b4a6`)
-
-Sigue vigente lo documentado antes: el tab sólo renderizaba un `ComingSoonNotice`, `LiveView` no tenía importadores y nunca existió una ruta `/live`. Los 17 archivos del cluster se importaban entre sí.
-
-**Sobrevive**: `packages/contracts/live_params.schema.json` (contrato **dormido**, 9 campos) + `liveParams.gen.ts`, y `safeCloseAudioContext` movido a `apps/studio/src/lib/audioContext.ts` (lo usa `useStereoField.ts`).
-
-**Eliminado**: `LiveView`, `FxSlotPanel`, `Knob3D`, `LiveMeterDeck`, `LiveRecorderBar`, `PresetHeader`, `useLiveEngine`, `audioGraph`, `fxPresets`, `impulseResponse`, `recorder`, `meterMath`, `liveMeterBus`, `liveDefaults`, el `simulator/Dockerfile` huérfano y las entradas `live` de los docks/features.
-
-**WaveAI queda con dos motores: Mastering y Mix** (más el flujo de proyectos, que es orquestación, no un motor DSP).
-
-### 3.4 Flujo de proyectos multitenant ("Moises") — NUEVO (08→14-Oct)
-
-Migración desde sesiones anónimas en memoria a un modelo **por usuario** con "project document", más almacenamiento **R2-native** de los originales. Backend **completo**; la UI del Studio está **dormida**.
-
-**Superficie HTTP**: `api/projects.py`, prefijo `/projects` (**15 rutas**), con docstring de endpoints (`projects.py:6-18`). Incluye CRUD de proyectos, assets (presign, patch, list, download), estado (`project_states`), documento V1 (`project_documents`, con OCC) y los tres jobs de proyecto (separate/mix/master).
-
-**Auth y aislamiento**: `api/auth.py::get_user_context` valida el access token de Supabase desde `Authorization: Bearer` y escribe con un cliente scoped al token → **RLS** (`auth.uid() = user_id`) aplica en Postgres. En dev/test hay una identidad de fallback (`DEV_USER_ID`).
-
-**Modelo de datos** (`supabase/migrations/`, 4 tablas nuevas):
-
-| Migración | Tablas / cambios |
-|---|---|
-| `20261008120000_create_project_document.sql` | `projects`, `audio_assets`, `project_states` (+ RLS) |
-| `20261008140000_create_project_documents.sql` | `project_documents` (V1 + OCC) |
-
-**Servicios nuevos**: `compile_project.py` (`load_inputs`, `compile`), `project_jobs.py` (mix/master de proyecto), `separate_jobs.py` (separación **idempotente por `media_hash`**). El estado de los jobs de proyecto reutiliza `dsp_jobs` vía su `meta` jsonb.
-
-**Almacenamiento R2-native**: presigned **PUT** de 900 s (`_PRESIGN_EXPIRES_SECONDS`) y presigned **GET** de 3600 s (`_DOWNLOAD_EXPIRES_SECONDS`). En Studio, la subida del original en `/upload` usa presign → PUT → PATCH y devuelve un path con prefijo `r2:`, **sin tocar** `tracks`/biblioteca/player (flujo híbrido, verificado por un verificador independiente: S1–S9 MET, cero blockers).
-
-**Estado de la UI (honesto)**: existen `features/projects/` (`ProjectContext` con `useProject()`, `store/projectDocumentStore.ts`, `store/mixStateStore.ts`, `audioEngine.ts`) pero **ningún archivo fuera de esa carpeta los consume** → no hay vista de proyectos ni listado/detalle. Lo único vivo del flujo en la UI es la subida directa a R2 desde el workflow de mastering.
-
-**Pendiente de producción**: cargar las 4 tablas nuevas + env vars en producción, correr `apps/audiomind/scripts/verify_prod_wiring.py` y probar `/projects/*` end-to-end (§7 #42).
-
-**Especificación**: `docs/reference/specs/project_document_v1_spec.md`.
-
-### 3.5 Capa de inteligencia: RAG local sobre los libros de mezcla (05-Oct) — NUEVO
-
-**Ubicación**: `apps/audiomind/src/audiomind/intelligence/rag/` (13 módulos: `books`, `extract`, `clean`, `chapters`, `chunk`, `embed`, `index`, `evaluate`, `config`, `__main__`).
-
-- Ingesta con **OCR** para los PDF de `docs/proposals/` (local-only), chunking por capítulo y limpieza.
-- Recuperación **híbrida BM25 + vectores fusionados por RRF** (`SearchMode = bm25 | vector | hybrid`).
-- Embeddings vía **Ollama** local (`http://localhost:11434` por defecto); dependencias pesadas en un extra opcional (`rag`).
-- **CLI + endpoint de lectura**: `python -m audiomind.intelligence.rag <comando>` y `POST /api/agent/rag/search` (sólo consulta: degrada a BM25 y lo declara en `mode_used`). El bucle agéntico **no** lo consume todavía — `run()` no recibe un `RAGQuery` desde la API, así que la herramienta `search_knowledge` no se le ofrece al modelo. Tests: `tests/test_rag_pipeline.py`.
-- Además, `intelligence/` contiene los **schemas de conocimiento** (genre/preset/experiment/plugin/idea) y plantillas Markdown, que hoy son scaffolding sin consumidores.
+- `intelligence/rag/` (13 módulos): OCR de los PDF locales, chunking por capítulo, recuperación híbrida BM25+vector RRF, embeddings vía Ollama (`http://localhost:11434`), extra opcional `rag`.
+- `POST /api/agent/rag/search` (solo lectura; degrada a BM25 declarado en `mode_used`). En contenedor: 503 sin índice (degrada, no tumba el boot — el config del 19-oct ya importa perezoso y tiene cota de resolución de rutas).
+- El bucle agéntico **no lo consume todavía** (`search_knowledge` no se le ofrece al modelo). **Backlog aprobado por el usuario (27-oct)**: mover el RAG de producción a la **Opción A (R2)**.
+- `intelligence/` además tiene los schemas de conocimiento (genre/preset/experiment/plugin/idea) como scaffolding sin consumidores.
 
 ---
 
@@ -263,321 +150,270 @@ Migración desde sesiones anónimas en memoria a un modelo **por usuario** con "
 
 ### 4.1 Studio (Next.js 16 + React 19 + TS + Tailwind 4)
 
-**Rutas reales** (manifest del build, 16-Oct): `/` (landing), `/mezclas` (estudio), `/upload`, `/lab`, `/login`, `/register`, `/admin`, `/voz`, `/voz/chat`, `/voz/speak`, `/voz/escuchar`, `/auth/callback`, `robots.txt`, `sitemap.xml`.
+**Rutas** (sin cambios confirmados en el ciclo): `/` (landing), `/mezclas`, `/upload`, `/lab`, `/login`, `/register`, `/admin`, `/voz`, `/voz/chat`, `/voz/speak`, `/voz/escuchar`, `/auth/callback`, `robots.txt`, `sitemap.xml`.
 
-**Tabs de `/mezclas` — inventario corregido (8, no 10)**: `Mezcla de Audio` · `Masterizar Audio` · `Splitter` · `Beats` · `Análisis` · `Estéreo` · `Álbum` · `Productor IA`.
+**Tabs de `/mezclas` (8)**: `Mezcla de Audio` · `Masterizar Audio` · `Splitter` · `Beats` · `Análisis` · `Estéreo` · `Álbum` · `Productor IA`. (Los paneles educativos y la Vocal chain ya no existen.)
 
-> **Corrección**: "Vocal", "Guía de Géneros" y "Cadena de Master" **ya no son tabs** (remoción de paneles educativos + vocal chain, 28-Sep). La versión anterior de este documento los listaba.
+**Novedad del ciclo (Brik chat ya vivo en Studio)**: `AgentPanel` y `client.ts` consumen **`POST /api/agent/chat`** (contrato HTTP de Brik pinneado por `96a46bd`). La consulta va por sesión (`chat` con historial en SnapshotSession) y el widget renderiza diagnóstico, herramientas ejecutadas y métricas.
 
-- **Mix UI**: `MixPanel` + `MixWaveformAB` + `MixStatusStream`, con acción "masterize" post-mezcla.
-- **Productor IA UI**: `AgentPanel` (`features/mastering/components/AgentPanel.tsx`) — prompt libre → `submitAgentJob` (`POST /api/jobs/agent/{session_id}`) y polling de `getAgentJobStatus`, ambos en `adapters/api/client.ts`. Renderiza el diagnóstico del modelo, `tools_executed` en el orden real del run, las métricas del bus y del master (sólo los campos que el backend midió) y el reproductor del asset. Montado como tab `productor`; va al final de `DOCK_MODULES` para no correr los dos grupos que separan las tiles de telemetría. **Progreso indeterminado a propósito**: el job reporta `progress: 0` hasta `completed` porque el loop no expone fase.
-- **Polling con backoff exponencial (14-Oct)**: `useProcessingProgress` (base 500 ms) y `useMasteringJob` (base 2500 ms), con reset al progresar y backoff ante error.
-- **Chat/agente**: `ChatPanel` → `/voz/chat` → `interpretIntent` → perfil → preset cards.
-- **Voz**: `/voz/speak` (TTS ElevenLabs opcional, cache `.tts-cache`, tope 400 chars, `204` = fallback a `speechSynthesis`) · `/voz/escuchar` + `useVoiceInput` · `lib/voice/decodeAgentText`.
-- **i18n**: hook `useTranslation()` con `apps/studio/src/i18n/locales/es.json` + `en.json` — **765 claves hoja cada uno, paridad exacta** (recuento recursivo verificado el 16-Oct). Sin microcopy hardcodeado en la UI nueva.
-- **Tests**: vitest **11 archivos / 134 tests passed** (medido 18-Oct) · eslint **0 errores / 37 warnings** · build de producción **✓ Compiled successfully, exit 0**.
-- **Tabs/file de estado de mezcla**: `MixStatusStream` todavía tiene un `doneLabel` por defecto en español hardcodeado (deuda #24).
+**Pendiente de UI nueva (Fase C)**: el `ChangeReport` existe en `dsp_jobs.result.change_report` y en la sesión, pero **ningún componente de Studio lo renderiza aún** (0 hits de `change_report` en `apps/studio`).
 
-**Arquitectura del frontend** (capas y responsabilidades):
+- **Mix UI**: `MixPanel` + `MixWaveformAB` + `MixStatusStream` con acción "masterize" post-mezcla (`doneLabel` hardcodeado sigue siendo deuda #P6).
+- **Polling con backoff** (`useProcessingProgress` 500 ms, `useMasteringJob` 2500 ms) y el fix `0372037` del poller tras fallo.
+- **Voz**: TTS ElevenLabs opcional (tope 400 chars, `204` → `speechSynthesis`), `useVoiceInput`, `lib/voice/decodeAgentText`.
+- **i18n**: `useTranslation()` con `es.json`/`en.json` — **850 claves hoja cada uno, paridad exacta** (recuento verificado hoy; eran 765 el 16-oct).
+- **Tests**: vitest 11 archivos/134 (19-oct) · eslint 0 err/37 warn (19-oct) · build exit 0. En CI, `bun run lint` es bloqueante (la deuda previa está pagada).
 
-| Capa | Rol | Contenido |
-|---|---|---|
-| `app/` | Rutas (Next App Router) | `page.tsx` (landing), `mezclas/`, `upload/`, `lab/`, `login/`, `register/`, `admin/`, `voz/*`, `auth/callback/`, `layout.tsx`, `globals.css`, `sitemap`/`robots` |
-| `adapters/` | HTTP y audio | `api/` (`client.ts`, `album.ts`, `config.ts`) · `audio/` (`AudioProcessor.ts`, `engine.ts`) |
-| `features/` | 7 módulos, cada uno con barrel | `mastering`, `projects`, `tracks`, `upload`, `auth`, `admin`, `remastering-history` |
-| `application/hooks/` | Hooks de aplicación | `useAudioProcessor`, `useFocusMode`, `useStereoField` (análisis Web Audio de sólo lectura) |
-| `presentation/components/` | 42 archivos en la raíz + subdirs | `dock/` (7: ModuleDock, tiles), `audio/` (7), `chat/` (4), `landing/` (21), `ui/` (2), MixPanel, reproductores |
-| `shared/` | Base compartida | `motion.ts`, `useIsMobile.ts`, `useCrossfade.ts`, `config/`, `lib/animations.ts`, `types/` |
-| `lib/` | Utilidades y clientes | `api.ts`, `audioUtils.ts`, `audioContext.ts`, `mastering-stages.ts`, `supabase/`, `voice/` |
-| `i18n/` | Traducciones | `I18nContext.tsx`, `useTranslation.ts`, `locales/es.json`, `locales/en.json` |
+**Arquitectura** (capas, sin cambios): `app/` rutas · `adapters/` (api/audio) · `features/` (7 módulos con barrel: mastering, projects, tracks, upload, auth, admin, remastering-history) · `application/hooks/` (incl. `useStereoField` de solo lectura) · `presentation/components/` (~42 en raíz + dock/audio/chat/landing (21)/ui) · `shared/` · `lib/` · `i18n/`. Estado por React Context (`I18nProvider → AuthProvider → MasteringProvider`) + `useState`; motion con framer-motion 12 + GSAP 3.15 (hero, tagline, escala del player); audio cliente con `tone` y `wavesurfer.js`.
 
-- **Estado**: no hay zustand/redux/jotai ni `useReducer` (0 dependencias de ese tipo). El patrón es **React Context** —`I18nProvider` → `AuthProvider` → `MasteringProvider` en `layout.tsx`— más `useState` local; los stores viven en `features/*/context/` y `features/projects/store/`.
-- **Motion**: `framer-motion` 12 (declarativo) en todo el producto + **GSAP 3.15 / @gsap/react** imperativo donde hace falta (escala del player en `mezclas/page.tsx`, `useHeroGSAP`, `useTaglineReveal`). Presets compartidos en `shared/motion.ts` (`fadeUp`, `VIEW_TRANSITION`) y `shared/lib/animations.ts`.
-- **Estilo**: Tailwind 4 + tokens en `app/globals.css` (`--bg-app` #0b0b0c, `--bg-glass*`, `--surface-*`, `--border*`, `--text-primary/-secondary/-muted`, `--accent-primary` #627e84, `--accent-secondary` #829ca1, `--shadow-*`), con overrides `[data-theme="light"]`.
-- **Audio en cliente**: `tone` 15 (secuenciadores) y `wavesurfer.js` 7 (waveforms), más `AudioProcessor`/`engine` propios en `adapters/audio/`.
+### 4.1.1 Mobile y responsive (web — sin app nativa)
 
-**Inventario de componentes principales** (`presentation/components/`, 42 archivos en la raíz + 5 subdirectorios):
+Vigente del 16-oct, inalterado: **0 nativo/PWA** (no hay manifest ni service worker). `/mezclas` decide con `useIsMobile` (breakpoint 768; SSR y primer paint renderizan escritorio → flash conocido, sin script pre-hidratación); landing y headers con breakpoints Tailwind. Piezas mobile: `MobileMasteringView`, `MobileDrawer` (estudio, desliza desde la izquierda), `MobilePresetStrip` (carrusel snap-x), menú mobile **propio** de la landing (`MobileMenuContext` + drawer derecho con focus trap). Viewport `cover` con `--vh` fallback y `.pt-safe/.pb-safe`; objetivos táctiles 44 px en piezas nuevas (la deuda de 27–36 px sigue abierta, #P3); `prefers-reduced-motion` respetado globalmente.
 
-| Grupo | Componentes |
-|---|---|
-| Flujo de mastering | `DropZone`, `PresetSelector`, `PresetTooltip`, `PlatformSelector`, `ModuleDock`, `ModulePanel`, `ModuleSheet`, `PaintedModule`, `Player`, `ProcessingOverlay`, `MasteringReportCard`, `FloatingReportCard`, `FloatingDeliveryPanel`, `DeliveryPanel`, `OverMasterWarning`, `MixGateNotice`, `ErrorModal`, `WelcomeGate`, `LicenseGuard` |
-| Mezcla | `MixPanel`, `MixWaveformAB`, `MixStatusStream`, `mixI18n.ts` |
-| Análisis y visualización | `AnalysisPanel`, `AudioSpectrum`, `StereoField`, `TrackChip`, `AlbumMastering` |
-| Secuenciadores (Beats) | `SongStarter` + `audio/`: `GrooveSequencer`, `InteractiveSequencer`, `StepGrid`, `useSequencerEngine`, `genrePresets` |
-| Splitter | `StemSplitter` |
-| Chat y voz | `chat/`: `ChatPanel`, `MicButton`, `PresetCards`, `TrackBadge` |
-| Identidad de marca | `BigGhostWithNotes`, `FloatingGhosts`, `FloatingNotes`, `AmbientLayer`, `WavePodTeaser`, `ShareCard`, `ComingSoonNotice` |
-| Shell / UI base | `ui/`: `IconButton`, `Pagination` · `LanguageSwitcher`, `ThemeToggle`, `MobileDrawer`, `MobilePresetStrip` (estos dos últimos, mobile: ver §4.1.1) |
+### 4.2 Landing page — en producción (sin cambios confirmados en el ciclo)
 
-### 4.1.1 Mobile y responsive (web — **no hay app nativa**)
-
-**No existe target nativo**: 0 coincidencias de `react-native`, `expo`, `capacitor`, `next-pwa`, `workbox`, `manifest` o `serviceWorker`, y no hay `public/manifest` ni service worker. Todo lo "mobile" es **web responsive**.
-
-**Mecanismo de decisión** — conviven dos estrategias:
-
-| Zona | Mecanismo | Evidencia |
-|---|---|---|
-| `/mezclas` (estudio) | **Render condicional por JS** con el hook `useIsMobile` | `shared/useIsMobile.ts` (`MOBILE_BREAKPOINT = 768`, `matchMedia('(max-width: 767px)')`, listener de `change`); consumido en `app/mezclas/page.tsx` |
-| Landing y headers | **Breakpoints Tailwind** (`sm:`, `lg:`) | `LandingNavigation` (`hidden lg:flex` / `lg:hidden`), `HeroGSAP` (`hidden lg:block`), `LandingHeader` (`hidden sm:flex`), `MasteringHeader` (chips `sm:`/`md:` + hamburguesa `lg:hidden`) |
-
-> ⚠️ **Caveat conocido**: `useIsMobile` arranca en `useState(false)`, así que el SSR y el **primer paint renderizan la variante de escritorio** y recién tras la hidratación cambia a mobile. No hay script pre-hidratación de `matchMedia` (sólo los de tema y `--vh`), así que el flash existe.
-
-**Piezas mobile vivas**:
-
-- **`features/mastering/components/MobileMasteringView.tsx`** — workspace mobile de mastering: `Player` arriba (oculto sólo en el tab `mezcla`), `MobilePresetStrip`, botón "Procesar" a ancho completo, descargas WAV/MP3, grilla de análisis compacta de 3 columnas y "← Volver al flujo principal" flotante. Se elige en `mezclas/page.tsx` (`isMobile ? <MobileMasteringView/> : <vista escritorio>`); en mobile se oculta `AnalysisSidebar` y el escritorio usa `ModuleDock` + `PaintedModule`.
-- **`presentation/components/MobileDrawer.tsx`** — panel deslizante **izquierdo** del estudio (`w-72 max-w-[85vw]`, z-130/140) con chip de sesión (LUFS / flag de masterizado), `LanguageSwitcher`, `ThemeToggle` y "Subir nuevo track" (`min-h-[44px]`); cierra con ESC. Lo abre el hamburger de `MasteringHeader`.
-- **`presentation/components/MobilePresetStrip.tsx`** — carrusel horizontal de 8 presets con `snap-x` y `WebkitOverflowScrolling: touch`.
-- **Menú mobile de la landing** — vive **dentro de la landing, no en `shared/`**: `LandingNavigation.tsx` define `MobileMenuContext` / `useMobileMenu`, `MobileMenuButton` (`lg:hidden min-w-[44px]`) y su propio drawer (desliza **desde la derecha**, z-100, con bloqueo de scroll del body y focus trap). Es una pieza **distinta** del `MobileDrawer` del estudio.
-- `shared/useIsMobile.ts` se re-exporta desde `shared/hooks/`.
-
-**Viewport y áreas seguras**:
-
-- `app/layout.tsx` declara `export const viewport` con `width=device-width`, `initialScale: 1`, `maximumScale: 1`, `viewportFit: "cover"` y `themeColor: "#0b0b0c"`.
-- `globals.css`: `.h-dvh` (100dvh con fallback `--vh` vía `@supports`) y utilidades `.pt-safe` / `.pb-safe` / `.pl-safe` / `.pr-safe` basadas en `env(safe-area-inset-*)`; `.scrollbar-hide` para scroll horizontal limpio.
-- No hay `touch-action` global en CSS: se aplica por componente con utilidades Tailwind (`touch-none`).
-
-**Accesibilidad táctil y motion**:
-
-- Objetivos táctiles de 44 px en las piezas nuevas: `MobileDrawer`, `MobileMenuButton`, controles del A/B player y botones de cierre de la landing.
-- `focus-visible` global en `globals.css` + anillos por componente.
-- `prefers-reduced-motion`: guarda global en `globals.css` y respeto explícito en los componentes de motion, incluidos `useHeroGSAP`/`useTaglineReveal` vía `gsap.matchMedia` y `useReducedMotion` de framer.
-- Deuda asociada: controles de 27–36 px que no llegan a 44 px (§7 #37) y la jerarquía tipográfica de `LandingDSPChain` (§7 #39).
-
-### 4.2 Landing page — NUEVA (04→14-Oct), en producción
-
-- **Es la ruta raíz**: `app/page.tsx` renderiza `LandingScreen` y además inyecta JSON-LD `FAQPage` construido desde `es.json` (`landing.faq`). `alternates.canonical: "/"`.
-- **Tamaño real de la carpeta**: **18 componentes `.tsx`** + `data.ts`, `types.ts` e `index.ts` = 21 archivos en `presentation/components/landing/`.
-
-| Componente | Qué renderiza | Detalle mobile / a11y |
-|---|---|---|
-| `LandingScreen.tsx` | Compone todas las secciones + `FloatingGhosts` + `LandingScrollToTop` | — |
-| `LandingHeader.tsx` | Header sticky con nav y CTA | El CTA de escritorio queda `hidden sm:flex` |
-| `LandingNavigation.tsx` | `DesktopNav` + `MobileMenuButton` + drawer, vía `MobileMenuContext` | Pieza mobile propia: `hidden lg:flex` / `lg:hidden`, focus trap y bloqueo de scroll |
-| `HeroGSAP.tsx` | Hero (`id="hero"`) con SplitText/ScrollTrigger (`useHeroGSAP`) | La tarjeta lateral de escritorio está `hidden lg:block` |
-| `LandingTagline.tsx` | Manifiesto (`id="manifiesto"`) con reveal scrubbed | Respeta reduced motion |
-| `LandingPresets.tsx` | Tarjetas de presets (`id="presets-fantasmagoricos"`) | — |
-| `LandingPhilosophy.tsx` | Pilares del producto | — |
-| `LandingDSPChain.tsx` | Cadena DSP de 13 etapas (`id="arquitectura-dsp"`) | Deuda de jerarquía h4/h5 (§7 #39) |
-| `LandingEngineSpecs.tsx` | Especificaciones del motor (`id="especificaciones-motor"`) | No se exporta desde `index.ts` |
-| `LandingABPlayer.tsx` | Comparador A/B (detalle abajo) | Teclas `A`/`B`, controles de 44 px, `useReducedMotion` |
-| `LandingPricing.tsx` | Planes (`id="precios"`) | Precios placeholder (§7 #37) |
-| `LandingFounders.tsx` | Equipo fundador (`id="equipo-fundador"`) | — |
-| `LandingFAQ.tsx` | Acordeón de preguntas (`id="faq"`) | Alimenta el JSON-LD `FAQPage` del `page.tsx` |
-| `LandingCTA.tsx` | CTA final | Parallax **sólo** con `pointer:fine` |
-| `LandingFooter.tsx` | Footer con links reales y `next/image` | — |
-| `LandingScrollToTop.tsx` | Fantasma flotante "volver arriba" | Aparece con `scrollY > 320` |
-| `Reveal.tsx` | Wrapper de scroll-reveal por `IntersectionObserver` | Seguro con reduced motion |
-| `InteractiveCard.tsx` | Tarjeta con stagger/glow de framer-motion | Prop `disableHoverOnMobile` |
-
-- **Motion**: `hooks/useHeroGSAP.ts` (SplitText, ScrollTrigger, Observer, `gsap.matchMedia`) y `hooks/useTaglineReveal.ts` (scrub por viewport), con curva unificada y reveals gated por viewport.
-- **A/B demo local (`LandingABPlayer.tsx`)**: el tono es **sintético, no un archivo** — oscilador saw de 110 Hz + sub sine de 55 Hz → `BiquadFilter` lowpass con Q 0.7 → gain → destination. La waveform es un **Canvas 2D con 96 barras deterministas** que morfean de "Original" (picos) a "Mastered" (denso), con cap de DPR y playhead en un loop de `requestAnimationFrame`. Las métricas mostradas (`AB_METRICS`) son LUFS −18.6→−14.0, True Peak −0.3→−1.0 dBTP y LRA 11.4→6.5, interpoladas por el morph. Cumple la regla anti-zipper del repo: `filter.frequency` y `gain.gain` se mueven con `setTargetAtTime`.
-- **Fonts y SEO**: `next/font` self-hosted (Syne, Plus Jakarta Sans, JetBrains Mono, Instrument Serif) montadas en `html` para que resuelvan los tokens de `@theme`; `sitemap.ts`, `robots.ts` y structured data.
-- **i18n**: bloques `landing`, `pricing` y `faq` con estructura idéntica en `es.json`/`en.json` (mismas líneas de inicio).
-- **Decisiones abiertas** en el doc ODD `landing-awwwards-elite.md`: `--font-sans` sin mapear (el `h1` del hero calcula fuente de sistema), controles de 27–36 px (AA pero no 44 px) y precios placeholder. Ver §7 #37.
+Vigente del 16-oct: 18 componentes `.tsx` + data/types/index en `presentation/components/landing/`; `page.tsx` con JSON-LD `FAQPage` desde `es.json` y `alternates.canonical`; `LandingABPlayer` con tono sintético (saw 110 Hz + sub 55 Hz → lowpass Q 0.7, anti-zipper con `setTargetAtTime`) y waveform Canvas de 96 barras; fonts self-hosted (Syne, Plus Jakarta Sans, JetBrains Mono, Instrument Serif); `next/image` en footer real; GSAP con `useHeroGSAP`/`useTaglineReveal` y gates por viewport. **3 decisiones de producto abiertas**: `--font-sans` sin mapear en el hero, controles 27–36 px, precios placeholder.
 
 ### 4.3 apps/agent (`@midimastering/agent`)
 
-Sin cambios de fondo: traduce lenguaje natural → `IntentProfile` con Gemini + Zod, **no toca audio**. **Novedad (13-Oct, `4e95f50`)**: se **añadió el eje `vocal_focus` a `IntentProfile`** para volver a alinearlo con `intent_profile.schema.json` (se había quitado del mapper por error en `43cafe9`). Sigue pendiente: probar la llamada real (credenciales) y los tipos Python del mapper.
-
-### 4.4 UI de proyectos y subida directa a R2 (estado real)
-
-- **Vivo**: en `/upload`, `useMasteringWorkflow` → `trackStorageService.uploadOriginalToR2()` hace presign → PUT → PATCH y devuelve un path `r2:`; el cliente de API expone `presignAsset`, `completeAsset`, `listAssets`, `getAssetDownloadUrl` y el CRUD de proyectos (cubierto por `client.test.ts`).
-- **Dormido**: `ProjectContext`/`useProject`, `projectDocumentStore`, `mixStateStore` y el `audioEngine` multi-stem. Existen, están testeados y **no los consume ninguna ruta**.
-- **Follow-ups**: `deleteTrack` **no borra el objeto en R2** (deja huérfanos) y `getOriginalSignedUrl` ignora `expiresInSeconds` en la rama R2 (§7 #41).
-
-### 4.5 Convex — eliminado
-
-**Ya no existe en el repo**: 0 archivos trackeados, 0 dependencias, 0 referencias en el studio, y el job `deploy-convex` + env placeholder fueron removidos de la CI (`3d9f8ae`). **El flujo de login NO se removió**: el studio tiene auth propio con Supabase (`src/middleware.ts` → `updateSession`, `features/auth/`, `app/auth/callback/route.ts`).
+Sin cambios: traduce lenguaje natural → `IntentProfile` (Gemini + Zod), no toca audio. `vocal_focus` re-alineado con el schema (13-oct). Sigue pendiente la llamada real con credenciales.
 
 ---
 
 ## 5. Componentes removidos / documentación desactualizada
 
-| Componente | Estado real | Evidencia |
-|---|---|---|
-| **`apps/bridge`** (MIDI → LiveParams → WS :8765) | ❌ **No existe** (ni en árbol ni en git) | Commits `92c79bf` y `38c1246` |
-| **`simulator` (Python)** | ❌ **No existe**: el directorio ni el `Dockerfile` huérfano siguen en el repo | `git ls-files simulator` → vacío |
-| **HumanMidi / gestos** | ❌ Removido | `92c79bf` (*remove vision/gesture/MIDI stack*), `38c1246` (*remove legacy HumanMidi gesture stack*) |
-| **Convex** | ❌ Removido del repo y de la CI | `3d9f8ae`, verificación de referencias en `apps/studio/src` |
+| Componente | Estado real |
+|---|---|
+| **Live Engine** | ❌ Removido (`ba3b4a6`, 27-Sep). Sobrevive solo `packages/contracts/live_params.schema.json` como **contrato dormido** + `liveParams.gen.ts`; `safeCloseAudioContext` en `lib/audioContext.ts`. **No regenerar ni consumir el contrato** sin reactivación explícita |
+| **`apps/bridge`** (MIDI→WS) | ❌ No existe |
+| **`simulator`** | ❌ No existe |
+| **HumanMidi / gestos** | ❌ Removido |
+| **Convex** | ❌ Repo + CI limpios (`3d9f8ae`); el login de Studio vive en Supabase (`middleware.ts` → `updateSession`), no en Convex |
+| **Vocal chain / paneles educativos** | ❌ Removidos (28-Sep); los tabs ya no existen |
 
-> **Consecuencia**: `README.md`, `AGENTS.md`, `docs/README.md` y los runbooks ya no listan bridge ni simulator. Con la remoción del Live Engine no queda ningún flujo MIDI→WS en el producto.
+> **Deuda de documentación vigente y afirmada hoy** (verificada 29-oct):
+> 1. `docs/README.md` (índice central) **no menciona** la landing, ni el flujo de proyectos, ni R2, ni el orquestador Cloudflare — describe el pipeline sin nada de esto.
+> 2. `docs/reference/specs/` — `01`, `06` y `07` siguen describiendo el Live Engine y HumanMidi; contradicen "dos motores + flujo de proyectos + orquestador".
+> 3. `AGENTS.md` (raíz) dice "sesiones del backend en memoria (dict + SessionCache)" — **ya no es verdad** (sesiones durables en Postgres, §3.1), y no menciona el job de backend en CI ni `apps/orchestrator`.
 
 ---
 
 ## 6. Entorno, CI/CD y verificación
 
-### 6.1 Scripts y entorno local
+### 6.1 CI (`.github/workflows/studio-ci.yml`) — dos jobs bloqueantes
 
-- `scripts/` (`.bat` + `.ps1`): `setup` (venv + deps Python + bun install + build agent + `.env.local`), `start` (health checks), `stop`, `verify`. Docker Compose disponible (`docs/runbooks/DOCKER.md`).
-- **`apps/audiomind/scripts/verify_prod_wiring.py`** — script de verificación del wiring de producción (recorrido de sesión, esquema de proyecto y RLS).
-- Workspaces bun: `apps/*`; el script raíz `build` filtra por `studio`.
-
-### 6.2 CI (`.github/workflows/studio-ci.yml`) — único workflow
-
-- Repo **bun**: `oven-sh/setup-bun` + `bun install --frozen-lockfile` en la raíz + `bun run lint` + `bun run build` (nodo 22 como runtime de `next build`). Job bloqueante: `build`.
-- Dispara en PRs con cambios en `apps/studio/**` y en push a `develop`/`main`.
-- Sin job de Convex (removido).
-
-> ⚠️ **Hallazgo**: la CI **no ejecuta nada del backend** — ni `pytest` ni `ruff`. Eso explica que el backend haya acumulado 524 errores de ruff (§3.1.5) sin que nada se ponga rojo: **no hay gate de lint ni de tests del backend en CI**. El saneamiento del 16-Oct bajó el conteo a **483**, pero sin gate la deriva vuelve: la decisión sigue abierta en §7 #34.
-
-### 6.3 Deploy demo
-
-- `docs/runbooks/DEMO_DEPLOYMENT_PLAN.md` — **LOCKED** (Vercel → studio UI; Railway → audiomind; envs exactas).
-- `docs/runbooks/DEPLOY_RUNBOOK.md` — **EJECUTADO** (02-Oct); detalle del estado en §6.6.
-- ⚠️ **Inconsistencia a resolver**: en la raíz del repo, `railway.json` y `nixpacks.json` definen `buildCommand: bun install --frozen-lockfile && bun run build` y `startCommand: bun run start`, que por el `package.json` raíz construyen y arrancan **el Studio**, no el backend FastAPI. Si el servicio backend de Railway usa el root del repo, esa config lo haría desplegar el frontend (ver §7 #45).
-
-### 6.4 e2e (Playwright)
-
-- `e2e/playwright.config.ts`: chromium, `baseURL localhost:3000`, webServer `npm run dev --workspace=apps/studio`, fixtures generadas.
-- Specs: **sólo** `e2e/tests/demo_flow.spec.ts`. `master_to_live.spec.ts` fue eliminado con el Live Engine (27-Sep).
-- **e2e no ejecutado** en este relevamiento (requiere stack levantado).
-
-### 6.5 Verificación ejecutada (2026-10-17, sobre `develop` @ `95a90c8` + PR #33 `feat/texture-modulation-dsp`)
-
-| Comando | Resultado |
+| Job | Qué hace |
 |---|---|
-| `pytest tests/ -q` (audiomind) | **1244 passed, 0 failed** · 125.1 s · 3 warnings (era 975 → 1244 tras P5: +17 tests no-finitos, +golden fingerprint, +purity, +wiring async/proyecto) |
-| `python -m ruff check` (audiomind) | ⚠️ **483 errores** (eran 524; saneamiento 16-Oct: `F401`/`F811`/`F821` en 0) |
-| `npm run test` (studio, vitest) | **11 archivos / 126 tests passed** (26.3 s) |
-| `npm run lint` (studio, eslint) | **0 errores / 37 warnings** |
-| `npm run build` (studio) | **✓ Compiled successfully, 15.0 s, exit 0** |
-| `gentle-ai review assess --base-ref d0342ff --committed-only --json` | `risk: medium`, `review_due: false`, `review_due_reason: under_budget` |
+| `build` (Studio) | Checkout → Node 22 → bun install `--frozen-lockfile` → `bun run lint` (bloqueante) → `bun run build` |
+| `backend` (nuevo, `b9dc5e8` 22-oct) | Checkout → **Python 3.12** (must match `Dockerfile`; lo pinnea `test_runtime_python_contract.py`) → deps de sistema **apt con `--no-install-recommends` + retries + timeout de 15 min + cache de `.debs`** (`350928f`: el mismo paquete tomó 273 s en una corrida y 37.7 min en otra por mirrors trabados) → `pip install -e ".[dev]"` → **`ruff check .` bloqueante** → `python scripts/generate_samples.py` (los samples son gitignored; esto resuelve los 4 fallos de songstarter de un clone limpio **en CI**) → `pytest tests/ -q` con env de demo (`SESSION_TTL 60`, `MAX_CONCURRENT_DSP 1`, Demucs fp16 aislado, etc.) |
 
-Comparación con la verificación del 23-Sep: backend 887 → **1244**; vitest 8/72 → **11/126**; eslint 0 err/33 warn → 0 err/**37 warn**; build OK → OK; **ruff: sin gate en CI** (§7 #34).
+Triggers: PRs y push a `develop`/`main` con cambios en `apps/studio/**`, `apps/audiomind/**`, `pyproject.toml`, `requirements*.txt`, raíz de paquetes; además `workflow_dispatch` para correrlo a mano. **Sin gate de e2e.**
 
-**Re-verificación P5** (17-Oct, sobre PR #33 `17d361f`): backend **1244 passed** · frontend **126 tests / build OK / tsc ✓ / eslint 0** · independent verifier: **PASS** (S9–S12 met, no blockers) · native assess: no review due.
+> El backend pasó de "nada en CI" (hallazgo del 19-oct) a **job completo con gates**. La decisión que queda: supervisar el flake residual de apt (mitigado, no eliminado — las colas del índice no se cachean).
 
-**Re-verificación de la unión** (19-Oct, `release/develop-to-main` con `main` ya mergeado): backend **1,410 passed, 0 failed** (152.6 s, 1 warning) · vitest **11 archivos / 134 tests** · `tsc --noEmit` limpio · eslint **0 errores / 37 warnings** · `npm run build` **exit 0** · inventario OpenAPI re-medido: **60 operaciones / 55 paths** (sin cambios). El merge **no trajo tests de frontend desde `main`**: los 134 son los de `develop`, por eso ese conteo no sube.
+### 6.2 Deploy actual
 
-**Boot en contenedor** (19-Oct, `develop` @ `b0d3a48`): el deploy de Railway `dev` pasó de **CRASHED** a **SUCCESS / RUNNING** (`GET /health` → 200). La causa del crash era `intelligence/rag/config.py`, que resolvía la raíz del repo indexando `Path.parents`; en la imagen (`/app/src/audiomind/...`) eso lanzaba `IndexError: 1` al importar, y `api/agent.py` arrastraba ese import al arranque. Hoy el config se importa perezoso y la resolución tiene cota (`tests/test_app_boot.py`, `tests/test_rag_config_paths.py`). En el contenedor `POST /api/agent/rag/search` responde **503** con "índice no construido": degrada, no tumba.
+- **Frontend (Studio + landing)**: Vercel ✅ (`NEXT_PUBLIC_API_URL` → Railway).
+- **Backend (AudioMind)**: Railway — el servicio se construye desde **`apps/audiomind/Dockerfile`** (`railway.json` de la carpeta con builder DOCKERFILE, healthcheck `/health` 300 s, `uvicorn … --port $PORT --workers 1`; `a7264d1` 24-oct, y se borró `apps/audiomind/nixpacks.json`). Los `railway.json`/`nixpacks.json` de la **raíz** son la config del **Studio** (bun/NIXPACKS) — no del backend.
+- **Audio**: Cloudflare R2 ✅ (originales por presigned PUT, mezcla y masters persistentes, JSON de `ChangeReport` bajo `reports/` desde 27-oct).
+- **Auth/metadata/jobs/sesiones/proyectos**: Supabase (Postgres) ✅ — con `dsp_jobs`, `sessions`, reparaciones y `masters.status` aplicadas según registro; **las 4 de proyecto y las verificaciones de prod siguen sin confirmar** (#P9, #P5).
+- **Migraciones**: `supabase/migrations/` versionadas, **sin Alembic** (se aplican a mano; #P7).
 
-### 6.6 Infraestructura realmente desplegada
+### 6.3 e2e (Playwright)
 
-| Pieza | Servicio | Estado | Nota |
-|---|---|---|---|
-| **Frontend (Studio + landing)** | Vercel | ✅ En pie | `NEXT_PUBLIC_API_URL` → Railway |
-| **Backend (AudioMind)** | Railway — **free tier** | ✅ En pie | **Un solo contenedor, un solo worker de uvicorn** |
-| **Audio (originales, mezcla, masters)** | Cloudflare R2 | ✅ Operativo | Upload 200 + `download_url` prefirmada; desde el 14-Oct también **originales** por presigned PUT |
-| **Auth + metadata + `dsp_jobs` + `sessions` + proyectos** | Supabase (Postgres) | ✅ Operativo (parcial) | `dsp_jobs` aplicada (02-Oct) + sesiones durables (02-Oct); **las 4 tablas de proyecto están en migraciones locales, su carga en prod no fue verificada** |
-| **Migraciones versionadas** | `supabase/migrations/` (6 archivos) | 🟡 Sin Alembic | `dsp_jobs`, `sessions`, `repair_job_and_session_schema`, `masters.status`, `project_document`, `project_documents` |
+Sigue en 1 spec:`e2e/tests/demo_flow.spec.ts` (chromium, webServer dev). No ejecutado en este ciclo.
 
-**Lo que la infraestructura de hoy NO resuelve** (documentado para no volver a descubrirlo):
+### 6.4 Camino a infraestructura de pago (además de Cloudflare)
 
-1. **Sin worker de cola**: `BackgroundTasks` corre en proceso; un job interrumpido se marca `error`, no se reanuda (#19).
-2. **Memoria y CPU ajustadas**: hubo OOM (#16); mitigado con Demucs fp16 + proceso hijo + `DJ_LIMIT_WORKERS`.
-3. **La URL prefirmada caduca** (900 s PUT / 3600 s GET): hay que persistir la clave, no la URL.
-4. **Estado del job ≠ estado de la sesión**: que el job devuelva `200 completed` no implica que la sesión sepa dónde está el audio — esa desconexión fue §3.2.1.
-5. **La sesión durable depende del backend configurado y de la migración aplicada**; sin eso, en prod sigue mandando el archivo efímero (§3.1.3).
+Los límites actuales son de plan: Railway ≥1 GB (hay OOM histórico, mitigado con Demucs fp16 + proceso hijo + `DJ_LIMIT_WORKERS` cuyo caveat `reset_gate()` sigue en pie), volume persistente para `outputs/`/`uploads/`, Supabase Pro. Nada de esto bloquea desarrollo.
 
-**`DJ_LIMIT_WORKERS` (ya commiteado, caveat vigente)**: el pool `DSP_THREAD_POOL` limita a `min(valor, 4)` con la variable presente y usa `settings.max_concurrent_dsp` si falta (`services/demo_guard.py`). **Caveat**: `reset_gate()` sigue reconstruyendo el pool desde `settings.max_concurrent_dsp` e **ignora `DJ_LIMIT_WORKERS`** — inocuo en producción (corre al importar), riesgoso en tests que monkeypatcheen settings (§7 #28).
+### 6.5 🆕 Orquestador Cloudflare Containers — Fase 1 (spike listo, deploy bloqueado)
 
-### 6.7 Camino a infraestructura de pago (decisión diferida)
+**Estado**: el spike existe **solo localmente** en `feat/cf-orchestrator-spike` @ `dc22418` (rebased sobre `develop`; **no está en ningún remote ni en `develop`/`main`**). Contenido:
 
-Los límites actuales son de **plan**, no de código. Orden propuesto cuando haga falta: (1) **Railway ≥1 GB** para que pipeline y mix entren sin OOM; (2) **volume persistente** para `outputs/`/`uploads/`; (3) **Supabase Pro** para proyección de filas/bandwidth. Nada de esto bloquea el desarrollo.
+| Archivo | Rol |
+|---|---|
+| `apps/orchestrator/src/index.ts` | Worker `waveai-orchestrator`: `/__diag` (worker-only, nunca toca el container) + todo lo demás **passthrough** al container `dsp.internal` |
+| `apps/orchestrator/src/container.ts` | `DSPContainer` keyed `dsp-smoke` (standard-4: 4 vCPU / 12 GiB / 20 GB, dimensionado con margen sobre el pico RSS de htdemucs y `AUDIOMIND_MAX_CONCURRENT_DSP=1`) |
+| `apps/orchestrator/wrangler.jsonc` | Build del Dockerfile de audiomind al managed registry de CF, migration `new_sqlite_classes` (fallback documentado a `new_classes`) |
+
+**Plan de fases aprobado** (del README del spike): ① worker + container con smoke de `/health` y `/process` · ② subida/descarga R2 presignada browser↔R2 (endpoint ya existe) · ③ Cloudflare Queues (producer/consumer, un job por container, DLQ) · ④ Studio en Workers vía OpenNext.
+
+**Bloqueos vigentes (acción del usuario, avanzando)**: comprar **Workers Paid** (Containers no está en Free) + instalar **Docker Desktop** (el build de la imagen es local). Al tener ambos: `npx wrangler login` → `npx wrangler deploy` → smokes en orden `/__diag` → `/health` → `POST /api/upload` + `POST /api/session/{id}/process` con fixture de 6 s (`scripts/generate_samples.py`), esperando `completed` con `progress=1.0`. Reporte de RSS/cold start con honestidad total si algo falla.
 
 ---
 
 ## 7. Pendientes y decisiones del usuario
 
-> Se conservan los números 1–33 de la versión anterior para trazabilidad; los nuevos entran a partir de #34.
+> Renumerados para este relevamiento. **Cerrados desde el 19-oct** (referencia de integridad): #34 (gate backend+ruff en CI, deuda pagada a 0), #45 (Railway desde Dockerfile), #48-parte (samples generados en CI), #22-flake apt mitigado, #2/#3/#4/#6/#7/#9/#14/#17/#22/#27/#30/#31/#33 siguen cerrados como el 19-oct. Los números del 19-oct se citan como (o#n).
 
 | # | Pendiente | Dónde | Tipo |
 |---|---|---|---|
-| 1 | Push/PR de las ramas históricas `feat/mix-engine/01…08` | Mix Engine | Decisión del usuario |
-| 2 | ~~Push de `develop` y `main`~~ **RESUELTO**: `develop` == `brik/develop` y `main` == `brik/main` (0/0). Queda `git fetch` para refrescar `team`/`origin` (refs stale) | git | Resuelto |
-| 3 | ~~Limpiar churn de EOL en `mix_engine.py`~~ **HECHO 14-Oct** (`2776bd1` + `2aa40b6`) | Mix Engine | **Resuelto** |
-| 4 | Mypy — **RESUELTO 23-Sep** (`66c4fdb`) | audiomind | Hecho |
-| 5 | Prueba **E2E** de "Mezcla de Audio" con toggle **Carácter analógico** (backend + studio levantados): activar toggle → disparar mix job → verificar `character_report` con perfil `commercial_alt_pop` | Frontend | Decisión del usuario |
-| 6 | ~~Deploy demo Vercel + Railway~~ **EJECUTADO 02-Oct** (ver §6.6) | Deploy | **Resuelto** |
-| 7 | Convex — **RESUELTO**: eliminado del repo y de la CI | Studio | Resuelto |
-| 8 | Probar `interpretIntent` real (credenciales Gemini) + tipos Python del mapper | apps/agent | Decisión usuario |
-| 9 | Docs stale de bridge/simulator — **HECHO** (23-Sep y 27-Sep) | Docs | Hecho |
-| 10 | Historial/retención de sesiones: `outputs/` fuera del volume de Railway | Backend/Deploy | Decisión de producto |
-| 11 | Segundo libro del Mix Engine + autotune creativo — fuera de alcance v1 | Mix Engine | Documentado |
-| 12 | Stem Balance T5–T7 — **HECHOS 23-Sep**; queda el A/B auditivo con el WAV hip_hop del productor | Mix Engine | Trabajo en curso |
-| 13 | **Rotar credenciales R2** (quedaron expuestas; el token viejo es el que carga producción hoy) | Deploy | **Acción del usuario, bloqueante** — sin cambios |
-| 14 | ~~Cargar 6 vars R2 en Railway~~ **HECHO 02-Oct** | Deploy | Cerrado |
-| 15 | Validar R2 real: upload ✔, prefirmada ✔; falta ejercitar la **descarga** | Deploy | Prueba manual parcial |
-| 16 | **Railway 512 MB → ≥1 GB** (hay OOM registrado; mitigado por Demucs fp16/aislado + `DJ_LIMIT_WORKERS`) | Deploy | Acción del usuario |
-| 17 | ~~Tabla `dsp_jobs`~~ **APLICADA 02-Oct**; además se reparó el drift (`20261005180000`) y se añadió `masters.status` (`20261005220000`) | Backend | Cerrado (verificar aplicación en prod: #47) |
-| 18 | **Flag explícito `AUDIOMIND_DSP_JOBS_USE_SUPABASE`** (hoy el `probe()` hace 1 `SELECT` con credenciales puestas) | Backend | Decisión del usuario |
-| 19 | **Cola real de jobs**: requiere un worker que polee `dsp_jobs` buscando `queued` | Backend | Fuera de alcance v1 |
-| 20 | **Deduplicación de submits**: la clave real del flight es `job:{job_id}` → no deduplica por sesión ni por `track_id` | Backend | Deuda técnica |
-| 21 | **Progreso por etapa**: ni `build_mix()` ni `process_audio()` exponen progreso real (la UI va 0→100 indeterminado) | Backend/Frontend | Deuda técnica |
-| 22 | ~~Camino async de mezcla no persistía el estado~~ **CORREGIDO Y COMMITEADO** (`a3fd00c`; ver §3.2.1) | Backend | **Resuelto** |
-| 23 | Los remixes sobrescriben el mismo `r2_key` de la sesión → sin historial de mezclas | Backend | Decisión de producto |
-| 24 | `MixStatusStream` con `doneLabel` por defecto hardcodeado en español (contra la regla i18n) | Frontend | Deuda técnica |
-| 25 | **Sin Alembic**: las migraciones se aplican a mano; `test_dsp_jobs_migration.py` protege el drift del código, no el estado de la DB | Backend | Deuda técnica |
-| 26 | Workstreams paralelos: `vocal_focus` (**ya mergeado** `cb7b267` + `4e95f50`), chips legacy en `LibraryView.tsx`, `odd/tasks/operational-hardening.md`, Engram `#825` | Varios | Fuera de alcance |
-| 27 | ~~¿El master consume disco local o clave R2?~~ **RESUELTO 02-Oct**: rehidratación desde R2 | Backend/Deploy | Resuelto |
-| 28 | **`DJ_LIMIT_WORKERS`**: ahora **commiteado**, pero (a) `reset_gate()` lo ignora y (b) la afirmación de `AGENTS.md` sobre "no bloquear el event loop" describe el síntoma de forma laxa (lo que agota el contenedor es CPU/RAM del pipeline en paralelo en el mismo worker) | Backend/Docs | Trabajo pendiente + doc por corregir |
-| 29 | ~~Candidatos sin commit: `mastering-stages.ts` (untracked) e INSERT manual en `dsp_jobs`~~ **PARCIAL**: `mastering-stages.ts` ya está trackeado (`cbdf356`); el INSERT manual en prod es parche operativo, no migración | Deploy/Frontend | Parcialmente resuelto |
-| 30 | ~~Persistir los MASTERS en R2~~ **RESUELTO y commiteado** (ver §3.1.2) | Backend | Resuelto |
-| 31 | ~~Dos tests preexistentes en rojo~~ **RESUELTO**: la suite corre **1244 passed, 0 failed** (17-Oct) | Tests | Resuelto |
-| 32 | **La sesión no sobrevivía al redeploy**: primera mitad resuelta (sesiones durables en Postgres, §3.1.3); falta **verificar en prod** que el backend `auto` y la migración de reparación están aplicados | Backend/Deploy | Parcial — verificar en prod |
-| 33 | ~~La suite escribía WAVs reales en el bucket de producción~~ **RESUELTO** con `tests/conftest.py` (degradación del cliente S3 + redirección de `SESSION_FILE`) | Tests/Infra | Resuelto — falta decidir el borrado de los 4 objetos de prueba (#46) |
-| **34** | **Backend sin gate de lint/tests en CI**: sigue sin gate y quedan **483 errores** de ruff (eran 524; el saneamiento del 16-Oct puso `F401`/`F811`/`F821` en 0). Decisión: agregar job de backend (pytest + ruff) o fijar/suprimir la deuda restante | CI/Backend | **Acción del usuario** |
-| **35** | ~~**Código muerto y roto en `engine.py`**~~ **RESUELTO** (`079d38a`): `generate_report()` y el helper de gain-match inalcanzable eliminados; `engine.py` con 0 errores `F` y superficie pública intacta. **Queda**: los stubs dudosos (`measure_correlation` → `0.0`) | Backend | Resuelto (parcial: stubs) |
-| **36** | ~~**Rutas duplicadas**~~ **RESUELTO** (`3f5c758`): se conservaron los handlers de `upload.py` (los efectivos por orden de registro) y se borraron los sombreados de `mastering.py`; invariantes pinneadas en `tests/test_session_routes.py` y `tests/test_cleanup_invariants.py` | Backend | Resuelto |
-| **37** | **Landing — 3 decisiones de producto**: `--font-sans` sin mapear (hero en fuente de sistema), controles de 27–36 px (<44 px), precios placeholder | Landing | **Decisión del usuario** |
-| **38** | **`landing-motion`**: gate RDD pendiente (el envelope quedó obsoleto → hay que correr el preflight STATUS) y **decisión de estrategia de PR** (~450 líneas sobre un budget de ~400) | Landing/Proceso | **Decisión del usuario** |
-| **39** | **`landing-tipscale-cascade-fix`**: T6 (jerarquía h4/h5 en `LandingDSPChain`), T7 (diferencia de 2.69 px entre CTAs), T8 (span de 8.5 px en `LanguageSwitcher`) abiertos; Fase 2 de art direction **sin autorizar** | Landing | Trabajo pendiente + autorización |
-| **40** | **`ui-three-bugs`**: T1 (modal) y T2b ("Not Found") **bloqueados por falta de evidencia del navegador** del usuario | Frontend | **Decisión del usuario** |
-| **41** | **Subida híbrida a R2 — follow-ups**: `deleteTrack` no borra el objeto en R2 (**huérfanos**, Fase 2 por decisión del usuario) y `getOriginalSignedUrl` ignora `expiresInSeconds` en la rama R2 | Backend/Studio | Decisión + trabajo |
-| **42** | **Flujo de proyectos en producción**: cargar las 4 tablas nuevas + env vars, correr `verify_prod_wiring.py` y probar `/projects/*` end-to-end | Deploy/Backend | Trabajo pendiente |
-| **43** | **`build_mix()` re-separa desde el original** en cada corrida: el reuso de stems ya separados es follow-up (costo de CPU serio en free tier) | Backend | Deuda técnica |
-| **44** | **UI de proyectos dormida**: `ProjectContext`/`useProject`, `projectDocumentStore`, `mixStateStore`, `audioEngine` sin consumidores → falta listado/detalle de proyectos en Studio | Frontend | Trabajo pendiente |
-| **45** | **`railway.json`/`nixpacks.json` raíz construyen el Studio** (`bun run build` → workspace studio): verificar qué servicio de Railway usa el root y cómo se despliega el backend | Deploy | **Decisión del usuario** |
-| **46** | **Borrar los 4 objetos basura bajo `masters/`** del bucket de producción (dejados por los tests antes del fix de `conftest.py`) + aserción directa de la estampa de clave en los 2 paths de cache-hit | Tests/Infra | **Decisión del usuario** |
-| **47** | **Verificar en prod** `AUDIOMIND_SESSION_STORE_BACKEND` y la aplicación de `20261005180000` / `20261005220000`; sin eso la durabilidad de sesiones y `masters.status` quedan en duda | Deploy/Backend | Acción del usuario |
-| **48** | **Un clone fresco no puede correr la suite completa**: `apps/audiomind/samples/*.wav` está gitignoreado, así que un checkout limpio falla **4 tests de songstarter** hasta ejecutar `scripts/generate_samples.py`. Condición preexistente (idéntica en la base `95a90c8`), detectada por la verificación independiente del saneamiento | Tests/Onboarding | Deuda técnica |
-| **49** | **RDD activo pero no ejecutable en este runtime**: `gentle-ai review mode status` → `on (global)`, pero `review assess` responde `risk: high` con `unassessable` — OpenCode no es elegible para el review inmutable (requiere 1.x estable sin relay, o 2.x bajo el plugin V2). Decisión: desactivarlo clone-local (`gentle-ai review mode disable --scope clone`) o correr el review en un runtime elegible | Proceso/Entorno | **Decisión del usuario** |
-| **50** | **P5 follow-up — Golden fingerprint portabilidad**: el límite `1e-3 dB` deja pasar cambios menores al ruido de plataforma; si se requiere detección estricta, mover a hash cuantizado | Backend/Tests | Deuda técnica |
-| **51** | **P5 follow-up — `character_seed` en UI de proyecto**: hoy no hay UI para persistir `mix_intent.character`; `updateMixCharacter` cableado en `ProjectContext` pero sin consumidor | Frontend | Trabajo pendiente |
-| **52** | **P5 follow-up — `character_seed` expuesto en MixPanel**: seed determinístico del backend (default `20261016`); si se quiere variación, exponer control "Variación" | Frontend | Decisión del usuario |
+| **P1** | **Promoción `develop` → `main`**: staging validado → merge a `main` (trae el contrato de métricas a producción del repo) | Git/Deploy | Decisión del usuario |
+| **P2** | **Deploy Fase 1 del orquestador Cloudflare**: comprar Workers Paid + instalar Docker + `wrangler login` → deploy → smokes `/__diag`, `/health`, `/process` con fixture de 6 s | Deploy | **Acción del usuario, bloqueante — en curso** |
+| **P3** | **Landing — 3 decisiones de producto**: `--font-sans` sin mapear, controles 27–36 px, precios placeholder (o#37) · deuda de jerarquía h4/h5 en `LandingDSPChain` (o#39, T6–T8 abiertos) | Landing | Decisión del usuario |
+| **P4** | **UI del `ChangeReport`**: consumir `change_report` (job polling o espejo de sesión) y renderarlo con microcopy i18n + tokens del design system | Studio | Trabajo pendiente |
+| **P5** | **Flujo de proyectos en producción**: cargar 4 tablas + env, correr `verify_prod_wiring.py`, probar `/projects/*` end-to-end (o#42) · **UI dormida** de proyectos sin consumidores (o#44, #51) | Deploy/Frontend | Trabajo pendiente |
+| **P6** | `MixStatusStream.doneLabel` hardcodeado en español (o#24); `character_seed` expuesto en MixPanel (o#52, decisión) | Frontend | Deuda técnica |
+| **P7** | **Sin Alembic** (o#25): migraciones a mano · progreso por etapa del job (o#21) · dedup de submits (o#20) · cola real (o#19, fuera de alcance v1) | Backend | Deuda técnica |
+| **P8** | **Credenciales R2 a rotar** — quedaron expuestas; el token viejo es el que carga producción hoy (o#13) | Deploy | **Acción del usuario** |
+| **P9** | **Verificaciones de prod pendientes**: backend de sesiones `auto`, aplicacion de `20261005180000`/`20261005220000`, `masters/` 4 objetos basura + aserción de cache-hit (o#32/#46/#47) | Deploy/Backend | Acción del usuario |
+| **P10** | R2 real: falta ejercitar la **descarga** (o#15) · follow-ups de subida híbrida: `deleteTrack` no borra el objeto, `expiresInSeconds` ignorado (o#41) | Deploy/Studio | Prueba manual + decisión |
+| **P11** | `build_mix()` re-separa desde el original en cada corrida (o#43) · remixes sobrescriben el mismo `r2_key` (o#23) · huérfanos de R2 (o#41-parcial) | Backend | Deuda técnica |
+| **P12** | **RAG de producción Opción A (R2)** (backlog aprobado 27-oct) · el bucle agéntico no consume el RAG · `search_knowledge` no se ofrece al modelo | Backend/Deploy | Trabajo pendiente |
+| **P13** | **Reaper de sesiones TTL 60 min** en producción (backlog aprobado 27-oct); hoy existe el janitor de demo y `session_ttl_minutes` default `0` | Backend/Deploy | Trabajo pendiente |
+| **P14** | A/B auditivo del Mix con la sesión hip_hop del productor (o#5/#12-parte; requiere el WAV que no está en el repo) · E2E manual de "Mezcla de Audio" con toggle Carácter (o#5) | Mix Engine | Prueba del usuario |
+| **P15** | `interpretIntent` real (credenciales Gemini) + corrida real del Productor IA (credencial LLM) para ver el DIAGNÓSTICO/RECETA y el ChangeReport en producción (o#8 extendido) | IAM/Backend | Decisión del usuario |
+| **P16** | Históricos de ingeniería: push de `feat/mix-engine/01…08` (o#1) · retención de `outputs/` fuera del volume (o#10) · segundo libro + autotune creativo (fuera de v1, o#11) | Mix Engine | Decisión del usuario |
+| **P17** | **`DJ_LIMIT_WORKERS`**: `reset_gate()` sigue ignorándolo y la descripción en `AGENTS.md` sigue laxa (o#28) · stubs `measure_correlation→0.0` (o#35-parte) · golden fingerprint 1e-3 dB (o#50) | Backend | Trabajo pendiente |
+| **P18** | **UI three-bugs**: T1 (modal) y T2b ("Not Found") bloqueados por falta de evidencia del navegador (o#40) · `manual INSERT` de jobs sigue siendo parche operativo (o#29) | Frontend | Evidencia del usuario |
+| **P19** | **RDD no ejecutable en este runtime** (`review assess` → `unassessable`; requiere 1.x estable sin relay o 2.x con plugin V2): desactivarlo clone-local o correr el review en un runtime elegible (o#49) · gate RDD de `landing-motion` y estrategia de PR (~450 líneas) (o#38) | Proceso | Decisión del usuario |
+| **P20** | **Higiene de docs (afirmada hoy)**: actualizar `docs/README.md` (landing, proyectos, R2, orquestador), specs `01/06/07` (Live Engine/HumanMidi stale) y `AGENTS.md` (sesiones durables, job de backend en CI, `apps/orchestrator`) | Docs | Trabajo pendiente |
+| **P21** | Higiene git: cerrar/borrar la copia redundante en `waveia` de `feat/agent-metrics-contract` y el auto-close no ocurrió — **el issue #36 sigue OPEN** pese a "Closes #36" en el PR/#37 mergeado | Git/GitHub | Acción del usuario |
+| **P22** | `develop` sin sincronizar con el espejo `origin` (`main` @ `1c0379b`, sin `develop`): decidir si `origin` sigue vivo o se abandona | Git | Decisión del usuario |
 
 ---
 
 ## 8. Documentación: dónde está todo
 
-**Canónica/vigente** (`docs/reference/`, `docs/runbooks/`, `docs/manual/`, `docs/evidence/`): índice central en `docs/README.md` — specs de implementación, `COMPLIANCE_PHASE1`, `DSP_INDUSTRY_REVIEW`, `DESIGN`, SETUP/DOCKER/DEPLOY, USER_MANUAL, UX_MAP, evidencias de benchmark.
+**Canónica** (`docs/reference/`, `docs/runbooks/`, `docs/manual/`, `docs/evidence/`): índice central `docs/README.md` (**stale — ver #P20**) · specs de implementación (`08_implementacion_llm.md` prompt exacto de implementación) · `COMPLIANCE_PHASE1.md` · `DSP_INDUSTRY_REVIEW.md` · `DESIGN` · SETUP/DOCKER/DEPLOY · `project_document_v1_spec.md`.
 
-**Nuevo en specs**: `docs/reference/specs/project_document_v1_spec.md` — diseño del documento de proyecto V1 (ownership, JSON Schema, compiler puro, tres flujos).
+**Histórica** (`docs/archive/`): integración, workplan, plan original. `05_live_engine_gestos_a_master.md` es **histórico** del engine removido; `INTEGRATION_REPORT.md` archivado.
 
-**Histórica** (`docs/archive/`): integración, workplan, plan original.
+**Local-only (excluida de git)**:
 
-**Local-only (excluida de git, `.git/info/exclude`)**:
-
-- `docs/proposals/` — 4 PDF de libros de mezcla + viabilidades y propuestas (es la materia prima del RAG de §3.5).
+- `docs/proposals/` — 4 PDF de libros de mezcla (materia prima del RAG) + propuestas.
 - `docs/postmortems/` — `inc-2026-04-22-checkout-5xx.md`.
-- `odd/` — **27 documentos de tareas**, fuente principal de decisiones del periodo 02→14-Oct. Los nuevos de este periodo:
+- `odd/` — **37 documentos de tareas** (29-oct). Destacados del ciclo y su estado:
 
 | Documento | Estado |
 |---|---|
-| `backend-suite-green-docs-sync.md` | Cerrado (T1–T6 ✔); mirror Engram pendiente |
-| `docs-truth-pass-auth-links-specs.md` | Cerrado (T1–T8 ✔) |
-| `landing-awwwards-elite.md` | Feature completo; **gate RDD pendiente** + 3 decisiones (#37) |
-| `landing-motion.md` | Ítems B7/B9/B10/B11 ✔; **gate RDD + estrategia de PR** pendientes (#38) |
-| `landing-tipscale-cascade-fix.md` | T1–T5 ✔; **T6–T8 abiertos** (#39) |
-| `master-r2-durability.md` | Implementado; 2 decisiones de usuario (#46) |
-| `moises-multitenant-project.md` | WU1–WU5 ✔ (WU5 cerrado 09-Oct); prod pendiente (#42) |
-| `project-flow-prod-remediation.md` | Cerrado (T1–T4 ✔); wiring de prod siguiente (#42) |
-| `saneamiento-develop-16-oct.md` | Cerrado (T1–T9 ✔): rutas duplicadas, código muerto de `engine.py` y clases `F` de ruff (#34–#36) |
-| `subida-original-r2-hibrida.md` | T1–T5 ✔, verificador independiente S1–S9 MET; follow-ups (#41) |
-| `ui-three-bugs.md` | T2a/T3a/T3b ✔; **T1 y T2b bloqueados por evidencia** (#40) |
+| `agent-metrics-contract.md` | **Cerrado y mergeado** (PR #37, Fases A/B/C) · Log L1–L5b con la corrección del reanclaje del PR (leak del spike detectado pre-merge) |
+| `saneamiento-develop-16-oct.md` | Cerrado (T1–T9 ✔) |
+| `subida-original-r2-hibrida.md` | T1–T5 ✔; follow-ups (#P10) |
+| `moises-multitenant-project.md` | WU1–WU5 ✔; prod pendiente (#P5) |
+| `landing-awwwards-elite.md` / `landing-motion.md` / `landing-tipscale-cascade-fix.md` | Feature completo; decisiones de producto + gate RDD pendientes (#P3/#P19) |
+| `backend-suite-green-docs-sync.md` | Cerrado |
+| `ui-three-bugs.md` | T1/T2b bloqueados por evidencia (#P18) |
+| `deploy-backend-config-and-lint.md` | Consumido (commits 24–26-oct; CI + deploy + lint a 0) |
+| `brik-chat-router.md` / `brik-decision-layer.md` / `agent-sidebar` / `agent-character-tool` | Consumidos (Brik chat vivo) |
+| `operational-hardening.md` | Follow-up continuo (#P13 reaper, etc.) |
 
-- **`.atl/`** — skill registry local (última actualización 2026-10-09).
+- `.atl/` — skill registry local.
 
-**Deuda de documentación detectada (no corregida en este relevamiento)**:
-
-1. `docs/README.md` (índice central) **no menciona la landing page** en ninguna sección, y describe el pipeline sin el flujo de proyectos, R2 ni las tablas nuevas.
-2. `docs/reference/specs/` — `01`, `06` y `07` llevan banner histórico, pero sus cuerpos siguen describiendo el **Live Engine**, HumanMidi y un equipo de 5 devs con roles para ese engine: contradicen "dos motores + flujo de proyectos".
-3. `AGENTS.md` §reglas describe el pool de DSP de forma laxa (ver #28).
-
-**Memoria Engram** (`brikmaster2027`): conocimiento consolidado del Mix Engine, postmortems y decisiones de arquitectura; las features del periodo 02→14-Oct están registradas en observaciones recientes, con mirrors de tareas **pendientes** para varios de los documentos ODD listados arriba.
+**Memoria Engram** (`brikmaster2027`): topología de ramas (29-oct) y entrega del PR #37 registradas; mirrors de tareas siguen mejorables varias features atrás.
 
 ---
 
-*Documento generado por auditoría read-only del repositorio. Actualizado el 23-Sep (Mix Stem Balance), el 27-Sep (remoción del Live Engine), el 02-Oct (infraestructura desplegada + defecto async de mezcla), el 13-Oct (sync de conteos y claims) y el **17-Oct (P5 integración carácter completada: backend + frontend; PR #33 abierto)**. **Relevamiento completo del 2026-10-16** sobre `develop` @ `95a90c8`: suites medidas en vivo (975 backend / 126 vitest / build OK / ruff 524), ramas y remotes reales, flujo multitenant, landing, sesiones durables en Postgres, estabilidad Demucs, RAG local, y §7 reescrito con 47 pendientes. **Ampliado el mismo 16-Oct** con la arquitectura del frontend (§4.1), la capa mobile/responsive (§4.1.1) y el detalle componente por componente de la landing (§4.2). **Cerrado el mismo 16-Oct** con el saneamiento de `develop` (`3f5c758`, `079d38a`, `211b9fb`, `861c791`): rutas duplicadas (#36), código muerto de `engine.py` (#35) y las clases `F` de ruff (50 → 15), con la verificación re-corrida y §7 ampliado a **49 pendientes**. **Actualizado el 17-Oct**: P5 completado (backend + frontend), PR #33 abierto, suites 1244/126, §7 ampliado a **52 pendientes**. **Actualizado el 19-Oct**: reconciliación `develop` → `main` (Character Stage + Productor IA en una sola entrega), fix del boot del API en contenedor y suites re-medidas (**1,410 backend / 134 vitest**).*
+## 9. 🧭 Cómo funciona el sistema (de extremo a extremo)
 
-*Método: lectura del código y de los documentos ODD por exploradores read-only; las cifras de tests, lint y build son de ejecuciones propias del 16-Oct. Lo no verificado está marcado explícitamente como tal en cada punto (notablemente: estado de producción de las migraciones nuevas, backend de sesiones en prod y rotación de credenciales R2).*
+> Esta sección es la guía arquitectónica del producto pedido en el relevamiento: qué pasa cuando algo entra, qué lo procesa y qué queda persistido. Los estados de cada pieza están en §1–§6; acá está el **funcionamiento**.
+
+### 9.1 Topología general
+
+```text
+┌─ Browser (Studio / landing) ────────────────────────────────────────────────┐
+│ Next.js 16 + React 19 (Vercel)                                             │
+│  Contexts (I18n/Auth/Mastering) · hooks de polling · Web Audio (leer)        │
+└──────┬──────────────────┬───────────────────────────┬──────────────────────┘
+       │ HTTP REST        │ Supabase JS (auth)        │ (futuro: R2 presign directo)
+       ▼                  ▼                           ▼
+┌─ AudioMind (FastAPI, uvicorn 1 worker) ── Railway, Docker (python:3.12-slim)─┐
+│  10 routers · engine DSP (Mastering) · Mix Engine · agentic_loop · RAG       │
+│  boto3→R2 · Supabase client → Postgres                                       │
+└──────┬──────────────┬───────────────────────────┬────────────────────────────┘
+       ▼              ▼                           ▼
+  Cloudflare R2   Supabase Postgres          LLM externo (transporte
+  (WAV originales, (sessions, dsp_jobs,       model-agnostic del bucle;
+   mezcla, masters, projects, masters)        Gemini en apps/agent)
+   reports/*)
+```
+
+Futuro (Fase 1 del orquestador Cloudflare, §6.5): ese HTTP del browser apunta a un **Worker de Cloudflare** que enruta a `DSPContainer` (misma imagen de audiomind); R2 pasa a ser primera clase con presign browser↔R2.
+
+### 9.2 Vida de una sesión de mastering (el flujo canónico)
+
+1. **Subida** — `POST /api/upload` (multipart): valida tamaño/max, guarda el WAV en disco local y devuelve `SessionData` (el contrato central, pydantic, config `extra="ignore"` + persistencia auto de espejos como `change_report`). La sesión vive en un **dict en proceso** (fuente de lectura) con *write-behind*: digest por sesión hacia Postgres (backend `auto`: Supabase → archivo como fallback). Invariante documentada: **un solo proceso uvicorn** — el backend no soporta múltiples workers contra el mismo store.
+2. **Análisis** — `analyze_audio` (librosa) produce `AnalysisResult`: LUFS integrado, crest, género, y con el contrato de métricas (Fase A) las **bandas en dBFS reales** (`band_energies_dbfs` por Parseval, piso −120) + `bands_hz` + `loudness_standard="ITU-R BS.1770-4"`. Todo eso queda en la sesión y desde el 27-oct es visible por `GET /api/session/{id}/metrics`.
+3. **Elección de preset** — presets del catálogo (o prerender por preset, que pre-computa el master de una variante), con `platform_target` (spotify/apple_music/youtube/tidal/custom: floors UI + recorte de true peak del limiter).
+4. **Proceso** — `POST /api/session/{id}/process` ejecuta el **engine** (§3.1, 12 pasos: QC 422 → gain staging → de-esser → match EQ → carácter → smart gate → M/S → mono <120 Hz → soft clip + limiter TP 8× → dither/resample → validación LUFS/DR/fase). Neutral (todo a defaults) = **bypass bit-exacto**. El master resultante se **persiste a R2** fuera del event loop (nunca falla la request) y la sesión guarda `master_r2_key`.
+5. **Descarga** — `GET /api/session/{id}/download/{format}` resuelve el archivo con precedencia **local → R2** (`_resolve_master_file`, 4 consumidores centralizados); objeto ausente → 404 nombrando la clave, jamás un fallback silencioso al original.
+6. **Detalle de UI** — el Studio poll-ea `GET /api/session/{id}` con backoff exponencial (fix `0372037`: si el job falló, el poller deja de girar).
+
+**Cadena de referencia externa** (opcional): subir *reference track* y `compare-reference` compara tu master contra ella en la escala FFT-dB interna (`compare_tracks` — la misma que usa el veredicto); es otra cosa que el `ChangeReport` del agente, que mide before/after en dBFS de contrato.
+
+### 9.3 Los dos modelos de trabajo: sync y async
+
+| Modelo | Rutas | Cómo corre |
+|---|---|---|
+| **Sync (en request)** | `POST /api/session/{id}/process`, `POST /api/session/{id}/mix` | DSP directo en el ciclo de la request; el pool `DSP_THREAD_POOL` (limitado por `DJ_LIMIT_WORKERS`/`max_concurrent_dsp`) protege el contenedor único de Railway |
+| **Async (jobs)** | `POST /api/jobs/mix/{id}`, `POST /api/jobs/agent/{session_id}`, jobs de proyecto (`/projects/{id}/jobs/mix|master`) | Registro **antes** de encolar en `dsp_jobs` (Supabase o memoria), `BackgroundTasks` in-proceso, **lease + heartbeat** (worker muerto → la fila queda `error`, no `processing` para siempre). Polling por `poll_url`. Estados: `queued → running → completed \| error`. Job interrumpido **no se reanuda** |
+
+**Frontend → sesión**: el camino async del mix ya escribe `mix_r2_key` en la sesión (fix §3.2.1: si el mix no es entregable pero R2 falla, la masterización responde **400, no masteriza el original**).
+
+### 9.4 Brik: cómo piensa el agente (Fases A/B/C en acción)
+
+`processing/agentic_loop.py` corre un bucle de **4 fases** con transporte **model-agnostic** (sólo pide *messages + tools* al proveedor):
+
+| Fase | Qué hace | Herramientas típicas |
+|---|---|---|
+| 1 — Diagnóstico | Recorre el audio | `analyze_original_audio` |
+| 2 — Separación | Demucs para despegar stems | `trigger_stem_separation` |
+| 3 — Mezcla/ajuste | Renderiza el mix, ajusta parámetros por stem | `render_mix`, `analyze_mix_bus`, `adjust_stem_parameters`, `search_knowledge` |
+| 4 — Entrega | Manda el resultado a masterización | `send_to_master` |
+
+- **Contexto honesto (Fase B)**: el snapshot de sesión se serializa con un bloque **`CONTRATO DE METRICAS`** (mediciones reales en dBFS/LUFS del medidor declarado), y el system prompt de diagnóstico exige **DIAGNÓSTICO + RECETA** citando métrica/valor/referencia con cláusula de honestidad numérica (si el DSP midió X y el modelo dice otra cosa, el usuario lo detecta).
+- Si el trabajo es pesado, `should_escalate_to_job` manda la operación a un **job async**; el polling `GET /api/jobs/agent/{id}` entrega el resultado.
+- **Al completar (Fase C)**: hook de job completado → `ChangeReport` **before/after con los mismos metros en ambos lados** (nunca raise: `ready|no_before|no_after|error`) → se cuelga en `dsp_jobs.result.change_report` + JSON en R2 `reports/` + espejo en la sesión para los próximos turnos de chat. El Studio todavía no lo renderiza (#P4).
+
+### 9.5 RAG (libro de mezcla como memoria) — cómo trabaja
+
+Ingesta (CLI): OCR de los PDF de `docs/proposals/` → limpieza → chunking por capítulo → embeddings (Ollama local) → índice. Consulta: `POST /api/agent/rag/search` recibe la query, recupera **BM25 + vector fusionados por RRF** (o degrada a BM25 si no hay índice, declarando `mode_used`), y responde passages + fuentes. En contenedor sin índice: **503 honesto**, no tumba el boot (import perezoso + rutas acotadas). El bucle tiene la herramienta `search_knowledge` cableada pero todavía no se le pasa `RAGQuery` desde la API (#P12: producción "Opción A" sobre R2).
+
+### 9.6 Mix Engine — cómo se mezcla
+
+`build_mix()` comando por corrida: separa **Demucs (4 stems)** del original → por stem: pan por rol → EQ mágico → compresor → dimensión (sends) → suma al bus → compresor de bus → **QC informativo** (mono/fase, sibilancia 4–7 kHz, muddy/honky: reportan, nunca bloquean) → **render de 5 versiones** (principal 0 dB, vocal ±0.75, instrumental, TV mix) → **modo creativo** (espacio continuo 0..1, semilla reproducible, rejection sampling contra QC). El progreso real se reporta por **callback de etapas** (`pct`, `stage` — un callback jamás rompe el DSP; la UI no lo consume a stage todavía, #P7). Con `character` conocido (P4), el handshake `texture_recipe` v2 lleva **deltas medidos** que el mastering atasca al adaptar su propia cadena (la invariante: sin receta → byte-idéntico).
+
+### 9.7 Frontend: cómo está construido y cómo razona
+
+**Capas** (regla del repo: componentes limpios, sin barrels de compatibilidad):
+
+| Capa | Cómo funciona |
+|---|---|
+| `app/` (App Router) | Rutas/servicios de Next: `page.tsx` = landing (JSON-LD, canonical, `viewport` con safe-areas), `mezclas/` el estudio, `/voz/*` chat/TTS, `/auth/callback` |
+| `adapters/` | La única capa que habla HTTP y Web Audio pesado: `api/client.ts` (todos los endpoints + `submitAgentChat`, `presignAsset`…), `audio/AudioProcessor.ts` y `engine.ts` |
+| `features/` | 7 módulos con su estado (mastering, projects, tracks, upload, auth, admin, remastering-history). En mastering vive `AgentPanel` (UI del Productor IA) |
+| `application/hooks/` | Lógica de app: `useAudioProcessor` (preview/estado local), `useStereoField` (análisis Web Audio de **sólo lectura**), backoff de polls |
+| `presentation/components/` | ~ componentes de UI: dock/tiles de etapas, player, waveforms, mix, chat, landing (21 archivos), mobile |
+| `shared/` + `lib/` | `useIsMobile` (768 px, `matchMedia`), motion (framer-motion 12 + GSAP 3.15), `audioContext.ts` (`safeCloseAudioContext`), supabase client, i18n (`useTranslation()`; es/en paridad exacta, 850/850 claves hoy) |
+
+**Reglas de comportamiento que el código respeta**: (a) **todo parámetro Web Audio con `setTargetAtTime(value, ctx.currentTime, 0.02)`** — jamás asignación directa (anti-zipper; aplica al análisis estéreo y al A/B player de la landing); (b) **i18n obligatorio**: nada hardcodeado en TSX (deuda viva: el `doneLabel` default del `MixStatusStream`); (c) SSR/primer paint siempre escritorio y luego la variante mobile via `useIsMobile` (flash conocido: no hay script pre-hidratación); (d) el estado global es **React Context chain** (`I18nProvider → AuthProvider → MasteringProvider` en `layout.tsx`) + `useState` local — no hay zustand/redux; los "stores" del flujo proyectos (`projectDocumentStore`, `mixStateStore`) existen testeados y **dormidos** hasta que una vista los consuma (#P5).
+
+**El flujo del Studio en el ciclo de una masterización**: `/upload` (DropZone) → `useMasteringWorkflow` decide storage: si es flujo proyecto → presign R2 (`trackStorageService.uploadOriginalToR2`: presign → PUT → PATCH → path `r2:`), si no → sube a la sesión en AudioMind → workspace mobile o desktop (`ModuleDock` + `PaintedModule` de la cadena DSP) → presets con perfil por género (`PlatformSelector` si hace falta) → **Masterizar Audio** (poll con backoff) → `MasteringReportCard`/`FloatingDeliveryPanel` con métricas + descargas WAV/MP3. Si escribiste texto (Productor IA), `AgentPanel` corre el ciclo §9.4 y muestra diagnóstico/herramientas/métricas; para el mix, `MixPanel` + toggle "Carácter analógico" y acción masterize post-mezcla.
+
+### 9.8 Auth y multi-usuario
+
+- **Studio**: Supabase Auth (`middleware.ts` → `updateSession`, `features/auth/`, `/auth/callback` intercambia código). El layout monta `AuthProvider`.
+- **Backend**: `get_user_context` valida `Authorization: Bearer` (JWT de Supabase) y usa un cliente **scoped al token** → **RLS** (`auth.uid() = user_id`) aplica en Postgres para `sessions`, `projects`, `audio_assets`, `project_documents`. En dev/tests existe `DEV_USER_ID` como identidad de fallback. Los endpoints de sesión anónima (`/api/session/*`) siguen existiendo para el flujo demo.
+- **Espera**: audiomind jobs y artifacts no se "firman" por usuario — la protección real de propiedad la dan RLS en las tablas (`sessions` es del usuario que creó) y las claves R2. Es una decisión documentada, parece una brecha en la primera vista: lo cubre `project_document_v1_spec.md`.
+
+### 9.9 Almacenamiento: qué queda dónde
+
+| Data | Dónde | Cómo |
+|---|---|---|
+| WAV originales, mix, masters | **R2** (`uploads/`, `outputs/`, claves `{sid}_{preset}_mastered…`) | Desde el backend con boto3 (S3-API de R2); la sesión siempre guarda **claves, nunca URLs prefirmadas** (PUT 900 s / GET 3600 s caducan) |
+| JSON de `ChangeReport` | R2 `reports/` | Fase C; el job en Postgres guarda igual el espejo — si R2 falla, degrada a no-fail |
+| Estado de sesión | Supabase `sessions` (write-behind con digest; archivo como fallback) | Un solo proceso; restore al arranque |
+| Jobs | Supabase `dsp_jobs` (+`meta`/`lease_expires_at`; `result` jsonb guarda `change_report`) | Lease+heartbeat |
+| Documento de proyecto V1 (OCC) + assets + project_states | `project_documents` / `audio_assets` / `project_states` / `projects` | RLS por usuario |
+| Índice RAG / Ollama / libros PDF | **local-only (`docs/proposals/` excluido de git)** | Backlog: mover a R2 |
+
+### 9.10 Deploy y ciclo de release actual
+
+- **Release**: PRs → `develop` (checks: build Studio + backend pytest/ruff) → **merge a `main` tras validar** (la política del repo; futura promoción del contrato de métricas = #P1). CI: 2 jobs bloqueantes; `workflow_dispatch` manual; sin gate e2e.
+- **Nube actual**: Vercel (frontend) · Railway (backend, Dockerfile propio) · Cloudflare R2 + Supabase (datos). **Destino probable**: Cloudflare Containers (orquestador listo localmente, §6.5) con R2 presign y CF Queues para jobs — la Fase 1 del spike ya mapea esa transición sin codear nada del backend: el container es el mismo Dockerfile de audiomind.
+- **Contratos estables**: `packages/contracts/live_params.schema.json` **dormido** (sólo reactivar si el engine Live vuelve) · `intent_profile.schema.json` · `project_document_v1_spec.md` · el **contrato de métricas** (dBFS/Pisval del medidor BS.1770-4).
+
+---
+
+*Documento re-escrito el 2026-10-29. Método: lectura de código y ODD desde este checkout; números de CI/suites citados con fecha de su ejecución (backend 1,591 re-medido el 29-oct (204 s, 1 warning, 0 failed) sobre este checkout cuyo árbol de `apps/audiomind` == tip de `develop`; ruff, remotes, endpoints, i18n y Dockerfile verificados hoy; vitest/eslint/build por medición del 19-oct, su ciclo no tocó Studio). Pendiente marcado explícito: verificaciones de prod (backends/migraciones/objetos R2), corridas reales con credenciales, deploy del orquestador.*

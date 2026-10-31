@@ -52,7 +52,11 @@ RUN python -c "from demucs_onnx import prewarm; baked = prewarm(['htdemucs'], pr
 RUN mkdir -p uploads outputs projects prebuilt samples
 
 # Environment
-ENV PYTHONUNBUFFERED=1 \
+# Cloudflare Containers do not inject $PORT (Railway does): pin it so the
+# uvicorn CMD default and the orchestrator's defaultPort stay aligned.
+# Railway still overrides PORT at runtime when it sets it.
+ENV PORT=8000 \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     AUDIOMIND_DEMUCS_PRECISION=fp16weights \
     AUDIOMIND_DEMUCS_ISOLATED=true \

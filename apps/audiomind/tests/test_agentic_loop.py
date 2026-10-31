@@ -1057,6 +1057,331 @@ class TestDiagnosisPromptIsAVoice:
         """Hard rule 7 intacta: proponer rutas del motor no es prometer humo."""
         assert "no prometas lo que no puedes" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# HUECO 2 — bucle de corrección del máster (spec §13.4.7–8)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _bus_crest(monkeypatch, mix_file: Path, crest_db: float) -> None:
+    """``render_mix`` con un bus MEDIDO: el QC del render ya calcula su crest.
+
+    El crest del bus no se inventa acá: sale de ``low_level_listen``, que es
+    donde ``quality_checks`` lo mide. Es la misma fuente que va a leer el
+    guardrail en producción.
+    """
+
+    def fake_render(state, args):
+        state.render = {
+            "mix_path": str(mix_file),
+            "qc_report": {
+                "summary": {"flagged": []},
+                "low_level_listen": {
+                    "ok": True,
+                    "details": {"crest_db": crest_db},
+                },
+            },
+            "balance_report": None,
+            "mix_metadata": {"stem_lufs": {"vocals": -18.0}},
+        }
+        state.pending_settings = None
+        state.iteration += 1
+        state.mix_path = str(mix_file)
+        return al.ToolResult(
+            ok=True,
+            tool="render_mix",
+            detail="",
+            payload={"mix_path": state.mix_path, "iteration": state.iteration},
+        )
+
+    monkeypatch.setitem(al.TOOL_IMPLS, "render_mix", fake_render)
+
+
+def _engine(monkeypatch, *, crests: list[float]) -> list[dict]:
+    """``process_audio`` con una medición DISTINTA por intento."""
+    calls: list[dict] = []
+
+    def fake_process_audio(**kwargs):
+        index = len(calls)
+        output = Path(kwargs["output_path"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"RIFF")
+        calls.append(kwargs)
+        return {
+            "output_path": str(output),
+            "integrated_lufs": -14.0,
+            "true_peak_db": -1.0,
+            "crest_factor_db": crests[index],
+            "lra": 5.0,
+            "duration_seconds": 1.0,
+            "output_bit_depth": kwargs["params"].output_bit_depth,
+        }
+
+    monkeypatch.setattr(al, "process_audio", fake_process_audio)
+    return calls
+
+
+def _master_script(*feedback: al.ModelTurn) -> list[al.ModelTurn]:
+    """diagnose -> render -> analyze (QC limpio, converge) -> master -> feedback."""
+    return [
+        al.ModelTurn(text="Falta pegada."),
+        al.ModelTurn(tool_calls=[al.ToolCall(name="render_mix", args={})]),
+        al.ModelTurn(tool_calls=[al.ToolCall(name="analyze_mix_bus", args={})]),
+        al.ModelTurn(
+            tool_calls=[al.ToolCall(name="send_to_master", args={"source": "mix"})]
+        ),
+        *feedback,
+    ]
+
+
+class TestMasterFeedbackLoop:
+    """El máster corría en UNA pasada a ciegas.
+
+    El motor devolvía las métricas y nadie las volvía a mirar: el agente
+    cerraba con lo que saliera. La spec pide otra cosa — medir, mover UN
+    parámetro, volver a medir, parar cuando converge — y con guardrail de crest
+    (baja > 4 dB respecto de la entrada → revertir).
+
+    El bucle se abre SOLO si una medición dice que el máster no convergió: un
+    máster sano no gasta un turno más.
+    """
+
+    def test_analyze_master_output_reads_the_master_without_remastering(
+        self, cheap_tools, monkeypatch
+    ):
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[9.0])
+        transport = StubTransport(_master_script())
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+        result = al.dispatch(state, "analyze_master_output", {})
+
+        assert result.ok is True
+        assert result.payload["integrated_lufs"] == -14.0
+        assert result.payload["crest_factor_db"] == 9.0
+        assert result.payload["crest_delta_db"] == -3.0
+        assert result.payload["corrections_left"] == al.MAX_MASTER_ITERATIONS - 1
+        assert len(calls) == 1
+
+    def test_analyze_master_output_without_a_master_fails(self):
+        state = al.AgentState(session_id="t", input_path=Path("x.wav"))
+
+        result = al.dispatch(state, "analyze_master_output", {})
+
+        assert result.ok is False
+        assert "send_to_master" in (result.error or "")
+
+    def test_a_squashed_master_opens_one_correction_and_the_correction_wins(
+        self, cheap_tools, monkeypatch
+    ):
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[6.0, 9.0])
+        transport = StubTransport(
+            _master_script(
+                al.ModelTurn(
+                    tool_calls=[al.ToolCall(name="analyze_master_output", args={})]
+                ),
+                al.ModelTurn(
+                    tool_calls=[
+                        al.ToolCall(
+                            name="send_to_master",
+                            args={"source": "mix", "target_lufs_db": -12.0},
+                        )
+                    ]
+                ),
+            )
+        )
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        assert len(calls) == 2
+        first = next(r for r in state.tool_log if r.tool == "send_to_master")
+        # El primer máster NO se revierte: no hay nada mejor a lo que volver.
+        assert first.payload["crest_delta_db"] == -6.0
+        assert first.payload["crest_warning"] is True
+        assert first.payload["reverted"] is False
+
+        assert state.master_runs == 2
+        assert state.master_payload["crest_factor_db"] == 9.0
+        assert state.master_payload["reverted"] is False
+        assert transport.phases.count("phase4") == 3
+        # La corrección escribe SU archivo: revertir tiene que ser posible.
+        assert Path(first.payload["master_path"]) != Path(state.master_path)
+        assert Path(first.payload["master_path"]).is_file()
+        assert Path(state.master_path).is_file()
+
+    def test_a_correction_that_moves_two_parameters_is_refused(
+        self, cheap_tools, monkeypatch
+    ):
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[6.0])
+        transport = StubTransport(
+            _master_script(
+                al.ModelTurn(
+                    tool_calls=[
+                        al.ToolCall(
+                            name="send_to_master",
+                            args={
+                                "source": "mix",
+                                "target_lufs_db": -12.0,
+                                "output_bit_depth": 16,
+                            },
+                        )
+                    ]
+                )
+            )
+        )
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        rejected = [r for r in state.tool_log if r.tool == "send_to_master"][-1]
+        assert rejected.ok is False
+        assert "UN parametro" in (rejected.error or "") or "UN parámetro" in (
+            rejected.error or ""
+        )
+        assert len(calls) == 1
+        assert state.master_runs == 1
+        assert state.master_payload["crest_factor_db"] == 6.0
+
+    def test_a_correction_cannot_change_the_source(self, cheap_tools, monkeypatch):
+        """Corregir el máster no es re-mezclar: la fuente no se mueve."""
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[6.0])
+        transport = StubTransport(
+            _master_script(
+                al.ModelTurn(
+                    tool_calls=[
+                        al.ToolCall(
+                            name="send_to_master",
+                            args={"source": "original", "target_lufs_db": -12.0},
+                        )
+                    ]
+                )
+            )
+        )
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        rejected = [r for r in state.tool_log if r.tool == "send_to_master"][-1]
+        assert rejected.ok is False
+        assert "NO cambia la fuente" in (rejected.error or "")
+        assert len(calls) == 1
+
+    def test_a_correction_that_squashes_more_is_reverted(
+        self, cheap_tools, monkeypatch
+    ):
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[6.0, 4.0])
+        transport = StubTransport(
+            _master_script(
+                al.ModelTurn(
+                    tool_calls=[
+                        al.ToolCall(
+                            name="send_to_master",
+                            args={"source": "mix", "target_lufs_db": -11.0},
+                        )
+                    ]
+                )
+            )
+        )
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        assert len(calls) == 2
+        correction = [r for r in state.tool_log if r.tool == "send_to_master"][-1]
+        assert correction.ok is True
+        assert correction.payload["reverted"] is True
+        assert correction.payload["revert_reason"]
+        # El puntero NO se movió: el máster vigente sigue siendo el primero.
+        assert correction.payload["active_master_path"] == state.master_path
+        assert state.master_payload["crest_factor_db"] == 6.0
+        assert state.master_runs == 2
+
+    def test_the_budget_is_one_correction(self, cheap_tools, monkeypatch):
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[6.0, 9.0])
+        transport = StubTransport(
+            _master_script(
+                al.ModelTurn(
+                    tool_calls=[
+                        al.ToolCall(
+                            name="send_to_master",
+                            args={"source": "mix", "target_lufs_db": -12.0},
+                        )
+                    ]
+                )
+            )
+        )
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+        third = al.dispatch(
+            state, "send_to_master", {"source": "mix", "target_lufs_db": -11.0}
+        )
+
+        assert third.ok is False
+        assert "presupuesto" in (third.error or "")
+        assert len(calls) == 2
+
+    def test_a_healthy_master_does_not_open_a_correction(
+        self, cheap_tools, monkeypatch
+    ):
+        """Compatibilidad: sin nada medido que corregir, la fase 4 es una sola."""
+        _bus_crest(monkeypatch, cheap_tools.mix_file, crest_db=12.0)
+        calls = _engine(monkeypatch, crests=[9.0])
+        transport = StubTransport(_master_script())
+
+        state = al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        assert len(calls) == 1
+        assert transport.phases.count("phase4") == 1
+        assert state.master_payload["crest_delta_db"] == -3.0
+        assert state.master_payload["crest_warning"] is False
+
+    def test_the_feedback_prompt_carries_the_correction_budget(self):
+        prompt = prompts.master_feedback_system_prompt(
+            al.MAX_MASTER_ITERATIONS,
+            max_crest_drop_db=al.MAX_CREST_DROP_DB,
+            max_true_peak_db=al.MAX_TRUE_PEAK_DB,
+        )
+
+        assert str(al.MAX_MASTER_ITERATIONS) in prompt
+        assert str(al.MAX_CREST_DROP_DB) in prompt
+
     def test_the_prompt_still_carries_the_role_and_voice_rules(self):
         """El rol y las reglas de voz no se pierden al reescribir la fase."""
         assert "ingeniero de mezcla" in prompts.DIAGNOSIS_SYSTEM_PROMPT.lower()
