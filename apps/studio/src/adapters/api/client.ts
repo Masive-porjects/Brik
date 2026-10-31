@@ -740,6 +740,18 @@ export interface AgentMasterMetrics {
   [key: string]: unknown;
 }
 
+/** One thing the run did, explained for the producer (backend:
+ *  `services.narrative.build_narrative`).
+ *
+ *  Structured on purpose: `code` is a stable key the studio maps to a sentence
+ *  through `useTranslation()`, and `params` carries only numbers. The backend
+ *  holds no translation table, so the same run reads in Spanish or English. */
+export interface AgentNarrativeItem {
+  code: string;
+  severity: "info" | "success" | "warning" | "error";
+  params: Record<string, number | string | null>;
+}
+
 /** Where one agent output can be fetched from.
  *
  *  `durable: false` means R2 was unconfigured when the job ran: `url` is null
@@ -795,6 +807,9 @@ export interface AgentRunResult {
   /** The model's own diagnosis, in its own words. Null when the run never got
    *  past the first turn. */
   diagnosis: string | null;
+  /** The run explained step by step, in the producer's language. Optional
+   *  because jobs stored before this field existed are still readable. */
+  narrative?: AgentNarrativeItem[];
   iterations: number;
   /** The 9 semantic axes the mapper turned into DSP knobs. */
   intent: IntentProfile;

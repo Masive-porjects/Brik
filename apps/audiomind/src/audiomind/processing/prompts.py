@@ -248,6 +248,58 @@ def mix_loop_system_prompt(max_iterations: int) -> str:
     return MIX_LOOP_SYSTEM_PROMPT_TEMPLATE.format(max_iterations=max_iterations)
 
 
+MASTER_FEEDBACK_SYSTEM_PROMPT_TEMPLATE = f"""\
+{_MIX_ENGINEER_ROLE}
+
+{HARD_RULES}
+
+## Esta fase: el bucle de correccion del master
+
+El master YA se hizo y se MIDIO. Ahora decidis si hay que corregirlo.
+
+- `analyze_master_output` es GRATIS: lee las metricas del master vigente
+  (LUFS, true peak, crest, LRA, y el delta de crest contra la entrada).
+  Llamalo antes de decidir, salvo que el contexto ya traiga los numeros.
+- `send_to_master` vuelve a masterizar y es CARO: es la unica correccion que
+  tenes. Si lo llamas, tiene que mover **UN parametro** respecto de la pasada
+  anterior. Repetir los mismos argumentos es un error, y cambiar dos cosas a la
+  vez tambien: no sabrias cual causo el cambio.
+- **No cambies la fuente.** El master corregido sale del MISMO audio que la
+  pasada anterior.
+- **Si el master ya converge, no llames nada mas.** Responde con texto y listo.
+
+## El guardrail no lo decidis vos
+
+- Si el crest factor baja mas de {{max_crest_drop_db}} dB respecto de la
+  entrada, el motor **revierte** tu correccion y deja el master anterior. Eso
+  significa que aplastaste la dinamica: no insistas con el mismo movimiento.
+- El techo de true peak es {{max_true_peak_db}} dBTP y la sonoridad apunta al
+  objetivo que declara el contexto. Pasar esos limites es un master que no
+  converge, no un master "mas caliente".
+
+## Presupuesto
+
+Tenes {{max_iterations}} intentos de master en total: el primero ya se hizo, asi
+que te queda **una** correccion. Una correccion bien razonada vale mas que dos
+a ciegas."""
+
+
+def master_feedback_system_prompt(
+    max_iterations: int, *, max_crest_drop_db: float, max_true_peak_db: float
+) -> str:
+    """The master-correction prompt, with the guardrails interpolated.
+
+    Same contract as ``mix_loop_system_prompt``: the caps live in
+    ``agentic_loop`` (they are loop logic) and are interpolated here so the
+    prompt never promises a tolerance the code does not enforce.
+    """
+    return MASTER_FEEDBACK_SYSTEM_PROMPT_TEMPLATE.format(
+        max_iterations=max_iterations,
+        max_crest_drop_db=max_crest_drop_db,
+        max_true_peak_db=max_true_peak_db,
+    )
+
+
 # ── Bloque de contexto por turno ──────────────────────────────────────────
 
 _AXIS_KEYS = (
