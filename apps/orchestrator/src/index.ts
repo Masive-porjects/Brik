@@ -1,8 +1,7 @@
 import { DSPContainer } from "./container";
+import type { Env } from "./env";
 
-export interface Env {
-  DSP: DurableObjectNamespace;
-}
+export type { Env };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
