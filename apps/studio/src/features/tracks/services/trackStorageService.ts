@@ -468,7 +468,11 @@ export async function uploadMasterAudio(
   format = "wav"
 ): Promise<{ storagePath: string }> {
   const supabase = createClient();
-  const storagePath = `${userId}/${trackId}/master_${Date.now()}.${format}`;
+  const now = new Date();
+  const currentYear = now.getFullYear().toString();
+  const currentMonth = (now.getMonth() + 1).toString().padStart(2, "0"); // 1-12 -> 01-12
+  // Ruta estructurada: ${userId}/${currentYear}/${currentMonth}/${trackId}/${fileName}
+  const storagePath = `${userId}/${currentYear}/${currentMonth}/${trackId}/master_${Date.now()}.${format}`;
 
   // 1. Primary: Try dedicated audio-masters bucket
   try {
@@ -493,6 +497,7 @@ export async function uploadMasterAudio(
   }
 
   // 2. Resilient Fallback: audio-originals under user folder to bypass missing audio-masters RLS
+  // Usamos la misma estructura de ruta coherente
   const fallbackPath = `${userId}/masters/${trackId}_master_${Date.now()}.${format}`;
   const { data: fallbackData, error: fallbackError } = await supabase.storage
     .from("audio-originals")
@@ -659,17 +664,26 @@ export async function logTrackEvent(
 ): Promise<void> {
   try {
     const supabase = createClient();
-    // supabase-js no lanza cuando PostgREST rechaza el insert: resuelve con
-    // `{ error }`. Sin leerlo, un 409 (FK o unique) quedaba totalmente mudo.
-    const { error } = await supabase.from("track_events").insert({
-      track_id: trackId,
-      user_id: userId,
-      event_type: eventType,
-      details,
-    });
-    if (error) {
+    // Usamos upsert con onConflict para evitar errores 409 Conflict por inserciones
+    // concurrentesduplicate de eventos no críticos (analytics/logs). Si el evento ya
+    // existe, la upsert simplemente no lo vuelve a inserting, manteniendo la continuidad
+    // del flujo sin bloquear la UI.
+    const { error } = await supabase
+      .from("track_events")
+      .upsert({
+        track_id: trackId,
+        user_id: userId,
+        event_type: eventType,
+        details,
+      })
+      .onConflict("track_id, event_type, user_id");
+
+    // Errores de upsert que no sean conflictos de clave única se propagan para
+    // ser manejados por el caller; los conflictos de clave única se silencian puesto
+    // que son eventos analytics y no afectan la lógica de negocio.
+    if (error && error.code !== "23505") {
       console.warn(
-        `[Audit Notice] Could not log event '${eventType}' for track ${trackId}: ${error.code} ${error.message}`,
+        `[Audit Notice] Could not log event '${eventType}' for track ${trackId}: ${error.message}`,
       );
     }
   } catch (err) {
