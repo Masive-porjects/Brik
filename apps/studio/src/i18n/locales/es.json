@@ -518,6 +518,14 @@
     "audioEphemeral": "Sin almacenamiento configurado: el archivo vive en el servidor y no sobrevive a un redeploy.",
     "audioMaster": "Master",
     "audioMix": "Mezcla",
+    "audioOriginal": "Original",
+    "changeReportTitle": "Antes y después",
+    "changeReportBandsHint": "Cada banda es la diferencia de energía después menos antes. El medidor de loudness es {standard}.",
+    "changeReport": {
+      "noBefore": "No hay medición del audio de entrada: no se puede comparar.",
+      "noAfter": "No hay medición del máster: no se puede comparar.",
+      "error": "No se pudo calcular la comparación."
+    },
     "iterations": "Iteraciones",
     "lufs": "Loudness",
     "truePeak": "True peak",

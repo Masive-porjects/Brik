@@ -518,6 +518,14 @@
     "audioEphemeral": "No storage configured: the file lives on the server and does not survive a redeploy.",
     "audioMaster": "Master",
     "audioMix": "Mix",
+    "audioOriginal": "Original",
+    "changeReportTitle": "Before and after",
+    "changeReportBandsHint": "Each band is the energy difference: after minus before. The loudness meter is {standard}.",
+    "changeReport": {
+      "noBefore": "There is no measurement of the input audio, so there is nothing to compare.",
+      "noAfter": "There is no measurement of the master, so there is nothing to compare.",
+      "error": "The comparison could not be computed."
+    },
     "iterations": "Iterations",
     "lufs": "Loudness",
     "truePeak": "True peak",

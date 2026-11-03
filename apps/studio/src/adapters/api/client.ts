@@ -800,6 +800,54 @@ export interface DecisionRecord {
   applied: "mix_then_master" | "master_only";
 }
 
+/** Before/after measurement of one completed agent job (backend `ChangeReport`).
+ *
+ *  Both sides are measured with the SAME meters: the band levels are
+ *  full-scale referenced, and loudness comes from the standard named in
+ *  `loudness_standard`. Band deltas are `after - before`, so a positive number
+ *  is energy the master added.
+ *
+ *  `status` is never assumed: `ready` is the only value that carries numbers. */
+export type AgentChangeReportStatus =
+  | "ready"
+  | "no_before"
+  | "no_after"
+  | "error";
+
+export interface AgentChangeReport {
+  status: AgentChangeReportStatus;
+  /** Human reason when `status` is not `ready`. */
+  message: string | null;
+  /** Band centers (Hz), index-aligned with the three lists below. */
+  before_bands_hz: number[];
+  before_band_levels_dbfs: number[];
+  after_band_levels_dbfs: number[];
+  /** `after - before` per band, in dB. */
+  band_deltas_db: number[];
+  biggest_increase_band_hz: number | null;
+  biggest_decrease_band_hz: number | null;
+  before_integrated_lufs: number | null;
+  after_integrated_lufs: number | null;
+  lufs_delta_db: number | null;
+  before_true_peak_db: number | null;
+  after_true_peak_db: number | null;
+  true_peak_delta_db: number | null;
+  loudness_standard: string;
+}
+
+/** Where the job's change report can be fetched from.
+ *
+ *  `report` always travels inline, so the UI never depends on R2. `durable`
+ *  false means the JSON asset did not survive the run: render the note instead
+ *  of hiding it. */
+export interface AgentChangeReportBlock {
+  report: AgentChangeReport;
+  r2_key: string | null;
+  url: string | null;
+  durable: boolean;
+  note: string | null;
+}
+
 /** Payload of a completed agent job: what the agent decided, did, measured
  *  and left behind. Every field comes from recorded evidence. */
 export interface AgentRunResult {
@@ -827,6 +875,9 @@ export interface AgentRunResult {
     mix: AgentAudioAsset | null;
     master: AgentAudioAsset | null;
   };
+  /** Before/after deltas of this run. Optional because jobs stored before this
+   *  field existed are still readable. */
+  change_report?: AgentChangeReportBlock | null;
 }
 
 export interface AgentJobState {

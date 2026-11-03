@@ -15,8 +15,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getAgentJobStatus,
+  getAudioUrl,
+  getMixAudioUrl,
   submitAgentJob,
   type AgentAudioAsset,
+  type AgentChangeReport,
+  type AgentChangeReportBlock,
   type AgentNarrativeItem,
   type AgentRunResult,
   type AgentToolExecution,
@@ -26,6 +30,8 @@ import {
 } from "@/lib/api";
 import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
+
+import MixWaveformAB from "@/presentation/components/MixWaveformAB";
 
 import { narrativeSentence } from "./narrativeText";
 import { escalationDecision } from "./escalationJob";
@@ -165,6 +171,89 @@ export default function AgentPanel({
       );
     });
 
+  /** Dispara un job del Productor y lo sigue hasta el estado terminal.
+   *
+   *  Un solo camino para las dos entradas: la escalada del chat y el botón
+   *  legacy. Antes la escalada era fire-and-forget — el panel decía "proceso
+   *  lanzado" y nunca volvía a preguntar, así que un job que moría en el
+   *  backend se veía exactamente igual que un job eterno.
+   */
+  const runAgentJob = useCallback(
+    async (
+      prompt: string,
+      decision: "auto" | "mix_then_master" | "master_only",
+    ) => {
+      if (!sessionId) return;
+
+      abortRef.current?.abort();
+      pollAbortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const pollController = new AbortController();
+      pollAbortRef.current = pollController;
+
+      timedOutRef.current = false;
+      clearWatchdog();
+      watchdogRef.current = setTimeout(() => {
+        timedOutRef.current = true;
+        controller.abort();
+        pollController.abort();
+      }, AGENT_TIMEOUT_MS);
+
+      setPhase("producing");
+      setError(null);
+      setCancelled(false);
+      setResult(null);
+
+      try {
+        const accepted = await submitAgentJob(
+          sessionId,
+          prompt,
+          decision,
+          controller.signal,
+        );
+
+        // El loop no expone progreso parcial: se sondea hasta el estado
+        // terminal, sin barra de progreso falsa.
+        for (;;) {
+          await sleep(AGENT_POLL_MS, pollController.signal);
+          const state = await getAgentJobStatus(
+            accepted.job_id,
+            pollController.signal,
+          );
+          if (state.status === "completed") {
+            clearWatchdog();
+            if (state.result) setResult(state.result);
+            else setError(t("productor.emptyResult"));
+            setPhase("completed");
+            return;
+          }
+          if (state.status === "error") {
+            clearWatchdog();
+            setError(state.error ?? t("productor.interrupted"));
+            setPhase("error");
+            return;
+          }
+        }
+      } catch (e) {
+        const isAbort = (e as { name?: string })?.name === "AbortError";
+        if (isAbort && timedOutRef.current) {
+          setError(t("productor.timeout"));
+        } else if (isAbort) {
+          setCancelled(true);
+        } else {
+          setError(e instanceof Error ? e.message : t("productor.failed"));
+        }
+        setPhase("error");
+      } finally {
+        clearWatchdog();
+        if (abortRef.current === controller) abortRef.current = null;
+        if (pollAbortRef.current === pollController) pollAbortRef.current = null;
+      }
+    },
+    [sessionId, clearWatchdog, t],
+  );
+
   /** Chat flow: send message to /agent/chat and handle response. */
   const handleSendMessage = useCallback(async () => {
     if (!sessionId || !composerInput.trim() || isSending) return;
@@ -202,29 +291,12 @@ export default function AgentPanel({
           setEscalateNotice(true);
           setTimeout(() => setEscalateNotice(false), 4000);
 
-          // Fire the job asynchronously (fire-and-forget). Both kinds go
-          // through the session-based agent job: `master` is the loop's
-          // `master_only` route, because the stateless `/jobs/master` endpoint
-          // resolves its audio from `public.tracks` and only has the upload
-          // session id here.
-          const controller = new AbortController();
-          submitAgentJob(
-            sessionId,
+          // El job se sigue hasta el estado terminal: la escalada ya no es
+          // fire-and-forget.
+          void runAgentJob(
             userMessage,
             escalationDecision(job_kind, job_payload),
-            controller.signal,
-          ).catch(() => {
-            // A swallowed failure looked like a frozen panel: the toast said
-            // "process launched" and nothing ever came back.
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: t("productor.chat.escalateError"),
-                ts: Date.now(),
-              },
-            ]);
-          });
+          );
         }
       }
 
@@ -243,73 +315,12 @@ export default function AgentPanel({
     } finally {
       setIsSending(false);
     }
-  }, [sessionId, composerInput, isSending, messages, t]);
+  }, [sessionId, composerInput, isSending, messages, t, runAgentJob]);
 
   /** Paso 3 — Lanza el job completo con la decisión elegida (legacy). */
   const handleProduceWithDecision = useCallback(async () => {
-    if (!sessionId) return;
-
-    abortRef.current?.abort();
-    pollAbortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const pollController = new AbortController();
-    pollAbortRef.current = pollController;
-
-    timedOutRef.current = false;
-    clearWatchdog();
-    watchdogRef.current = setTimeout(() => {
-      timedOutRef.current = true;
-      controller.abort();
-      pollController.abort();
-    }, AGENT_TIMEOUT_MS);
-
-    setPhase("producing");
-    setError(null);
-    setCancelled(false);
-    setResult(null);
-
-    try {
-      const accepted = await submitAgentJob(
-        sessionId,
-        composerInput,
-        selectedRoute,
-        controller.signal,
-      );
-
-      let terminal = false;
-      while (!terminal) {
-        await sleep(AGENT_POLL_MS, pollController.signal);
-        const state = await getAgentJobStatus(accepted.job_id, pollController.signal);
-        if (state.status === "completed") {
-          terminal = true;
-          clearWatchdog();
-          if (state.result) setResult(state.result);
-          else setError(t("productor.emptyResult"));
-          setPhase("completed");
-        } else if (state.status === "error") {
-          terminal = true;
-          clearWatchdog();
-          setError(state.error ?? t("productor.interrupted"));
-          setPhase("error");
-        }
-      }
-    } catch (e) {
-      const isAbort = (e as { name?: string })?.name === "AbortError";
-      if (isAbort && timedOutRef.current) {
-        setError(t("productor.timeout"));
-      } else if (isAbort) {
-        setCancelled(true);
-      } else {
-        setError(e instanceof Error ? e.message : t("productor.failed"));
-      }
-      setPhase("error");
-    } finally {
-      clearWatchdog();
-      if (abortRef.current === controller) abortRef.current = null;
-      if (pollAbortRef.current === pollController) pollAbortRef.current = null;
-    }
-  }, [sessionId, composerInput, selectedRoute, clearWatchdog, t]);
+    await runAgentJob(composerInput, selectedRoute);
+  }, [runAgentJob, composerInput, selectedRoute]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -882,7 +893,12 @@ function AgentResultView({ result }: { result: AgentRunResult }) {
       </section>
 
       <AgentMetrics result={result} />
-      <AgentAudio audio={result.audio} />
+      <AgentChangeReportView block={result.change_report} />
+      <AgentAudio
+        audio={result.audio}
+        sessionId={result.session_id}
+        masterSource={result.master_metrics?.source ?? null}
+      />
     </motion.div>
   );
 }
@@ -1059,18 +1075,231 @@ function AgentMetrics({ result }: { result: AgentRunResult }) {
   );
 }
 
-function AgentAudio({ audio }: { audio: AgentRunResult["audio"] }) {
+/** Ancho de barra al 100 %: los deltas reales superan los 30 dB en material
+ *  sintético, así que la barra satura y el número es el que manda. */
+const BAND_DELTA_FULL_SCALE_DB = 12;
+
+const CHANGE_REPORT_STATUS_KEY: Record<
+  Exclude<AgentChangeReport["status"], "ready">,
+  string
+> = {
+  no_before: "productor.changeReport.noBefore",
+  no_after: "productor.changeReport.noAfter",
+  error: "productor.changeReport.error",
+};
+
+/** Centro de banda legible: 60 → "60 Hz", 1000 → "1 kHz". */
+function formatBand(hz: number): string {
+  return hz >= 1000 ? `${hz / 1000} kHz` : `${hz} Hz`;
+}
+
+/** Antes/después de la corrida, con las mismas métricas en los dos lados.
+ *
+ *  El backend degrada en vez de fallar: un reporte que no se pudo medir llega
+ *  con `status !== "ready"` y su motivo. Se muestra el motivo, nunca se
+ *  esconde la sección. */
+function AgentChangeReportView({
+  block,
+}: {
+  block?: AgentChangeReportBlock | null;
+}) {
   const { t } = useTranslation();
 
+  if (!block) return null;
+  const report = block.report;
+
+  if (report.status !== "ready") {
+    return (
+      <section>
+        <SectionTitle>{t("productor.changeReportTitle")}</SectionTitle>
+        <p
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs leading-relaxed"
+          style={{
+            background: "var(--surface-hover)",
+            color: "var(--text-secondary)",
+          }}
+          role="status"
+        >
+          <Info size={13} className="mt-0.5 shrink-0" />
+          <span>{report.message ?? t(CHANGE_REPORT_STATUS_KEY[report.status])}</span>
+        </p>
+      </section>
+    );
+  }
+
+  const bands = report.before_bands_hz.map((hz, i) => ({
+    hz,
+    delta: report.band_deltas_db[i] ?? 0,
+  }));
+
+  return (
+    <section>
+      <SectionTitle>{t("productor.changeReportTitle")}</SectionTitle>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <DeltaPill
+          label={t("productor.lufs")}
+          before={report.before_integrated_lufs}
+          after={report.after_integrated_lufs}
+          delta={report.lufs_delta_db}
+          unit="LUFS"
+        />
+        <DeltaPill
+          label={t("productor.truePeak")}
+          before={report.before_true_peak_db}
+          after={report.after_true_peak_db}
+          delta={report.true_peak_delta_db}
+          unit="dBTP"
+        />
+      </div>
+
+      {bands.length > 0 && (
+        <ul className="mt-2.5 space-y-1">
+          {bands.map(({ hz, delta }) => {
+            const width =
+              Math.min(Math.abs(delta) / BAND_DELTA_FULL_SCALE_DB, 1) * 50;
+            const up = delta >= 0;
+            return (
+              <li key={hz} className="flex items-center gap-2 text-[10px]">
+                <span
+                  className="w-12 shrink-0 text-right font-mono"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {formatBand(hz)}
+                </span>
+                <span
+                  className="relative h-1.5 flex-1 overflow-hidden rounded-full"
+                  style={{ background: "var(--surface-hover)" }}
+                >
+                  <span
+                    className="absolute inset-y-0"
+                    style={{
+                      left: up ? "50%" : `${50 - width}%`,
+                      width: `${width}%`,
+                      background: up ? OK_COLOR : "var(--accent-error)",
+                    }}
+                  />
+                  <span
+                    className="absolute inset-y-0 left-1/2 w-px"
+                    style={{ background: "var(--border-strong)" }}
+                  />
+                </span>
+                <span
+                  className="w-16 shrink-0 text-right font-mono"
+                  style={{ color: up ? OK_COLOR : "var(--accent-error)" }}
+                >
+                  {up ? "+" : ""}
+                  {delta.toFixed(1)} dB
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <p className="mt-2 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
+        {t("productor.changeReportBandsHint", {
+          standard: report.loudness_standard,
+        })}
+      </p>
+
+      {!block.durable && block.note && (
+        <p
+          className="mt-1.5 text-[10px] leading-snug"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {block.note}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function DeltaPill({
+  label,
+  before,
+  after,
+  delta,
+  unit,
+}: {
+  label: string;
+  before: number | null;
+  after: number | null;
+  delta: number | null;
+  unit: string;
+}) {
+  if (before === null || after === null) return null;
+  const up = (delta ?? 0) >= 0;
+
+  return (
+    <span
+      className="rounded-full px-3 py-1 text-xs font-semibold"
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border-subtle)",
+        color: "var(--text-primary)",
+      }}
+    >
+      <span className="font-mono">
+        {before.toFixed(1)} → {after.toFixed(1)}
+      </span>{" "}
+      <span
+        className="text-[10px] font-medium normal-case"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {unit} {label}
+      </span>
+      {delta !== null && (
+        <>
+          {" "}
+          <span
+            className="text-[10px] font-bold"
+            style={{ color: up ? OK_COLOR : "var(--accent-error)" }}
+          >
+            {up ? "+" : ""}
+            {delta.toFixed(1)} dB
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** Reproducción A/B de la corrida.
+ *
+ *  Con máster entregado el A/B compara la ENTRADA REAL del motor con su
+ *  salida: la mezcla en `mix_then_master`, el original en `master_only`
+ *  (`master_metrics.source` lo dice). Sin máster reproducible cae a los
+ *  reproductores sueltos de siempre. */
+function AgentAudio({
+  audio,
+  sessionId,
+  masterSource,
+}: {
+  audio: AgentRunResult["audio"];
+  sessionId: string;
+  masterSource: "mix" | "original" | null;
+}) {
+  const { t } = useTranslation();
+
+  const masterAsset = audio.master;
+  const mixAsset = audio.mix;
+  const delivered = masterAsset ?? mixAsset;
+
   const playable = [
-    { kind: "master" as const, asset: audio.master },
-    { kind: "mix" as const, asset: audio.mix },
+    { kind: "master" as const, asset: masterAsset },
+    { kind: "mix" as const, asset: mixAsset },
   ].filter(
     (item): item is { kind: "master" | "mix"; asset: AgentAudioAsset } =>
       Boolean(item.asset?.url),
   );
 
-  const delivered = audio.master ?? audio.mix;
+  // `source` ausente en corridas viejas: el lado A por defecto es la mezcla,
+  // que es lo que el motor masterizó en el camino histórico.
+  const compareFromMix = masterSource !== "original";
+  const beforeUrl = compareFromMix
+    ? (mixAsset?.url ?? getMixAudioUrl(sessionId))
+    : getAudioUrl(sessionId, "original");
 
   return (
     <section>
@@ -1080,6 +1309,19 @@ function AgentAudio({ audio }: { audio: AgentRunResult["audio"] }) {
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
           {t("productor.audioEmpty")}
         </p>
+      ) : masterAsset?.url ? (
+        <div className="pb-2">
+          <MixWaveformAB
+            originalUrl={beforeUrl}
+            mixedUrl={masterAsset.url}
+            originalLabel={
+              compareFromMix
+                ? t("productor.audioMix")
+                : t("productor.audioOriginal")
+            }
+            mixedLabel={t("productor.audioMaster")}
+          />
+        </div>
       ) : playable.length === 0 ? (
         <p
           className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs leading-relaxed"

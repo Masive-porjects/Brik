@@ -25,6 +25,11 @@ interface MixWaveformABProps {
    *  insignia "Audio mezclado" se muestra solo con una mezcla ENTREGADA,
    *  nunca con un WAV local en vuelo o fallido. */
   hasMix?: boolean;
+  /** Etiqueta del lado derecho. Por defecto la de mezcla; el Productor IA
+   *  reutiliza este A/B para comparar original contra máster. */
+  mixedLabel?: string;
+  /** Etiqueta del lado izquierdo. Por defecto "Original (Raw)". */
+  originalLabel?: string;
 }
 
 /* ── Tokens de onda (v5 — dark mode) ────────────────────
@@ -173,9 +178,11 @@ interface WaveSideProps {
   mixedDuration?: number | null;
   /** Solo lado mezclado: hay mezcla entregada por el backend → insignia. */
   hasMix?: boolean;
+  /** Etiqueta explícita; sin ella se usa la de mezcla. */
+  label?: string;
 }
 
-function WaveSide({ url, kind, mixedDuration, hasMix }: WaveSideProps) {
+function WaveSide({ url, kind, mixedDuration, hasMix, label }: WaveSideProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const isCleaningRef = useRef(false);
@@ -274,9 +281,10 @@ function WaveSide({ url, kind, mixedDuration, hasMix }: WaveSideProps) {
           className="text-[10px] font-bold uppercase tracking-[0.14em]"
           style={{ color: isMixed ? "#10b981" : "var(--text-secondary)" }}
         >
-          {isMixed
-            ? t("mezcla.mixedSideLabel", "Audio mezclado (Final)")
-            : t("mezcla.originalSideLabel", "Original (Raw)")}
+          {label ??
+            (isMixed
+              ? t("mezcla.mixedSideLabel", "Audio mezclado (Final)")
+              : t("mezcla.originalSideLabel", "Original (Raw)"))}
         </p>
         {isMixed && hasMix && (
           <motion.span
@@ -390,15 +398,18 @@ export default function MixWaveformAB({
   mixedUrl,
   mixedDuration,
   hasMix,
+  mixedLabel,
+  originalLabel,
 }: MixWaveformABProps) {
   return (
     <div className="w-full min-w-0 grid grid-cols-1 gap-3 md:grid-cols-2">
-      <WaveSide url={originalUrl} kind="original" />
+      <WaveSide url={originalUrl} kind="original" label={originalLabel} />
       <WaveSide
         url={mixedUrl}
         kind="mixed"
         mixedDuration={mixedDuration}
         hasMix={hasMix}
+        label={mixedLabel}
       />
     </div>
   );
