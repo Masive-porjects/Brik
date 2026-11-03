@@ -3,11 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const trackId = params.id;
-    if (!trackId) {
+    const { id } = await params;
+    if (!id) {
       return NextResponse.json({ error: "Missing track ID" }, { status: 400 });
     }
 
@@ -18,7 +18,7 @@ export async function GET(
     const { data: track, error } = await supabase
       .from("tracks")
       .select("display_name, master_url, name")
-      .eq("id", trackId)
+      .eq("id", id)
       .single();
 
     if (error || !track || !track.master_url) {
