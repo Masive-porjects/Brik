@@ -1423,6 +1423,24 @@ def _master_feedback_loop(
     return accepted
 
 
+def _close_with_user_turn(transcript: list[dict[str, Any]]) -> None:
+    """Garantiza que el cierre arranque con la palabra del usuario.
+
+    Las fases 1 y 3 pueden terminar en un turno ``model``: el diagnóstico de la
+    fase 1, o la convergencia del bucle cuando el modelo contesta con texto en
+    vez de una herramienta. En la ruta corta (``master_only``) no corre ninguna
+    fase que agregue un ``user`` después, y Gemini rechaza el request COMPLETO
+    con ``400 INVALID_ARGUMENT: Requests ending with a model turn are not
+    supported``. El transporte descarta los textos vacíos, así que la directiva
+    lleva contenido real.
+    """
+    last = transcript[-1] if transcript else None
+    if last is not None and "text" in last and last.get("role") == "model":
+        transcript.append(
+            {"role": "user", "text": "Cerrá el trabajo: masterizá el audio."}
+        )
+
+
 def phase4_send_to_master(
     state: AgentState, transport: ModelTransport, transcript: list[dict[str, Any]]
 ) -> ToolResult:
@@ -1581,6 +1599,7 @@ def run(
     if state.decision.applied == "mix_then_master":
         phase2_separate(state, transport, transcript)
         phase3_mix_loop(state, transport, transcript)
+    _close_with_user_turn(transcript)
     phase4_send_to_master(state, transport, transcript)
 
     return state

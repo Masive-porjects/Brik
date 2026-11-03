@@ -747,6 +747,60 @@ class TestDecisionGate:
         assert recorded.ok is True
         assert recorded.payload["source"] == "original"
 
+    def test_master_only_hands_the_model_a_user_turn_at_close(self, cheap_tools):
+        """El cierre no puede terminar en un turno ``model``.
+
+        La fase 1 cierra con el diagnóstico del modelo. En la ruta corta las
+        fases 2 y 3 —las que después agregan un turno ``user``— no corren, así
+        que el transcript que recibe la fase 4 terminaba en ``model``. Gemini
+        rechaza el request ENTERO con ``400 INVALID_ARGUMENT: Requests ending
+        with a model turn are not supported``, y el job del Productor IA muere
+        sin entregar nada.
+        """
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Ya viene mezclado; masterizar directo."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        al.run(
+            session_id="probe",
+            input_path=cheap_tools.input_file,
+            transport=transport,
+            decision="master_only",
+        )
+
+        close_transcript = transport.transcripts[-1]
+        assert close_transcript[-1]["role"] == "user"
+        # La directiva no puede ser un texto vacío: el transporte descarta los
+        # turnos vacíos y el request volvería a terminar en ``model``.
+        assert close_transcript[-1]["text"].strip()
+
+    def test_a_loop_that_converges_on_model_text_still_closes_on_a_user_turn(
+        self, cheap_tools
+    ):
+        """La misma trampa existe en la ruta larga cuando el bucle no llama tools.
+
+        Si la fase 3 converge con un turno de texto (sin ``function_call``), el
+        transcript también queda terminando en ``model`` antes del cierre.
+        """
+        transport = StubTransport(
+            [
+                al.ModelTurn(text="Diagnóstico: falta pegada."),
+                al.ModelTurn(text="El bus ya está limpio, cerramos."),
+                al.ModelTurn(tool_calls=[al.ToolCall(name="send_to_master")]),
+            ]
+        )
+        al.run(
+            session_id="probe",
+            input_path=Path("x.wav"),
+            transport=transport,
+            decision="mix_then_master",
+        )
+
+        close_transcript = transport.transcripts[-1]
+        assert close_transcript[-1]["role"] == "user"
+
     def test_mix_then_master_runs_the_four_phases(self, cheap_tools):
         """La ruta larga explícita es EXACTAMENTE la de siempre."""
         transport = StubTransport(_script())
