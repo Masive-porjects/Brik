@@ -819,6 +819,7 @@ export function useMasteringWorkflow(
                 : (existing.analysis?.detected_genre ? genreToParams(existing.analysis.detected_genre) : DEFAULT_PARAMS);
               setParams(targetParams);
               setLoading(false);
+              setIsLoadingTrackProject(false);
               setProcessing(true);
 
               const controller = new AbortController();
@@ -832,7 +833,6 @@ export function useMasteringWorkflow(
               completeProgress();
               setSession(processed);
               onSessionLoaded?.(processed);
-              setIsLoadingTrackProject(false);
               return;
             }
           } catch (cachedErr) {
@@ -863,6 +863,7 @@ export function useMasteringWorkflow(
         onSessionLoaded?.(sessionResult);
 
         setLoading(false);
+        setIsLoadingTrackProject(false);
         setProcessing(true);
 
         const analyzed = await waitForAnalysis(sessionResult.session_id, ANALYSIS_TIMEOUT_MS);

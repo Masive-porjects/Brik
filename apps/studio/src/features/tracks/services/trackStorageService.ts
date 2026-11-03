@@ -620,7 +620,7 @@ export async function fetchLatestUserTrack(userId: string): Promise<Track | null
   const supabase = createClient();
   const { data, error } = await supabase
     .from("tracks")
-    .select("*, masters(*)")
+    .select("*, masters(*)", { count: "exact" })
     .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(1)
@@ -631,7 +631,19 @@ export async function fetchLatestUserTrack(userId: string): Promise<Track | null
     return null;
   }
 
-  return data as Track | null;
+  // Handle empty data: return null instead of causing render issues
+  if (!data) {
+    return null;
+  }
+
+  // Safe parsing: ensure masters is always an array using optional chaining
+  // to avoid deserialization errors when the relation returns null/undefined
+  const safeTrack: Track = {
+    ...data,
+    masters: data.masters ? (Array.isArray(data.masters) ? data.masters : [data.masters]) : undefined,
+  };
+
+  return safeTrack;
 }
 
 /**
