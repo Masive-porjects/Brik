@@ -711,7 +711,7 @@ export default function MixPanel({
           v6 — elección por mezcla (no persistida), default ON; se
           deshabilita mientras corre el POST /mix. OFF = routing Paso 03
           (backend omite dimension_report). */}
-      <div className="flex flex-wrap items-center gap-2.5 px-4 pt-3">
+      <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
         <button
           type="button"
           role="switch"
@@ -756,10 +756,7 @@ export default function MixPanel({
           previo exacto). El fader del usuario queda SIEMPRE visible y
           relativo al resultado del motor (spec: el motor propone, el humano
           decide). Se deshabilita mientras corre el POST /mix. */}
-      <div
-        className="mt-3 border-t px-4 pt-3"
-        style={{ borderColor: "var(--border-subtle)" }}
-      >
+      <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
         <p
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}
@@ -806,7 +803,7 @@ export default function MixPanel({
             </p>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
           {STEM_FADERS.map(({ key, label }) => (
             <FaderControl
               key={key}
@@ -832,10 +829,7 @@ export default function MixPanel({
           perfil soportado hoy es commercial_alt_pop (Twenty One Pilots /
           post-punk moderno); el seed queda oculto (default determinístico
           del backend). Se deshabilita mientras corre el POST /mix. */}
-      <div
-        className="mt-3 border-t px-4 pt-3"
-        style={{ borderColor: "var(--border-subtle)" }}
-      >
+      <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
         <p
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}

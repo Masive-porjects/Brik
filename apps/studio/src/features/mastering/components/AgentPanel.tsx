@@ -409,8 +409,8 @@ export default function AgentPanel({
         >
           {isSending ? (
             <>
-              <Loader2 size={16} className="animate-spin mr-1.5" />
-              {t("productor.chat.sending")}
+              <Loader2 size={16} className="animate-spin mr-1.5 animate-pulse" />
+              <span className="font-medium text-sm">{t("productor.chat.sending")}</span>
             </>
           ) : (
             <>
@@ -425,7 +425,7 @@ export default function AgentPanel({
 
   return (
     <div
-      className={compact ? "flex h-full min-h-0 w-full flex-col" : "w-full"}
+      className={compact ? "flex h-full min-h-0 w-full flex-col" : "w-full max-w-[440px] max-w-[90vw]"}
       style={CARD_STYLE}
     >
       {!compact && (
@@ -456,7 +456,7 @@ export default function AgentPanel({
         {/* ─── MESSAGE LIST ─── */}
         <AnimatePresence mode="popLayout">
           {messages.length > 0 ? (
-            <div className="space-y-3" role="log" aria-live="polite">
+            <div className="flex-1 min-h-0 flex flex-col overflow-y-auto max-h-[50vh] prose prose-sm break-words" role="log" aria-live="polite">
               {messages.map((msg, idx) => (
                 <motion.div
                   key={`${msg.ts}-${idx}`}
@@ -470,7 +470,7 @@ export default function AgentPanel({
                     className={`flex-1 max-w-[85%] ${msg.role === "user" ? "text-right" : ""}`}
                   >
                     <div
-                      className={`inline-block rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                      className={`inline-block rounded-2xl px-3.5 py-2 text-sm leading-relaxed prose break-words ${
                         msg.role === "user"
                           ? "rounded-br-none"
                           : "rounded-bl-none"
