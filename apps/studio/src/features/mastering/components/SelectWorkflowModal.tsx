@@ -133,7 +133,7 @@ export default function SelectWorkflowModal({
             </div>
 
             {/* Options Grid */}
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4 mb-7">
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 mb-7">
               {/* Option 1: Manual Mode (Active) */}
               <div
                 onClick={() => setSelectedMode("manual")}
