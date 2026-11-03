@@ -192,8 +192,8 @@ export default function LandingDSPChain() {
                       </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <h4
-                            className={`font-headline-sm text-xs font-semibold transition-colors ${
+                          <h3
+                            className={`font-headline-sm text-base font-semibold transition-colors ${
                               isSelected
                                 ? "text-primary"
                                 : "text-[var(--text-primary)] group-hover:text-primary"
@@ -347,7 +347,7 @@ export default function LandingDSPChain() {
                             {sub.meta}
                           </span>
                         </div>
-                        <h5 className="font-headline-sm text-xs font-semibold text-[var(--text-primary)]">
+                        <h3 className="font-headline-sm text-base font-semibold text-[var(--text-primary)]">
                           {sub.title}
                         </h5>
                         <p className="font-body-sm text-[11px] text-[var(--text-secondary)] leading-relaxed">

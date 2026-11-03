@@ -15,7 +15,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const supabase = createClient();
 
+  const lastSessionRef = useRef<string | null>(null);
+
   const fetchProfile = useCallback(async (userId: string, currentUser?: User) => {
+    // Guard: don't re-fetch if session hasn't changed
+    if (lastSessionRef.current === userId) return;
+    lastSessionRef.current = userId;
+
     try {
       const { data, error } = await supabase
         .from("profiles")

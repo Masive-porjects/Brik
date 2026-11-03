@@ -80,7 +80,7 @@ export default function MasteringHeader({
         <div className="rounded-full px-3.5 py-1.5 glass flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/mascota-3d.png"
+            src="/brand/mascota-3d.webp"
             alt="Brik Ghost Logo"
             className="w-5 h-5 rounded-md object-contain"
           />

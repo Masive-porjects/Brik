@@ -53,7 +53,7 @@ export default function LandingHeader() {
         {/* Brand Logo - Clean, no pulse, no badge */}
         <Link href="/" className="flex items-center gap-2.5 min-h-[44px] group" aria-label={t("landing.nav.brand", "BRIK")}>
           <Image
-            src={`${BASE_PATH}/brand/mascota-3d.png`}
+            src={`${BASE_PATH}/brand/mascota-3d.webp`}
             alt=""
             width={28}
             height={28}

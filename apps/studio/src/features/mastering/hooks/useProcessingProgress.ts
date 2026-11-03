@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import { getProcessingProgress, ApiError } from "@/lib/api";
 import { progressPct } from "@/lib/audioUtils";
 
@@ -113,7 +113,7 @@ export function useProcessingProgress({
         failuresRef.current = 0;
         const pct = progressPct(p.progress * 100);
         progressRef.current = pct;
-        setProgress(pct);
+        startTransition(() => setProgress(pct));
 
         // El motor falló: el backend ya cerró la corrida, no hay progreso que
         // esperar. Sin esta rama el overlay se quedaba clavado en el último
@@ -127,7 +127,7 @@ export function useProcessingProgress({
           completedRef.current = true;
           clearTimers();
           progressRef.current = 100;
-          setProgress(100);
+          startTransition(() => setProgress(100));
           closeTimerRef.current = setTimeout(() => {
             onCompleteRef.current?.();
           }, 1200);
@@ -170,7 +170,7 @@ export function useProcessingProgress({
   const resetProgress = useCallback(() => {
     clearTimers();
     progressRef.current = 0;
-    setProgress(0);
+    startTransition(() => setProgress(0));
   }, [clearTimers]);
 
   useEffect(() => {

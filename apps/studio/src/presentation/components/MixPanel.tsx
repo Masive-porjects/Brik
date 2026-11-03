@@ -951,6 +951,11 @@ export default function MixPanel({
               className="absolute font-mono text-lg font-bold"
               style={{ color: "var(--text-primary)" }}
               aria-live="polite"
+              role="progressbar"
+              aria-label="Procesando mezcla de audio"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPct}
             >
               {progressPct}%
             </span>

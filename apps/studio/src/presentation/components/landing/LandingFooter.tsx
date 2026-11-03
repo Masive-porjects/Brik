@@ -38,7 +38,7 @@ export default function LandingFooter() {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2.5">
               <Image
-                src={`${BASE_PATH}/brand/mascota-3d.png`}
+                src={`${BASE_PATH}/brand/mascota-3d.webp`}
                 alt=""
                 width={24}
                 height={24}

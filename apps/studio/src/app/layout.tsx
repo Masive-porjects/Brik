@@ -93,7 +93,7 @@ export const metadata: Metadata = {
     siteName: "BrikMaster",
     images: [
       {
-        url: "/brand/mascota-3d.png",
+        url: "/brand/mascota-3d.webp",
         width: 1024,
         height: 1024,
         alt: "BrikMaster - Mastering IA + Motor DSP Determinista",
@@ -104,13 +104,13 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/brand/mascota-3d.png"],
+    images: ["/brand/mascota-3d.webp"],
     creator: "@brikaudio",
   },
   icons: {
-    icon: "/brand/mascota-3d.png",
-    apple: "/brand/mascota-3d.png",
-    shortcut: "/brand/mascota-3d.png",
+    icon: "/brand/mascota-3d.webp",
+    apple: "/brand/mascota-3d.webp",
+    shortcut: "/brand/mascota-3d.webp",
   },
   robots: {
     index: true,
@@ -153,7 +153,7 @@ const organizationLdJson = JSON.stringify({
   "@type": "Organization",
   name: "Brik Audio DSP Systems",
   url: siteUrl,
-  logo: `${siteUrl}/brand/mascota-3d.png`,
+  logo: `${siteUrl}/brand/mascota-3d.webp`,
   sameAs: [
     "https://github.com/Masive-porjects/Brik",
     "https://twitter.com/brikaudio",
@@ -177,7 +177,7 @@ export const dynamic = "force-dynamic";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,
   viewportFit: "cover",
   themeColor: "#0b0b0c",
 };

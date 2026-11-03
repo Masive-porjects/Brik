@@ -22,26 +22,12 @@ export default function HeroGSAP() {
       ref={containerRef}
       className="relative w-full overflow-hidden px-4 sm:px-8 lg:px-12 pt-40 lg:pt-48 pb-24 max-w-[1200px] mx-auto min-h-[90vh] flex items-center"
     >
-      {/* Background Layers - parallax targets */}
+      {/* Consolidated background gradient (replaces 3 absolute blur divs) */}
       <div
-        data-hero-bg
-        className="absolute -top-40 -left-40 w-[800px] h-[800px] rounded-full bg-primary/5 blur-[200px] pointer-events-none"
+        className="absolute inset-0 pointer-events-none rounded-full opacity-5 blur-[200px]"
+        style={{ background: "radial-gradient(circle at 30% 20%, var(--primary) 0%, transparent 50%)" }}
         aria-hidden="true"
-        style={{ willChange: "transform" }}
       />
-      <div
-        data-hero-bg
-        className="absolute top-1/4 -right-32 w-[500px] h-[500px] rounded-full bg-secondary-container/5 blur-[180px] pointer-events-none"
-        aria-hidden="true"
-        style={{ willChange: "transform" }}
-      />
-      <div
-        data-hero-bg
-        className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-primary/3 via-transparent to-secondary/3 blur-[150px] pointer-events-none"
-        aria-hidden="true"
-        style={{ willChange: "transform" }}
-      />
-
       <div className="relative z-10 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
         {/* LEFT: CONTENT - 7/12 */}
         <div className="lg:col-span-7 flex flex-col gap-8">
@@ -107,21 +93,13 @@ export default function HeroGSAP() {
         </div>
 
         {/* RIGHT: MONITOR CARD - 5/12, solo desktop */}
-        <div data-hero-card-wrap className="hidden lg:block lg:col-span-5 will-change-transform">
+        <div className="lg:col-span-5">
           <div
             data-hero-card
             className="relative w-full max-w-[440px] aspect-square rounded-2xl bg-[var(--bg-glass-elevated)] backdrop-blur-md p-5 flex flex-col justify-between shadow-[var(--shadow-heavy)] border border-[var(--border-subtle)] overflow-hidden cursor-pointer"
-            style={{ touchAction: "none", willChange: "transform" }}
           >
-            {/* Glow reactivo - GSAP controlled */}
-            <div
-              data-hero-glow
-              className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 pointer-events-none blur-[80px] opacity-10"
-              style={{ willChange: "opacity, transform, filter" }}
-              aria-hidden="true"
-            />
-
             {/* Orb Central */}
+            <div data-hero-orb className="relative my-auto flex items-center justify-center py-4">
             <div data-hero-orb className="relative my-auto flex items-center justify-center py-4">
               <div className="relative w-64 h-64 rounded-full overflow-hidden shadow-[0_0_60px_rgba(110,233,224,0.25)] flex items-center justify-center bg-[var(--bg-glass-elevated)] border border-[var(--border-subtle)]">
                 {/* Local orb asset — no runtime third-party dependency */}

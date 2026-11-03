@@ -106,7 +106,7 @@ async function renderCard(opts: {
 
   // Ghost watermark — low opacity, right side (best-effort)
   try {
-    const ghost = await loadImage("/brand/mascota-3d.png");
+    const ghost = await loadImage("/brand/mascota-3d.webp");
     const h = CARD_H * 0.92;
     const w = (ghost.width / ghost.height) * h;
     ctx.save();
@@ -119,7 +119,7 @@ async function renderCard(opts: {
 
   // Logo top-left (SVG; styled-text fallback)
   try {
-    const logo = await loadImage("/brand/mascota-3d.png");
+    const logo = await loadImage("/brand/mascota-3d.webp");
     const h = 84;
     const w = (logo.width / logo.height) * h;
     ctx.drawImage(logo, PAD, PAD - 10, w, h);

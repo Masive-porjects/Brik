@@ -389,7 +389,9 @@ def verdict_block(verdict: AudioVerdict | None, applied: str = "auto") -> str:
         verdict: El veredicto medido, o ``None``.
         applied: La ruta realmente aplicada (``mix_then_master`` / ``master_only``;
             ``auto`` cuando todavía no se resolvió).
-    """
+    
+
+3. **REGLA DE AISLAMIENTO DE STEMS (SILENCIO ABSOLUTO):** Si el valor LUFS de un stem es inferior a -30.0 LUFS, DEBOS clasificarlo como AUSENTE en la pista. Bajo ninguna circunstancia puedes proponer rescatar, ecualizar o darle protagonismo a un stem ausente. Ignóralo por completo en tu RECETA y enfoca tus decisiones creativas únicamente en los elementos que tienen energía real."""
     if verdict is None:
         return ""
 

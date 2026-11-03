@@ -44,7 +44,7 @@
   --bg-tertiary: #1a1a20;
   --bg-elevated: #22222a;
   --text-primary: #e8e8e8;
-  --text-secondary: #8a8a8a;
+  --text-secondary: #a1a1a1;
   --text-muted: #555555;
   --accent-primary: #627e84;
   --accent-secondary: #829ca1;
@@ -119,7 +119,7 @@ html[data-theme="light"] {
   --bg-tertiary: #e2e2df;
   --bg-elevated: #ffffff;
   --text-primary: #1a1b1b;
-  --text-secondary: #5a5f63;
+  --text-secondary: #a1a1a1;
   --text-muted: #8a8f93;
   --accent-primary: #4c6a72;
   --accent-secondary: #6b8a93;
@@ -171,6 +171,7 @@ body {
      Jakarta token (wired to the next/font loader in layout.tsx). */
   font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* ── Animations ─────────────────────────────────────── */
