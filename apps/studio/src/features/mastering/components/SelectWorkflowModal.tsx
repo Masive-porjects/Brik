@@ -34,18 +34,24 @@ export default function SelectWorkflowModal({
   isLoading = false,
 }: SelectWorkflowModalProps) {
   const { t } = useTranslation();
-  const { user, role, isAdmin } = useAuth();
+  const { user, profile, role, isAdmin } = useAuth();
   const [selectedMode, setSelectedMode] = useState<"manual" | "ai">("manual");
 
   // Determinar si el usuario puede acceder al modo IA Autónomo (Fase 6)
+  // Lógica: admin role OU user has is_premium/admin metadata
   const isAIEnabled =
     isAdmin ||
-    user?.user_metadata?.role === "admin" ||
-    user?.profile?.role === "admin";
+    (profile?.role === "admin" && profile) ||
+    (user?.user_metadata?.role === "admin" && user);
 
   // Modo: si el usuario es admin/premium, la IA está disponible;
   // de lo contrario, permanece bloqueado con mensaje de Fase 6.
   const aiModeDisabled = !isAIEnabled;
+
+  // Título para el botón de confirmación según el estado del usuario
+  const buttonTitle = aiModeDisabled
+    ? t("workflow.aiTitle", "Asistente IA Autónomo") + " - " + t("workflow.lockedNoticeMessage", "Módulo actualmente apagado: La red de inferencia acústica se integrará en la fase de Agentes Inteligentes.")
+    : t("workflow.continueManual", "Continuar al Estudio en Modo Manual");
 
   return (
     <AnimatePresence>
@@ -153,17 +159,14 @@ export default function SelectWorkflowModal({
                 aria-checked={selectedMode === "manual"}
                 tabIndex={0}
                 onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedMode("manual")}
-                className={`relative flex flex-col justify-between p-5 rounded-2xl border transition-all duration-300 cursor-pointer text-left ${
-                  selectedMode === "manual"
-                    ? "bg-[var(--surface-elevated)]/90 border-[var(--accent-primary)] shadow-[0_0_24px_rgba(98,126,132,0.25)] ring-1 ring-[var(--accent-primary)]"
-                    : "bg-[var(--surface-elevated)]/40 border-[var(--border-subtle)] hover:border-[var(--border-strong)] opacity-85"
-                }`}
+                className={`relative flex flex-col justify-between p-5 rounded-2xl border transition-all duration-300 cursor-pointer text-left ${selectedMode === "manual" ? "bg-[var(--surface-elevated)]/90 border-[var(--accent-primary)] shadow-[0_0_24px_rgba(98,126,132,0.25)] ring-1 ring-[var(--accent-primary)]" : "bg-[var(--surface-elevated)]/50 border-[var(--border-strong)] hover:border-[var(--border-strong)] opacity-100"}`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="size-10 rounded-xl flex items-center justify-center bg-[var(--accent-primary)]/15 border border-[var(--accent-primary)]/30 text-[var(--accent-primary)]">
                       <SlidersHorizontal size={20} />
                     </div>
+
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
                       <CheckCircle2 size={11} />
                       <span>{t("workflow.activeBadge", "Disponible")}</span>
@@ -199,21 +202,6 @@ export default function SelectWorkflowModal({
                     </li>
                   </ul>
                 </div>
-
-                <div className="mt-4 pt-3 flex items-center justify-between border-t border-white/5">
-                  <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold">
-                    {t("workflow.recommended", "Recomendado para producción")}
-                  </span>
-                  <div
-                    className={`size-4 rounded-full border flex items-center justify-center ${
-                      selectedMode === "manual"
-                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]"
-                        : "border-white/30"
-                    }`}
-                  >
-                    {selectedMode === "manual" && <div className="size-1.5 rounded-full bg-black" />}
-                  </div>
-                </div>
               </div>
 
               {/* Option 2: AI Assistant Mode */}
@@ -231,6 +219,7 @@ export default function SelectWorkflowModal({
                       <div className="size-10 rounded-xl flex items-center justify-center bg-[var(--accent-primary)]/20 border border-[var(--accent-primary)]/30 text-[var(--accent-primary)]">
                         <Sparkles size={20} />
                       </div>
+
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
                         <CheckCircle2 size={11} />
                         <span>{t("workflow.activeBadge", "Disponible")}</span>
@@ -244,7 +233,7 @@ export default function SelectWorkflowModal({
                       </span>
                     </h3>
 
-                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-3">
+                    <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-3">
                       {t(
                         "workflow.aiDescription",
                         "Un agente neural analiza el espectro sonoro, densidad armónica y rango dinámico para aplicar sugerencias de ecualización y loudness LUFS de forma automatizada."
@@ -280,6 +269,7 @@ export default function SelectWorkflowModal({
                         <div className="size-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-[var(--text-muted)]">
                           <Sparkles size={20} />
                         </div>
+
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-[var(--text-muted)]">
                           <Lock size={10} />
                           <span>{t("workflow.lockedBadge", "Próximamente • Fase 6")}</span>
@@ -319,39 +309,39 @@ export default function SelectWorkflowModal({
                   </div>
                 )
               }
-            </div>
 
-            {/* Action Button */}
-            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-end gap-3 pt-2 border-t border-white/5">
-              {canDismiss && onClose && (
+              {/* Action Button */}
+              <div className="relative z-10 flex flex-col sm:flex-row items-center justify-end gap-3 pt-2 border-t border-white/5">
+                {canDismiss && onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-medium text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all cursor-pointer"
+                  >
+                    {t("common.cancel", "Cancelar")}
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-medium text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all cursor-pointer"
+                  disabled={isLoading}
+                  onClick={() => onConfirm(selectedMode === "ai" && !aiModeDisabled ? "ai" : "manual")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl font-bold text-xs bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white shadow-[0_4px_20px_rgba(98,126,132,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-85 disabled:cursor-wait"
+                  title={buttonTitle}
                 >
-                  {t("common.cancel", "Cancelar")}
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      <span>{t("workflow.enteringStudio", "Ingresando a la Consola...")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{t(selectedMode === "ai" && !aiModeDisabled ? "Continuar al Estudio en Modo IA" : "Continuar al Estudio en Modo Manual")}</span>
+                      <ArrowRight size={15} />
+                    </>
+                  )}
                 </button>
-              )}
-
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={() => onConfirm(selectedMode === "ai" && !aiModeDisabled ? "ai" : "manual")}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl font-bold text-xs bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white shadow-[0_4px_20px_rgba(98,126,132,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-85 disabled:cursor-wait"
-                title={aiModeDisabled ? t("workflow.aiTitle", "Asistente IA Autónomo") + " - " + t("workflow.lockedNoticeMessage", "Módulo actualmente apagado: La red de inferencia acústica se integrará en la fase de Agentes Inteligentes."} : undefined}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin" />
-                    <span>{t("workflow.enteringStudio", "Ingresando a la Consola...")}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>{t(selectedMode === "ai" && !aiModeDisabled ? "workflow.continueAI" || "Continuar al Estudio en Modo IA" : "workflow.continueManual" || "Continuar al Estudio en Modo Manual")}</span>
-                    <ArrowRight size={15} />
-                  </>
-                )}
-              </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>
