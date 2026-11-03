@@ -200,7 +200,7 @@ export default function LandingDSPChain() {
                             }`}
                           >
                             {stage.name}
-                          </h4>
+                          </h3>
                           {stage.substagesCount && (
                             <span className="font-label-technical text-[10px] bg-secondary/20 text-secondary border border-secondary/30 px-1.5 py-0.2 rounded font-bold">
                               {stage.substagesCount} SUB-ETAPAS
@@ -349,7 +349,7 @@ export default function LandingDSPChain() {
                         </div>
                         <h3 className="font-headline-sm text-base font-semibold text-[var(--text-primary)]">
                           {sub.title}
-                        </h5>
+                        </h3>
                         <p className="font-body-sm text-[11px] text-[var(--text-secondary)] leading-relaxed">
                           {sub.description}
                         </p>

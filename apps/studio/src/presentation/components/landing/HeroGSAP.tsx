@@ -131,6 +131,7 @@ export default function HeroGSAP() {
         </div>
       </div>
 
+    </div>
       <style jsx global>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
