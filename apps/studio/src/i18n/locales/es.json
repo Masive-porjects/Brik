@@ -76,7 +76,8 @@
     "enteringStudio": "Ingresando a la Consola...",
     "modeTooltip": "Clic para ver detalles del flujo actual",
     "manualModeLabel": "Modo Manual",
-    "fullControlShort": "Control Total"
+    "fullControlShort": "Control Total",
+    "aiStatusPremium": "DISPONIBLE (PREMIUM / ADMIN)"
   },
   "auth": {
     "signIn": "Iniciar sesión",

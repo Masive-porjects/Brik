@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/features/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   SlidersHorizontal,
@@ -33,7 +34,18 @@ export default function SelectWorkflowModal({
   isLoading = false,
 }: SelectWorkflowModalProps) {
   const { t } = useTranslation();
+  const { user, role, isAdmin } = useAuth();
   const [selectedMode, setSelectedMode] = useState<"manual" | "ai">("manual");
+
+  // Determinar si el usuario puede acceder al modo IA Autónomo (Fase 6)
+  const isAIEnabled =
+    isAdmin ||
+    user?.user_metadata?.role === "admin" ||
+    user?.profile?.role === "admin";
+
+  // Modo: si el usuario es admin/premium, la IA está disponible;
+  // de lo contrario, permanece bloqueado con mensaje de Fase 6.
+  const aiModeDisabled = !isAIEnabled;
 
   return (
     <AnimatePresence>
@@ -204,55 +216,109 @@ export default function SelectWorkflowModal({
                 </div>
               </div>
 
-              {/* Option 2: AI Assistant Mode (Disabled / Phase 6) */}
-              <div
-                className="relative flex flex-col justify-between p-5 rounded-2xl border border-white/5 bg-[var(--surface-elevated)]/20 opacity-60 text-left cursor-not-allowed select-none"
-                role="radio"
-                aria-checked={false}
-                aria-disabled={true}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="size-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-[var(--text-muted)]">
-                      <Sparkles size={20} />
+              {/* Option 2: AI Assistant Mode */}
+              {!aiModeDisabled && (
+                <div
+                  onClick={() => setSelectedMode("ai")}
+                  role="radio"
+                  aria-checked={selectedMode === "ai"}
+                  tabIndex={0}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedMode("ai")}
+                  className={`relative flex flex-col justify-between p-5 rounded-2xl border transition-all duration-300 cursor-pointer text-left ${selectedMode === "ai" ? "bg-[var(--surface-elevated)]/90 border-[var(--accent-primary)] shadow-[0_0_24px_rgba(98,126,132,0.25)] ring-1 ring-[var(--accent-primary)]" : "bg-[var(--surface-elevated)]/50 border-[var(--border-strong)] hover:border-[var(--border-strong)] opacity-100"}`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="size-10 rounded-xl flex items-center justify-center bg-[var(--accent-primary)]/20 border border-[var(--accent-primary)]/30 text-[var(--accent-primary)]">
+                        <Sparkles size={20} />
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
+                        <CheckCircle2 size={11} />
+                        <span>{t("workflow.activeBadge", "Disponible")}</span>
+                      </span>
                     </div>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-[var(--text-muted)]">
-                      <Lock size={10} />
-                      <span>{t("workflow.lockedBadge", "Próximamente • Fase 6")}</span>
-                    </span>
-                  </div>
 
-                  <h3 className="text-base font-bold text-[var(--text-muted)] mb-1 flex items-center gap-2">
-                    <span>{t("workflow.aiTitle", "Asistente IA Autónomo")}</span>
-                  </h3>
+                    <h3 className="text-base font-bold text-[var(--text-primary)] mb-1 flex items-center gap-2">
+                      <span>{t("workflow.aiTitle", "Asistente IA Autónomo")}</span>
+                      <span className="text-xs font-semibold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded px-1.5 py-0.5">
+                        {isAdmin ? "ADMIN" : "PREMIUM"}
+                      </span>
+                    </h3>
 
-                  <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-3">
-                    {t(
-                      "workflow.aiDescription",
-                      "Un agente neural analiza el espectro sonoro, densidad armónica y rango dinámico para aplicar sugerencias de ecualización y loudness LUFS de forma automatizada."
-                    )}
-                  </p>
-
-                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 text-[11px] text-[var(--text-muted)] leading-relaxed">
-                    <span className="font-semibold text-amber-400/90 block mb-0.5">
-                      {t("workflow.lockedNoticeTitle", "Módulo actualmente apagado:")}
-                    </span>
-                    <span>
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-3">
                       {t(
-                        "workflow.lockedNoticeMessage",
-                        "La red de inferencia acústica se integrará en la fase de Agentes Inteligentes. Todo el flujo actual opera con precisión analógica en Modo Manual."
+                        "workflow.aiDescription",
+                        "Un agente neural analiza el espectro sonoro, densidad armónica y rango dinámico para aplicar sugerencias de ecualización y loudness LUFS de forma automatizada."
                       )}
-                    </span>
+                    </p>
+
+                    <ul className="space-y-1.5 text-[11px] text-[var(--text-muted)] border-t border-white/5 pt-3">
+                      <li className="flex items-center gap-1.5 text-emerald-400/90 font-medium">
+                        <span className="size-1 rounded-full bg-emerald-400" />
+                        <span>{t("workflow.manualBenefit1", "Control quirúrgico y presets de género")}</span>
+                      </li>
+                      <li className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                        <span className="size-1 rounded-full bg-[var(--accent-primary)]" />
+                        <span>{t("workflow.manualBenefit2", "Monitoreo A/B en tiempo real")}</span>
+                      </li>
+                      <li className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                        <span className="size-1 rounded-full bg-[var(--accent-primary)]" />
+                        <span>{t("workflow.manualBenefit3", "Historial de borradores automáticos")}</span>
+                      </li>
+                    </ul>
                   </div>
                 </div>
+              )} {
+                aiModeDisabled && (
+                  <div
+                    className="relative flex flex-col justify-between p-5 rounded-2xl border border-white/5 bg-[var(--surface-elevated)]/20 opacity-60 text-left cursor-not-allowed select-none"
+                    role="radio"
+                    aria-checked={false}
+                    aria-disabled={true}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="size-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-[var(--text-muted)]">
+                          <Sparkles size={20} />
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-[var(--text-muted)]">
+                          <Lock size={10} />
+                          <span>{t("workflow.lockedBadge", "Próximamente • Fase 6")}</span>
+                        </span>
+                      </div>
 
-                <div className="mt-4 pt-3 flex items-center justify-between border-t border-white/5">
-                  <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
-                    {t("workflow.statusLocked", "Bloqueado en esta versión")}
-                  </span>
-                  <Lock size={13} className="text-[var(--text-muted)]" />
-                </div>
-              </div>
+                      <h3 className="text-base font-bold text-[var(--text-muted)] mb-1 flex items-center gap-2">
+                        <span>{t("workflow.aiTitle", "Asistente IA Autónomo")}</span>
+                      </h3>
+
+                      <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-3">
+                        {t(
+                          "workflow.aiDescription",
+                          "Un agente neural analiza el espectro sonoro, densidad armónica y rango dinámico para aplicar sugerencias de ecualización y loudness LUFS de forma automatizada."
+                        )}
+                      </p>
+
+                      <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 text-[11px] text-[var(--text-muted)] leading-relaxed">
+                        <span className="font-semibold text-amber-400/90 block mb-0.5">
+                          {t("workflow.lockedNoticeTitle", "Módulo actualmente apagado:")}
+                        </span>
+                        <span>
+                          {t(
+                            "workflow.lockedNoticeMessage",
+                            "La red de inferencia acústica se integrará en la fase de Agentes Inteligentes. Todo el flujo actual opera con precisión analógica en Modo Manual."
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 flex items-center justify-between border-t border-white/5">
+                      <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
+                        {t("workflow.statusLocked", "Bloqueado en esta versión")}
+                      </span>
+                      <Lock size={13} className="text-[var(--text-muted)]" />
+                    </div>
+                  </div>
+                )
+              }
             </div>
 
             {/* Action Button */}
@@ -270,8 +336,9 @@ export default function SelectWorkflowModal({
               <button
                 type="button"
                 disabled={isLoading}
-                onClick={() => onConfirm("manual")}
+                onClick={() => onConfirm(selectedMode === "ai" && !aiModeDisabled ? "ai" : "manual")}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl font-bold text-xs bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white shadow-[0_4px_20px_rgba(98,126,132,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-85 disabled:cursor-wait"
+                title={aiModeDisabled ? t("workflow.aiTitle", "Asistente IA Autónomo") + " - " + t("workflow.lockedNoticeMessage", "Módulo actualmente apagado: La red de inferencia acústica se integrará en la fase de Agentes Inteligentes."} : undefined}
               >
                 {isLoading ? (
                   <>
@@ -280,7 +347,7 @@ export default function SelectWorkflowModal({
                   </>
                 ) : (
                   <>
-                    <span>{t("workflow.continueManual", "Continuar al Estudio en Modo Manual")}</span>
+                    <span>{t(selectedMode === "ai" && !aiModeDisabled ? "workflow.continueAI" || "Continuar al Estudio en Modo IA" : "workflow.continueManual" || "Continuar al Estudio en Modo Manual")}</span>
                     <ArrowRight size={15} />
                   </>
                 )}

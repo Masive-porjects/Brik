@@ -76,7 +76,8 @@
     "enteringStudio": "Entering mastering console...",
     "modeTooltip": "Click to view workflow details",
     "manualModeLabel": "Manual Mode",
-    "fullControlShort": "Full Control"
+    "fullControlShort": "Full Control",
+    "aiStatusPremium": "AVAILABLE (PREMIUM / ADMIN)"
   },
   "auth": {
     "signIn": "Sign In",
