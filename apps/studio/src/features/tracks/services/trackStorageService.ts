@@ -688,7 +688,7 @@ export async function logTrackEvent(
         event_type: eventType,
         details,
       })
-      .onConflict("track_id, event_type, user_id");
+      .onConflict("track_id,event_type,user_id");
 
     // Errores de upsert que no sean conflictos de clave única se propagan para
     // ser manejados por el caller; los conflictos de clave única se silencian puesto
