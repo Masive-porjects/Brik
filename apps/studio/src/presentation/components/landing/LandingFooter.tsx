@@ -7,6 +7,7 @@ import { useTranslation } from "@/i18n";
 const FOOTER_NAV = [
   { key: "landing.footer.nav.studio", fallback: "Brik Studio", href: "/upload" },
   { key: "landing.footer.nav.beneficios", fallback: "Beneficios", href: "#beneficios" },
+  { key: "landing.footer.nav.brikIA", fallback: "BrikIA", href: "#brik-ia" },
   { key: "landing.footer.nav.comparador", fallback: "Comparador A/B", href: "#comparador" },
   { key: "landing.footer.nav.perfiles", fallback: "Perfiles de Master", href: "#perfiles" },
   { key: "landing.footer.nav.precios", fallback: "Precios", href: "#precios" },

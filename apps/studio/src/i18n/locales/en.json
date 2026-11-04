@@ -780,6 +780,7 @@
     "nav": {
       "brand": "BRIK",
       "beneficios": "Benefits",
+      "brikIA": "BrikIA",
       "comparador": "A/B Comparator",
       "perfiles": "Mastering Profiles",
       "precios": "Pricing",
@@ -820,6 +821,46 @@
         "item1": "64-bit processing and zero phase alteration",
         "item2": "Multi-device optimization (14 profiles)",
         "item3": "EBU R128 target (-14.0 LUFS)"
+      }
+    },
+    "brikIA": {
+      "badge": "BrikIA · Conversational Producer",
+      "title": "Ask for the sound you imagine. BrikIA builds the route.",
+      "subtitle": "You are not locked to a fixed preset. Write an instruction and BrikIA translates your intent into thousands of possible stem, mix, and mastering combinations.",
+      "bullet1": "Detects whether your track needs vocal, bass, or drum separation before touching the master.",
+      "bullet2": "Combines saturation, stereo imaging, dynamic control, and per-channel balance straight from your words.",
+      "intrigue": "What happens when you ask for something no standard preset offers? Step into the studio and test it on your own track.",
+      "chatHeader": "BrikIA",
+      "chatStatus": "Listening to intent · Thousands of DSP routes",
+      "tryPromptsLabel": "Try an instruction",
+      "agentReplyLabel": "Diagnosis and generated route",
+      "inputPlaceholder": "Type how you want your mix to sound in the studio…",
+      "openChatCta": "Try in Studio",
+      "scenarios": {
+        "prompt1": {
+          "chip": "Upfront vocals + tight sub-bass",
+          "userPrompt": "The vocals feel buried when the bass drops. I want intimate upfront vocals and a tight sub-bass without clipping.",
+          "agentReply": "Detected masking between 180 Hz and 320 Hz. Split your track into 4 stems, carved space in the instrumental bus, boosted vocal presence +1.5 dB, and locked the master at -14.0 LUFS.",
+          "tag1": "Stems: 4 channels",
+          "tag2": "Vocals +1.5 dB · Unmasked",
+          "tag3": "Master -14.0 LUFS"
+        },
+        "prompt2": {
+          "chip": "Tape warmth + wide stereo",
+          "userPrompt": "It sounds too cold and digital. Give it analog midrange warmth and open the synths out wide.",
+          "agentReply": "Applied second-order analog tape saturation on the mid bus and expanded synth stereo width (+140% Haas) while keeping the sub-bass anchored in mono.",
+          "tag1": "Tape Saturation +2.5 dB",
+          "tag2": "Haas Stereo 140%",
+          "tag3": "Mono Sub-Bass"
+        },
+        "prompt3": {
+          "chip": "Club punch without squashing dynamics",
+          "userPrompt": "I need the drum hits to cut through with club impact, without crushing the quiet moments.",
+          "agentReply": "Boosted drum stem transient attack (+3.0 dB), blended fast parallel compression, and set the True Peak ceiling at -1.0 dBTP for clean punch.",
+          "tag1": "Transients +3.0 dB",
+          "tag2": "Parallel Compression",
+          "tag3": "Ceiling -1.0 dBTP"
+        }
       }
     },
     "abPlayer": {
@@ -910,6 +951,7 @@
       "nav": {
         "studio": "Brik Studio",
         "beneficios": "Benefits",
+        "brikIA": "BrikIA",
         "comparador": "A/B Comparator",
         "perfiles": "Mastering Profiles",
         "precios": "Pricing",

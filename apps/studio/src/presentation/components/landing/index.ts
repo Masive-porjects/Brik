@@ -3,6 +3,7 @@ export { default as LandingScrollToTop } from "./LandingScrollToTop";
 export { default as LandingHeader } from "./LandingHeader";
 export { default as LandingHero } from "./LandingHero";
 export { default as LandingBenefits } from "./LandingBenefits";
+export { default as LandingBrikIA } from "./LandingBrikIA";
 export { default as LandingABPlayer } from "./LandingABPlayer";
 export { default as LandingPresets } from "./LandingPresets";
 export { default as LandingPricing } from "./LandingPricing";

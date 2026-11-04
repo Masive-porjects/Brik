@@ -4,6 +4,7 @@ import LandingScrollToTop from "./LandingScrollToTop";
 import LandingHeader from "./LandingHeader";
 import LandingHero from "./LandingHero";
 import LandingBenefits from "./LandingBenefits";
+import LandingBrikIA from "./LandingBrikIA";
 import LandingABPlayer from "./LandingABPlayer";
 import LandingPresets from "./LandingPresets";
 import LandingPricing from "./LandingPricing";
@@ -19,6 +20,7 @@ export default function LandingScreen() {
       <main className="flex-1 flex flex-col w-full">
         <LandingHero />
         <LandingBenefits />
+        <LandingBrikIA />
         <LandingABPlayer />
         <LandingPresets />
         <LandingPricing />

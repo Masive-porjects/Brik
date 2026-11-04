@@ -15,6 +15,7 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { id: "beneficios", label: "landing.nav.beneficios" },
+  { id: "brik-ia", label: "landing.nav.brikIA" },
   { id: "comparador", label: "landing.nav.comparador" },
   { id: "perfiles", label: "landing.nav.perfiles" },
   { id: "precios", label: "landing.nav.precios" },

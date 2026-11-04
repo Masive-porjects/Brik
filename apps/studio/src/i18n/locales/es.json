@@ -780,6 +780,7 @@
     "nav": {
       "brand": "BRIK",
       "beneficios": "Beneficios",
+      "brikIA": "BrikIA",
       "comparador": "Comparador A/B",
       "perfiles": "Perfiles de Master",
       "precios": "Precios",
@@ -820,6 +821,46 @@
         "item1": "Procesamiento a 64-bit y cero alteración de fase",
         "item2": "Optimización multi-dispositivo (14 perfiles)",
         "item3": "Target EBU R128 (-14.0 LUFS)"
+      }
+    },
+    "brikIA": {
+      "badge": "BrikIA · Productor Conversacional",
+      "title": "Pídele el sonido que imaginas. BrikIA construye la ruta.",
+      "subtitle": "No estás atado a un botón fijo. Escríbele una instrucción y BrikIA traduce tu intención en miles de combinaciones posibles de stems, mezcla y masterización.",
+      "bullet1": "Detecta si tu pista necesita separar voces, bajo o batería antes de tocar el master.",
+      "bullet2": "Combina saturación, imagen estéreo, control dinámico y balance por canal a partir de tus palabras.",
+      "intrigue": "¿Qué pasa cuando le pides algo que ningún preset estándar tiene? Entra al estudio y descúbrelo con tu propia pista.",
+      "chatHeader": "BrikIA",
+      "chatStatus": "Escuchando intención · Miles de rutas DSP",
+      "tryPromptsLabel": "Prueba una instrucción",
+      "agentReplyLabel": "Diagnóstico y ruta generada",
+      "inputPlaceholder": "Escribe cómo quieres que suene tu mezcla en el estudio…",
+      "openChatCta": "Probar en Studio",
+      "scenarios": {
+        "prompt1": {
+          "chip": "Voz al frente + subgrave firme",
+          "userPrompt": "Siento la voz enterrada cuando entra el bajo. Quiero la voz íntima al frente y el subgrave firme sin saturar.",
+          "agentReply": "Detecté enmascaramiento entre 180 Hz y 320 Hz. Separé tu pista en 4 stems, despejé el canal instrumental, subí +1.5 dB la presencia vocal y cerré el master a -14.0 LUFS.",
+          "tag1": "Stems: 4 canales",
+          "tag2": "Voz +1.5 dB · Desenmascarado",
+          "tag3": "Master -14.0 LUFS"
+        },
+        "prompt2": {
+          "chip": "Calidez de cinta + amplitud estéreo",
+          "userPrompt": "Suena demasiado frío y digital. Dale calidez analógica en medios y abre los sintetizadores a los lados.",
+          "agentReply": "Apliqué saturación armónica de segundo orden tipo cinta en el bus central, expandí la imagen estéreo en sintetizadores (+140% Haas) manteniendo el subgrave en mono.",
+          "tag1": "Saturación Cinta +2.5 dB",
+          "tag2": "Estéreo Haas 140%",
+          "tag3": "Subgrave Mono"
+        },
+        "prompt3": {
+          "chip": "Pegada de club sin perder dinámica",
+          "userPrompt": "Necesito que los golpes de batería atraviesen la mezcla con fuerza de club, pero sin aplastar los silencios.",
+          "agentReply": "Aumenté el ataque de transientes en el stem de batería (+3.0 dB), ajusté compresión paralela rápida y fijé el techo True Peak en -1.0 dBTP para máxima pegada limpia.",
+          "tag1": "Transientes +3.0 dB",
+          "tag2": "Compresión Paralela",
+          "tag3": "Techo -1.0 dBTP"
+        }
       }
     },
     "abPlayer": {
@@ -910,6 +951,7 @@
       "nav": {
         "studio": "Brik Studio",
         "beneficios": "Beneficios",
+        "brikIA": "BrikIA",
         "comparador": "Comparador A/B",
         "perfiles": "Perfiles de Master",
         "precios": "Precios",
