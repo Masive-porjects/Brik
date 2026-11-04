@@ -1,4 +1,4 @@
-import type { ABMetricDefinition, FaqItem, FounderItem, PresetItem, PricingPlan } from "./types";
+import type { ABMetricDefinition, FaqItem, FounderItem } from "./types";
 
 /**
  * Illustrative A/B metrics for the landing demo.
@@ -43,14 +43,6 @@ export const AB_METRICS: ABMetricDefinition[] = [
   },
 ];
 
-/** Mastering profiles shown as clean cards. Copy: `landing.presets.<id>`. */
-export const PRESETS_LIST: PresetItem[] = [
-  { id: "techno" },
-  { id: "urban" },
-  { id: "ambient" },
-  { id: "lofi" },
-];
-
 /** Team cards: photo, name, one-line role, and icon links only. */
 export const FOUNDERS_LIST: FounderItem[] = [
   {
@@ -83,43 +75,6 @@ export const FOUNDERS_LIST: FounderItem[] = [
       linkedin: "https://www.linkedin.com/in/ingvillanuevat1/",
       github: "https://github.com/drakkomaximo",
     },
-  },
-];
-
-export const PRICING_PLANS: PricingPlan[] = [
-  {
-    id: "pay-per-song",
-    nameKey: "landing.pricing.payPerSong.name",
-    taglineKey: "landing.pricing.payPerSong.tagline",
-    // TODO(owner): placeholder pricing — replace with the real commercial numbers
-    price: 9,
-    currency: "USD",
-    unitKey: "landing.pricing.payPerSong.unit",
-    highlighted: false,
-    featureKeys: [
-      "landing.pricing.payPerSong.feature1",
-      "landing.pricing.payPerSong.feature2",
-      "landing.pricing.payPerSong.feature3",
-    ],
-    ctaHref: "/upload",
-    ctaKey: "landing.pricing.payPerSong.cta",
-  },
-  {
-    id: "credits",
-    nameKey: "landing.pricing.credits.name",
-    taglineKey: "landing.pricing.credits.tagline",
-    // TODO(owner): placeholder pricing — replace with the real commercial numbers
-    price: 49,
-    currency: "USD",
-    unitKey: "landing.pricing.credits.unit",
-    highlighted: true,
-    featureKeys: [
-      "landing.pricing.credits.feature1",
-      "landing.pricing.credits.feature2",
-      "landing.pricing.credits.feature3",
-    ],
-    ctaHref: "/register",
-    ctaKey: "landing.pricing.credits.cta",
   },
 ];
 

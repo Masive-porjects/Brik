@@ -782,7 +782,7 @@
       "perfiles": "Mastering Profiles",
       "precios": "Pricing",
       "faq": "FAQ",
-      "enterStudio": "Enter Studio",
+      "enterStudio": "Enter Brik Studio",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
       "menuLabel": "Navigation menu",
@@ -792,30 +792,50 @@
     "hero": {
       "title": "Professional masters in seconds.",
       "subtitle": "Upload your mix and get a sound with punch and dynamics, ready for streaming platforms. Without damaging your original audio.",
-      "ctaEnter": "Try Brik Studio"
+      "ctaEnter": "Enter Brik Studio"
     },
     "benefits": {
-      "title": "Technical highlights",
-      "item1": "64-bit processing and zero phase alteration",
-      "item2": "Multi-device optimization (14 profiles)",
-      "item3": "EBU R128 target (-14.0 LUFS)"
+      "title": "Benefits",
+      "subtitle": "Brik listens to your audio before processing it and only applies what it needs.",
+      "brik": {
+        "title": "Brik, the AI behind your master",
+        "desc": "Brik checks the health of your audio. If it needs it, it mixes first and then masters; if not, it applies only the master."
+      },
+      "stems": {
+        "title": "Stem separation",
+        "desc": "Splits your mix into stems and mixes each channel separately, so every element gets its own space."
+      },
+      "diagram": {
+        "normal": "Normal audio",
+        "mastered": "Mastered audio",
+        "cleanSpace": "Clean space",
+        "peakControl": "Peak control",
+        "dynamicRange": "Dynamic range",
+        "caption": "Dynamics of unprocessed audio compared with the same audio mastered."
+      },
+      "tech": {
+        "title": "Technical highlights",
+        "item1": "64-bit processing and zero phase alteration",
+        "item2": "Multi-device optimization (14 profiles)",
+        "item3": "EBU R128 target (-14.0 LUFS)"
+      }
     },
     "abPlayer": {
       "badge": "A/B Comparator",
       "title": "Hear the difference",
-      "subtitle": "Switch between your original mix and the Brik master, with the same audio at the same moment.",
+      "subtitle": "Switch between raw and mastered audio. Same material, same moment.",
       "trackTitle": "Demo: electronic bass",
-      "trackMeta": "ELECTRONIC BASS MUSIC — 128 BPM — 24-BIT 48KHZ",
+      "trackMeta": "SYNTHETIC DEMO — ELECTRONIC BASS — 128 BPM",
       "intensityLabel": "INTENSITY:",
       "intensityAria": "Processing intensity",
-      "toggleAria": "A/B comparison mode",
-      "playAria": "Play audio",
-      "pauseAria": "Pause audio",
-      "btnOrig": "Original",
-      "btnBrik": "Brik Master",
-      "statusBrik": "BRIK MASTER — OPTIMIZED LOUDNESS, CONTROLLED PEAKS",
-      "statusOrig": "ORIGINAL MIX — WIDER DYNAMIC RANGE, UNCONTROLLED PEAKS",
-      "vizLabel": "WAVEFORM — ORIGINAL VS MASTER",
+      "toggleAria": "Comparison mode: raw or mastered",
+      "playAria": "Play",
+      "pauseAria": "Pause",
+      "btnOrig": "Raw",
+      "btnBrik": "Mastered",
+      "statusBrik": "MASTERED — OPTIMIZED LOUDNESS, CONTROLLED PEAKS",
+      "statusOrig": "RAW — WIDER DYNAMIC RANGE, UNCONTROLLED PEAKS",
+      "vizLabel": "WAVEFORM — RAW VS MASTER",
       "vizAria": "Waveform that reacts to the A/B comparator",
       "meterLufs": "INTEGRATED LUFS",
       "meterTp": "MAX TRUE PEAK",
@@ -823,55 +843,28 @@
       "unitLufs": "LUFS",
       "unitTp": "dBTP",
       "unitLra": "LU",
-      "demoNote": "Illustrative demo metrics: they do not measure your file. Audio is generated locally in your browser."
+      "processesTitle": "Active processes",
+      "processes": {
+        "saturation": "Harmonic saturation",
+        "stereo": "Stereo expansion",
+        "peaks": "Peak control",
+        "push": "Loudness push"
+      },
+      "demoNote": "Synthetic demo to compare the character of the process. The metrics are illustrative and do not measure your file."
     },
     "presets": {
       "title": "Mastering Profiles",
-      "subtitle": "A starting point for every genre. Pick a profile and fine-tune it in Studio.",
-      "techno": {
-        "title": "Techno",
-        "desc": "Crisp highs and clean lows for high-energy tracks.",
-        "metric": "Clarity and punch"
-      },
-      "urban": {
-        "title": "Urban",
-        "desc": "More density and firm lows without losing the 808 punch.",
-        "metric": "Density and punch"
-      },
-      "ambient": {
-        "title": "Ambient",
-        "desc": "Wide stereo image and gentle dynamics for immersive textures.",
-        "metric": "Stereo width"
-      },
-      "lofi": {
-        "title": "Lo-Fi",
-        "desc": "Analog warmth and soft compression for an organic sound.",
-        "metric": "Analog warmth"
-      }
+      "subtitle": "Thousands of mix and master combinations, adaptable to any style. The AI picks the route based on your audio, without boxing it into a genre.",
+      "chipsLabel": "Base profiles"
     },
     "pricing": {
-      "title": "Clear pricing, no surprises",
-      "subtitle": "Pay per song or buy credits for your studio or label.",
-      "featuredBadge": "Most chosen",
-      "disclaimer": "Reference prices: confirmed when payments go live.",
-      "payPerSong": {
-        "name": "Pay per song",
-        "tagline": "For independent artists",
-        "unit": "per song",
-        "feature1": "1 master 24-bit ready for streaming",
-        "feature2": "Delivered in WAV and MP3",
-        "feature3": "Intellectual property 100% yours",
-        "cta": "Master a song"
-      },
-      "credits": {
-        "name": "Credits and plans",
-        "tagline": "For studios and labels",
-        "unit": "per pack",
-        "feature1": "Volume discount on packs",
-        "feature2": "Billing and team management",
-        "feature3": "Batch processing for catalogs",
-        "cta": "Request B2B access"
-      }
+      "title": "Plans and delivery",
+      "subtitle": "Mix and master single songs or full albums, at your own pace.",
+      "toggleOpen": "Discover our plans",
+      "toggleClose": "Hide details",
+      "delivery": "Final delivery in original WAV format.",
+      "batch": "Full album upload and batch processing (Mix and Master multiple tracks at once).",
+      "cta": "Enter Brik Studio"
     },
     "faq": {
       "title": "Frequently asked questions",

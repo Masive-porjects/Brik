@@ -245,7 +245,7 @@ function MobileDrawer() {
                 onClick={handleClose}
                 className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[var(--color-on-primary)] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
               >
-                {t("landing.nav.enterStudio", "Ingresar a Studio")}
+                {t("landing.nav.enterStudio", "Ingresar a Brik Studio")}
               </Link>
             </nav>
           </motion.div>

@@ -9,35 +9,28 @@ import Reveal from "./Reveal";
 import type { ABMetricDefinition, ABMetricId, AccentToken } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Waveform model
+   Demo model
 
-   The waveform is drawn on a canvas, not in the DOM: it repaints every frame,
-   and reconciling ~96 React nodes per frame would burn the frame budget on
-   mobile. The two states are deliberately different shapes, not a recolor:
+   The comparator is a synthetic, illustrative demo: a local drone whose
+   filter opens up when "Raw" is selected and closes under "Mastered". The
+   waveform is drawn on a small canvas and morphs between two shapes:
 
-   • Original (bypass): mostly short bars with occasional tall dynamic peaks —
-     high crest factor, uneven, "uncontrolled".
-   • Mastered: dense, full bars locked under a limiter ceiling — louder and
-     glued, with the peaks compressed into a consistent block.
+   • Raw: low average with occasional tall peaks (uncontrolled).
+   • Mastered: dense bars pinned under a limiter ceiling (controlled).
 
-   A single `morph` value (0 = Original, 1 = Mastered) blends both the shape
-   and the color, so toggling A/B produces one continuous, fluid transition.
+   It does not process or measure the user's file.
    ───────────────────────────────────────────────────────────────────────── */
 
 const BAR_COUNT = 96;
 
-/**
- * Deterministic per-bar seeds. A fixed table (never `Math.random`) keeps the
- * waveform stable across renders and lets both profiles share the same
- * "performance" while reading completely differently.
- */
+/** Deterministic per-bar seeds (never Math.random) so renders stay stable. */
 const BAR_SEEDS = Array.from({ length: BAR_COUNT }, (_, i) => {
   const s = Math.sin(i * 12.9898) * 43758.5453;
   return s - Math.floor(s);
 });
 
-/** Original: low average with occasional tall dynamic peaks. */
-function originalAmp(seed: number): number {
+/** Raw: low average with occasional tall dynamic peaks. */
+function rawAmp(seed: number): number {
   return Math.min(1, 0.16 + Math.pow(seed, 2.2));
 }
 
@@ -46,7 +39,7 @@ function masteredAmp(seed: number): number {
   return 0.6 + Math.min(0.3, seed * 0.3);
 }
 
-const ORIG_COLOR: readonly [number, number, number] = [134, 147, 145];
+const RAW_COLOR: readonly [number, number, number] = [134, 147, 145];
 const MASTER_COLOR: readonly [number, number, number] = [110, 233, 224];
 
 const ACCENTS: Record<AccentToken, { text: string; bg: string }> = {
@@ -54,6 +47,9 @@ const ACCENTS: Record<AccentToken, { text: string; bg: string }> = {
   secondary: { text: "text-secondary", bg: "bg-secondary" },
   tertiary: { text: "text-tertiary-container", bg: "bg-tertiary-container" },
 };
+
+/** Engine processes shown as badges while the Mastered state is active. */
+const PROCESS_KEYS = ["saturation", "stereo", "peaks", "push"] as const;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -84,17 +80,17 @@ function MetricCard({ metric, value, label, unit }: MetricCardProps) {
   const fill = normalize(metric, value) * 100;
 
   return (
-    <div className="p-2.5 sm:p-4 bg-[var(--bg-glass)] rounded-lg border border-[var(--border-subtle)] flex flex-col gap-1.5">
-      <span className="font-label-technical text-[9px] sm:text-[10px] leading-tight text-[var(--text-muted)]">
+    <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-2.5 sm:p-3">
+      <span className="font-label-technical text-[9px] leading-tight text-[var(--text-muted)] sm:text-[10px]">
         {label}
       </span>
       <div className="flex items-baseline justify-between gap-1">
-        <span className={`font-metric-val-lg text-base sm:text-2xl font-bold tabular-nums ${accent.text}`}>
+        <span className={`font-metric-val-lg text-base font-bold tabular-nums sm:text-xl ${accent.text}`}>
           {value.toFixed(metric.decimals)}
         </span>
         <span className={`font-label-technical text-[9px] sm:text-xs ${accent.text}`}>{unit}</span>
       </div>
-      <div className="w-full bg-[var(--surface-active)] h-1.5 rounded-full overflow-hidden">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-active)]">
         <div className={`h-full rounded-full ${accent.bg}`} style={{ width: `${fill}%` }} />
       </div>
     </div>
@@ -108,12 +104,8 @@ interface FaderProps {
 }
 
 /**
- * Thumb-friendly fader.
- *
- * A native range input is small and lets mobile browsers scroll the page while
- * dragging. This is a 44px-tall slider with `touch-action: none` and pointer
- * capture, so a thumb drag controls the value and never scrolls the page.
- * Keyboard users get the usual slider keys.
+ * Thumb-friendly fader: 44px tall, `touch-action: none`, pointer capture, so a
+ * drag controls the value without scrolling the page. Keyboard keys supported.
  */
 function Fader({ value, onChange, ariaLabel }: FaderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -140,7 +132,7 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
       aria-valuemax={100}
       aria-valuenow={value}
       aria-valuetext={`${value}%`}
-      className="relative flex h-11 w-28 sm:w-40 touch-none select-none items-center rounded-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary/70"
+      className="relative flex h-11 w-full min-w-0 max-w-[220px] cursor-pointer touch-none select-none items-center rounded-full focus-visible:ring-2 focus-visible:ring-primary/70"
       onPointerDown={(event) => {
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -171,7 +163,7 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
       <div className="absolute inset-x-0 h-1.5 rounded-full bg-[var(--surface-active)]" />
       <div className="absolute left-0 h-1.5 rounded-full bg-primary" style={{ width: `${value}%` }} />
       <div
-        className="absolute h-5 w-5 -translate-x-1/2 rounded-full border-2 border-primary bg-[var(--bg-glass-elevated)] shadow-[0_0_0_2px_rgba(0,0,0,0.4),0_0_10px_rgba(110,233,224,0.35)]"
+        className="absolute h-5 w-5 -translate-x-1/2 rounded-full border-2 border-primary bg-[var(--bg-glass-elevated)]"
         style={{ left: `${value}%` }}
       />
     </div>
@@ -204,12 +196,11 @@ export default function LandingABPlayer() {
   const phaseRef = useRef(0);
   const playheadRef = useRef(33);
 
-  /* ── Keep the animation ref in sync with React state ──────────────── */
   useEffect(() => {
     stateRef.current.reduced = prefersReduced;
   }, [prefersReduced]);
 
-  /* ── Local synthetic audio (Oscillator → BiquadFilter → gain) ─────── */
+  /* ── Local synthetic drone (Oscillator → BiquadFilter → Gain) ─────── */
   const applyTone = useCallback(() => {
     const graph = audioRef.current;
     if (!graph) return;
@@ -303,7 +294,7 @@ export default function LandingABPlayer() {
     }
   }, [isPlaying, startAudio, stopAudio]);
 
-  // A/B changes retune the live drone without restarting it.
+  // Raw/Mastered changes retune the live drone without restarting it.
   useEffect(() => {
     stateRef.current.target = isBrik ? 1 : 0;
     applyTone();
@@ -335,7 +326,7 @@ export default function LandingABPlayer() {
     };
   }, []);
 
-  // Keyboard shortcut: A = Original, B = Mastered.
+  // Keyboard shortcut: A = Raw, B = Mastered.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const el = event.target as HTMLElement | null;
@@ -407,12 +398,12 @@ export default function LandingABPlayer() {
       ctx.clearRect(0, 0, width, height);
 
       const cy = height / 2;
-      const maxHalf = height / 2 - 6;
+      const maxHalf = height / 2 - 4;
       const barStep = width / BAR_COUNT;
       const barW = Math.max(1, barStep * 0.62);
       const idleScale = state.playing ? 1 : 0.62;
 
-      // Fade in the limiter ceiling only as we approach the Mastered state.
+      // Limiter ceiling fades in only as we approach the Mastered state.
       if (morph > 0.15) {
         const ceiling = cy - maxHalf * 0.92;
         ctx.strokeStyle = `rgba(110, 233, 224, ${(0.22 * morph).toFixed(3)})`;
@@ -425,13 +416,13 @@ export default function LandingABPlayer() {
         ctx.stroke();
       }
 
-      const cr = Math.round(lerp(ORIG_COLOR[0], MASTER_COLOR[0], morph));
-      const cg = Math.round(lerp(ORIG_COLOR[1], MASTER_COLOR[1], morph));
-      const cb = Math.round(lerp(ORIG_COLOR[2], MASTER_COLOR[2], morph));
+      const cr = Math.round(lerp(RAW_COLOR[0], MASTER_COLOR[0], morph));
+      const cg = Math.round(lerp(RAW_COLOR[1], MASTER_COLOR[1], morph));
+      const cb = Math.round(lerp(RAW_COLOR[2], MASTER_COLOR[2], morph));
 
       for (let i = 0; i < BAR_COUNT; i++) {
         const seed = BAR_SEEDS[i];
-        let amp = lerp(originalAmp(seed), masteredAmp(seed), morph) * idleScale;
+        let amp = lerp(rawAmp(seed), masteredAmp(seed), morph) * idleScale;
         if (!state.reduced) {
           amp *= 1 + Math.sin(phase + i * 0.35) * (state.playing ? 0.16 : 0.05);
         }
@@ -469,129 +460,142 @@ export default function LandingABPlayer() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  const toggleBase =
+    "min-h-[44px] flex-1 px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70";
+
   return (
-    <Reveal as="section" className="w-full py-24 lg:py-32 px-4 sm:px-8 lg:px-12 bg-[var(--bg-app)] relative" id="comparador">
-      <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
-        {/* Section Header */}
-        <div className="flex flex-col items-center text-center gap-3 max-w-3xl mx-auto">
-          <span className="font-label-technical text-primary text-[10px] uppercase tracking-widest">
-            {t("landing.abPlayer.badge")}
+    <Reveal as="section" id="comparador" className="relative w-full bg-[var(--bg-app)] px-4 py-24 sm:px-8 lg:px-12 lg:py-32">
+      <div className="mx-auto flex max-w-3xl flex-col gap-10">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <span className="font-label-technical text-[10px] uppercase tracking-widest text-primary">
+            {t("landing.abPlayer.badge", "Comparador A/B")}
           </span>
-          <h2 className="font-headline-lg text-3xl sm:text-4xl lg:text-5xl text-[var(--text-primary)] font-bold">
-            {t("landing.abPlayer.title")}
+          <h2 className="font-headline-lg text-3xl font-bold text-[var(--text-primary)] sm:text-4xl lg:text-5xl">
+            {t("landing.abPlayer.title", "Escucha la diferencia")}
           </h2>
-          <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
-            {t("landing.abPlayer.subtitle")}
+          <p className="max-w-xl text-sm leading-relaxed text-[var(--text-secondary)] sm:text-base">
+            {t(
+              "landing.abPlayer.subtitle",
+              "Alterna entre el audio crudo y el masterizado. Mismo material, mismo momento."
+            )}
           </p>
         </div>
 
-        {/* Interactive Audio Widget Shell */}
-        <div className="w-full bg-[var(--bg-glass-elevated)] rounded-2xl p-4 sm:p-8 lg:p-10 border border-[var(--border-subtle)] flex flex-col gap-6">
-          {/* Control Bar */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-6 border-b border-[var(--border-strong)]">
-            {/* Track Info & Play */}
-            <div className="flex items-center gap-3.5 min-w-0">
+        <div className="flex flex-col gap-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-glass-elevated)] p-4 sm:p-6">
+          {/* Track + play + Raw/Mastered toggle */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={togglePlay}
-                className="shrink-0 w-12 h-12 min-h-[44px] rounded-full bg-primary text-[var(--color-on-primary)] flex items-center justify-center hover:bg-primary-container transition-all shadow-[0_0_18px_rgba(110,233,224,0.35)] hover:scale-105 active:scale-[0.98] cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-primary/70"
-                aria-label={isPlaying ? t("landing.abPlayer.pauseAria") : t("landing.abPlayer.playAria")}
+                className="flex h-12 w-12 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full bg-primary text-[var(--color-on-primary)] transition-all hover:bg-primary-container active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70"
+                aria-label={isPlaying ? t("landing.abPlayer.pauseAria", "Pausar") : t("landing.abPlayer.playAria", "Reproducir")}
+                aria-pressed={isPlaying}
               >
-                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="ml-0.5 h-5 w-5 fill-current" />}
               </button>
-              <div className="flex flex-col min-w-0">
-                <span className="font-headline-sm text-sm sm:text-base font-semibold text-[var(--text-primary)] truncate">
-                  {t("landing.abPlayer.trackTitle")}
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-semibold text-[var(--text-primary)] sm:text-base">
+                  {t("landing.abPlayer.trackTitle", "Demo: bass electrónico")}
                 </span>
-                <span className="font-label-technical text-[10px] text-[var(--text-muted)] truncate">
-                  {t("landing.abPlayer.trackMeta")}
+                <span className="font-label-technical truncate text-[10px] text-[var(--text-muted)]">
+                  {t("landing.abPlayer.trackMeta", "DEMO SINTÉTICA — BASS ELECTRÓNICO — 128 BPM")}
                 </span>
               </div>
             </div>
 
-            {/* Intensity & A/B Switchers */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4">
-              {/* DSP Intensity Fader */}
-              <div className="flex items-center gap-3 bg-[var(--bg-glass)] px-4 rounded-full border border-[var(--border-subtle)]">
-                <span className="font-label-technical text-[10px] text-[var(--text-muted)] uppercase shrink-0">
-                  {t("landing.abPlayer.intensityLabel")}
-                </span>
-                <Fader
-                  value={intensity}
-                  onChange={setIntensity}
-                  ariaLabel={t("landing.abPlayer.intensityAria")}
-                />
-                <span className="font-label-technical text-xs text-primary font-bold w-9 text-right tabular-nums">
-                  {intensity}%
-                </span>
-              </div>
-
-              {/* A/B Switch Pills */}
-              <div
-                role="group"
-                aria-label={t("landing.abPlayer.toggleAria")}
-                className="grid grid-cols-2 gap-1 p-1 bg-[var(--surface-active)] rounded-full border border-[var(--border-subtle)] shadow-inner w-full sm:w-auto"
+            <div
+              role="group"
+              aria-label={t("landing.abPlayer.toggleAria", "Modo de comparación: crudo o masterizado")}
+              className="grid w-full grid-cols-2 gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-active)] p-1 sm:w-auto sm:min-w-[260px]"
+            >
+              <button
+                type="button"
+                onClick={() => setIsBrik(false)}
+                aria-pressed={!isBrik}
+                aria-keyshortcuts="a"
+                className={`${toggleBase} ${
+                  !isBrik
+                    ? "border border-[var(--border-strong)] bg-[var(--bg-glass-elevated)] text-[var(--text-primary)] shadow-md"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
               >
-                <button
-                  type="button"
-                  onClick={() => setIsBrik(false)}
-                  aria-pressed={!isBrik}
-                  aria-keyshortcuts="a"
-                  className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70 ${
-                    !isBrik
-                      ? "bg-[var(--surface-active)] text-[var(--text-primary)] shadow-md border border-[var(--border-strong)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {t("landing.abPlayer.btnOrig")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsBrik(true)}
-                  aria-pressed={isBrik}
-                  aria-keyshortcuts="b"
-                  className={`min-h-[44px] px-4 rounded-full font-label-technical text-xs font-bold transition-all cursor-pointer touch-manipulation active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/70 ${
-                    isBrik
-                      ? "bg-primary text-[var(--color-on-primary)] shadow-[0_0_12px_rgba(110,233,224,0.35)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {t("landing.abPlayer.btnBrik")}
-                </button>
-              </div>
+                {t("landing.abPlayer.btnOrig", "Crudo")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBrik(true)}
+                aria-pressed={isBrik}
+                aria-keyshortcuts="b"
+                className={`${toggleBase} ${
+                  isBrik
+                    ? "bg-primary text-[var(--color-on-primary)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {t("landing.abPlayer.btnBrik", "Masterizado")}
+              </button>
             </div>
           </div>
 
-          {/* Waveform Canvas */}
-          <div className="relative w-full h-48 sm:h-56 bg-[var(--bg-app)] rounded-xl overflow-hidden border border-[var(--border-subtle)]">
+          {/* Compact waveform */}
+          <div className="relative h-16 w-full overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] sm:h-20">
             <canvas
               ref={canvasRef}
               role="img"
-              aria-label={t("landing.abPlayer.vizAria")}
-              className="absolute inset-0 w-full h-full block"
+              aria-label={t("landing.abPlayer.vizAria", "Onda que reacciona al comparador A/B")}
+              className="absolute inset-0 block h-full w-full"
             />
-            <div className="absolute top-3 left-4 right-4 flex items-center justify-between gap-3 text-[10px] font-label-technical pointer-events-none">
-              <span className="text-primary font-bold shrink-0">{t("landing.abPlayer.vizLabel")}</span>
+            <div className="pointer-events-none absolute inset-x-3 top-2 flex items-center justify-between gap-3 text-[9px] font-label-technical sm:text-[10px]">
+              <span className="shrink-0 font-bold text-primary">{t("landing.abPlayer.vizLabel", "ONDA — CRUDO VS MASTER")}</span>
               <span
-                className={`uppercase tracking-wider text-right truncate transition-colors duration-500 ${
+                className={`truncate text-right uppercase tracking-wider transition-colors duration-500 ${
                   isBrik ? "text-primary" : "text-[var(--text-muted)]"
                 }`}
               >
                 {isBrik ? t("landing.abPlayer.statusBrik") : t("landing.abPlayer.statusOrig")}
               </span>
             </div>
-            <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[var(--text-muted)] font-label-technical text-[10px] pointer-events-none">
-              <span>20 Hz</span>
-              <span className="hidden sm:inline">100 Hz</span>
-              <span>1 kHz</span>
-              <span className="hidden sm:inline">5 kHz</span>
-              <span>12 kHz</span>
-              <span>20 kHz</span>
-            </div>
           </div>
 
-          {/* Realtime Metrics Grid */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          {/* Active processes: lit in Mastered, dimmed in Raw */}
+          <div className="flex flex-col gap-2">
+            <span className="font-label-technical text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
+              {t("landing.abPlayer.processesTitle", "Procesos activos")}
+            </span>
+            <ul className="flex flex-wrap gap-2">
+              {PROCESS_KEYS.map((key) => (
+                <li
+                  key={key}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-500 ${
+                    isBrik
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-[var(--border-subtle)] text-[var(--text-muted)] opacity-50"
+                  }`}
+                >
+                  {t(`landing.abPlayer.processes.${key}`)}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Intensity */}
+          <div className="flex items-center gap-3">
+            <span className="font-label-technical shrink-0 text-[10px] uppercase text-[var(--text-muted)]">
+              {t("landing.abPlayer.intensityLabel", "INTENSIDAD:")}
+            </span>
+            <Fader
+              value={intensity}
+              onChange={setIntensity}
+              ariaLabel={t("landing.abPlayer.intensityAria", "Intensidad del procesamiento")}
+            />
+            <span className="font-label-technical w-10 shrink-0 text-right text-xs font-bold tabular-nums text-primary">
+              {intensity}%
+            </span>
+          </div>
+
+          {/* Metrics */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {AB_METRICS.map((metric) => (
               <MetricCard
                 key={metric.id}
@@ -603,9 +607,11 @@ export default function LandingABPlayer() {
             ))}
           </div>
 
-          {/* Honest demo disclaimer */}
-          <p className="font-label-technical text-[10px] leading-relaxed text-[var(--text-muted)] text-center">
-            {t("landing.abPlayer.demoNote")}
+          <p className="font-label-technical text-center text-[10px] leading-relaxed text-[var(--text-muted)]">
+            {t(
+              "landing.abPlayer.demoNote",
+              "Demo sintética para comparar el carácter del proceso. Las métricas son ilustrativas y no miden tu archivo."
+            )}
           </p>
         </div>
       </div>
