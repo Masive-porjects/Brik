@@ -279,11 +279,9 @@ function MacroCard({
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      className="rounded-xl p-3 cursor-pointer select-none transition-[background] duration-300"
+      className="rounded-lg p-4 cursor-pointer select-none transition-colors hover:bg-neutral-800"
       style={{
-        background: active
-          ? "rgba(98, 126, 132, 0.06)"
-          : "var(--bg-glass)",
+        background: active ? "rgba(98, 126, 132, 0.06)" : undefined,
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         border: active
@@ -529,7 +527,7 @@ export default function ModulePanel({
   return (
     <div ref={containerRef} className="space-y-4">
       {/* ── Macro-Character Cards ──────────────────── */}
-      <div className="cards-grid grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="cards-grid w-full grid grid-cols-2 lg:grid-cols-4 gap-6">
         {PRESETS.map((preset) => (
           <MacroCard
             key={preset.id}

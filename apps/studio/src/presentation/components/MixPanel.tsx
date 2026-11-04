@@ -32,18 +32,6 @@ import { useTranslation } from "@/i18n";
    #00d4aa/#10b981, rojo de error, gradiente del ring) quedan fijos:
    funcionan en ambos temas. ──────────────────────────────── */
 
-const CARD_STYLE: React.CSSProperties = {
-  // position: relative ancla overlays internos del módulo.
-  position: "relative",
-  // Vidrio flotante: el módulo flota sobre el canvas, no es una tarjeta.
-  background: "var(--bg-glass)",
-  backdropFilter: "blur(16px)",
-  WebkitBackdropFilter: "blur(16px)",
-  border: "1px solid var(--border-subtle)",
-  borderRadius: "1rem",
-  boxShadow: "var(--shadow-card)",
-};
-
 interface MixPanelProps {
   sessionId: string | null;
   /** ``session.mix_path`` de una sesión recargada con mix ya generado. */
@@ -574,7 +562,7 @@ export default function MixPanel({
   }
 
   return (
-    <div style={CARD_STYLE}>
+    <div className="relative w-full">
       {/* ── Mini-panel del Asistente IA (datos reales del análisis) ── */}
       {mode === "ai" && (
         <motion.div
@@ -714,7 +702,7 @@ export default function MixPanel({
           v6 — elección por mezcla (no persistida), default ON; se
           deshabilita mientras corre el POST /mix. OFF = routing Paso 03
           (backend omite dimension_report). */}
-      <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-4">
+      <div className="flex w-full flex-wrap items-center gap-2.5 border-t border-[var(--border-subtle)] py-5">
         <button
           type="button"
           role="switch"
@@ -759,7 +747,7 @@ export default function MixPanel({
           previo exacto). El fader del usuario queda SIEMPRE visible y
           relativo al resultado del motor (spec: el motor propone, el humano
           decide). Se deshabilita mientras corre el POST /mix. */}
-      <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-4">
+      <div className="w-full border-t border-[var(--border-subtle)] py-5">
         <p
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}
@@ -831,7 +819,7 @@ export default function MixPanel({
           perfil soportado hoy es commercial_alt_pop (Twenty One Pilots /
           post-punk moderno); el seed queda oculto (default determinístico
           del backend). Se deshabilita mientras corre el POST /mix. */}
-      <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-4">
+      <div className="w-full border-t border-[var(--border-subtle)] py-5">
         <p
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}

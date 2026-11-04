@@ -302,7 +302,7 @@ function MezclasContent() {
         />
 
         {/* Main Workspaces Layout */}
-        <div className="flex-1 min-h-0 w-full max-w-5xl mx-auto px-4 py-6 flex flex-col justify-center items-center">
+        <div className="flex-1 min-h-0 w-full px-6 md:px-12 py-6 flex flex-col justify-center items-center">
           <main className="flex-1 h-full flex flex-col min-w-0 relative">
             <div className="flex flex-1 min-h-0 relative">
               <div className="flex-1 flex flex-col min-w-0 relative">
@@ -419,11 +419,9 @@ function MezclasContent() {
                         >
                           {workflow.session && (
                             <div
-                              className={`w-full origin-center ${
-                                currentTab === null || currentTab === "productor" ? "max-w-5xl" : ""
-                              }`}
+                              className="w-full origin-center"
                             >
-                              <div className="w-full max-w-3xl mx-auto mt-12 p-8 bg-neutral-800/50 backdrop-blur-md rounded-2xl border border-neutral-700 flex flex-col items-center justify-center space-y-6">
+                              <div className="flex w-full flex-col items-center justify-center space-y-6">
                               <Player
                                 originalUrl={getAudioUrl(workflow.session.session_id, "original")}
                                 masteredUrl={
