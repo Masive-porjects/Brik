@@ -7,6 +7,11 @@ import { useIsMounted } from "@/shared/hooks";
 
 const THEME_KEY = "waveai-theme";
 
+/* Dark is forced globally (product decision). While true, a stored "light" theme
+   is ignored, the toggle does nothing and its button is not rendered. Set to
+   false to bring the light theme back. */
+export const FORCE_DARK_THEME = true;
+
 export type Theme = "dark" | "light";
 
 /* The theme lives in the document/localStorage, not in a store we can subscribe to:
@@ -16,6 +21,7 @@ export type Theme = "dark" | "light";
 const subscribeToTheme = () => () => {};
 
 function readStoredTheme(): Theme {
+  if (FORCE_DARK_THEME) return "dark";
   try {
     const current = document.documentElement.dataset.theme as Theme | undefined;
     if (current === "light" || current === "dark") {
@@ -47,6 +53,7 @@ export function useThemeMode() {
   }, [theme]);
 
   const toggle = useCallback(() => {
+    if (FORCE_DARK_THEME) return;
     setThemeOverride((prev) => {
       const next: Theme = (prev ?? readStoredTheme()) === "dark" ? "light" : "dark";
       document.documentElement.dataset.theme = next;
@@ -124,7 +131,7 @@ export default function ThemeToggle() {
   const { theme, toggle, isDark } = useThemeMode();
   const { t } = useTranslation();
 
-  if (!isMounted) {
+  if (!isMounted || FORCE_DARK_THEME) {
     return (
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-[var(--bg-glass)] border border-[var(--border-subtle)]"

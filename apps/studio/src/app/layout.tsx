@@ -199,11 +199,12 @@ export default function RootLayout({
       className={`${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
       <head>
-        {/* Theme initialization - runs before hydration */}
+        {/* Dark is forced globally: set before hydration so no light flash and
+            no stored "light" preference can switch the theme back. */}
         <script
           id="theme-init"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("waveai-theme");if(t==="light"){document.documentElement.dataset.theme="light";}}catch(e){}})();`,
+            __html: `document.documentElement.dataset.theme="dark";`,
           }}
         />
         {/* Viewport height fix - runs before hydration */}

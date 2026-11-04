@@ -228,17 +228,16 @@ export default function ModuleDock({
   return (
     <nav
       aria-label="Módulos del estudio"
-      className="pointer-events-none fixed inset-x-0 bottom-4 pb-safe z-40 flex origin-bottom justify-center scale-[0.62] sm:scale-100"
-      style={{ right: rightOffset }}
+      className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex origin-bottom justify-center scale-[0.62] sm:scale-100"
+      style={rightOffset ? { right: rightOffset } : undefined}
     >
       <motion.div
         ref={dockRef}
         initial={reduceMotion ? false : { opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, delay: 0.15, ease: "easeOut" }}
-        className="glass-elevated pointer-events-auto flex items-center gap-2 rounded-2xl px-3 py-2 backdrop-blur-md"
+        className="glass-elevated pointer-events-auto flex items-center gap-2 rounded-2xl border border-neutral-700 px-3 py-2 backdrop-blur-md"
         style={{
-          border: "1px solid var(--border-strong)",
           boxShadow: "var(--shadow-heavy)",
         }}
       >

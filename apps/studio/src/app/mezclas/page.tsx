@@ -423,6 +423,7 @@ function MezclasContent() {
                                 currentTab === null || currentTab === "productor" ? "max-w-5xl" : ""
                               }`}
                             >
+                              <div className="w-full max-w-3xl mx-auto mt-12 p-8 bg-neutral-800/50 backdrop-blur-md rounded-2xl border border-neutral-700 flex flex-col items-center justify-center space-y-6">
                               <Player
                                 originalUrl={getAudioUrl(workflow.session.session_id, "original")}
                                 masteredUrl={
@@ -439,6 +440,7 @@ function MezclasContent() {
                                 sessionId={workflow.session.session_id}
                                 burstSignal={workflow.masterBurst}
                               />
+                              </div>
                             </div>
                           )}
                         </motion.div>
@@ -446,7 +448,7 @@ function MezclasContent() {
 
                       {/* Scrollable Tab Canvas */}
                       <div
-                        className={`relative z-[1] min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-32 ${
+                        className={`relative z-[1] min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-40 ${
                           sheetTab !== null || currentTab === null || currentTab === "productor"
                             ? "hidden"
                             : "flex-1"
