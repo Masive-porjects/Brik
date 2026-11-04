@@ -25,6 +25,8 @@ import { genreDisplayLabel } from "@/lib/audioUtils";
 import MixWaveformAB from "@/presentation/components/MixWaveformAB";
 import MixStatusStream from "@/presentation/components/MixStatusStream";
 import { MIX_STATUS_STAGES } from "@/presentation/components/mixI18n";
+import AgentStemStack from "@/features/mastering/components/AgentStemStack";
+import { useAgentStudioStore } from "@/features/mastering/store/agentStudioStore";
 import { useTranslation } from "@/i18n";
 
 /* ── Módulo: tokens semánticos de globals.css (dark por defecto,
@@ -307,6 +309,10 @@ export default function MixPanel({
   onMasterize,
 }: MixPanelProps) {
   const { t } = useTranslation();
+  const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
+  const storeStemSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
+  const activeSessionStems =
+    sessionId && storeStemSessionId === sessionId ? storeCompletedStems : [];
   const [mixing, setMixing] = useState(false);
   const [mixUrl, setMixUrl] = useState<string | null>(null);
   const [mixResult, setMixResult] = useState<MixResult | null>(null);
@@ -808,6 +814,14 @@ export default function MixPanel({
             />
           ))}
         </div>
+        {sessionId && (activeSessionStems.length > 0 || hasMixed) && (
+          <div className="mt-4 w-full">
+            <AgentStemStack
+              sessionId={sessionId}
+              stemNames={activeSessionStems.length > 0 ? activeSessionStems : undefined}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Círculo de carga por etapas — solo mientras corre el /mix ──

@@ -30,7 +30,9 @@ import {
   AgentSidebar,
 } from "@/features/mastering";
 import { LibraryView } from "@/features/remastering-history";
-import { fetchUserTracks, renameTrackDraft, getUserTracksCount, type Track } from "@/features/tracks";
+import AgentStemStack from "@/features/mastering/components/AgentStemStack";
+import { useAgentStudioStore } from "@/features/mastering/store/agentStudioStore";
+import { fetchUserTracks, renameTrackDraft, getUserTracksCount } from "@/features/tracks";
 import { useAuth } from "@/features/auth";
 
 const TABS: { key: MasteringTab; label: string }[] = [
@@ -60,6 +62,14 @@ function MezclasContent() {
   const { user } = useAuth();
 
   const workflow = useMastering();
+  const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
+  const storeStemSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
+  const activeAgentStems =
+    workflow.session && storeStemSessionId === workflow.session.session_id
+      ? storeCompletedStems
+      : [];
+  const hasVisibleStems =
+    activeAgentStems.length > 0 || Boolean(workflow.stemState?.stems);
 
   const urlMode = parseModeParam(modeParam);
   const [masteringMode, setMasteringMode] = useState<MasteringMode>(() => urlMode ?? "manual");
@@ -302,10 +312,10 @@ function MezclasContent() {
         />
 
         {/* Main Workspaces Layout */}
-        <div className="flex-1 min-h-0 w-full px-6 md:px-12 py-6 flex flex-col justify-center items-center">
-          <main className="flex-1 h-full flex flex-col min-w-0 relative">
-            <div className="flex flex-1 min-h-0 relative">
-              <div className="flex-1 flex flex-col min-w-0 relative">
+        <div className="flex-1 min-h-0 w-full px-6 md:px-12 pt-4 pb-6 flex flex-col">
+          <main className="flex-1 h-full w-full flex flex-col min-w-0 relative">
+            <div className="flex flex-1 w-full min-h-0 relative">
+              <div className="flex-1 w-full flex flex-col min-w-0 relative">
                 {/* AI Mode Workspace */}
                 <div
                   className={`${
@@ -401,27 +411,22 @@ function MezclasContent() {
                     />
                   ) : (
                     <motion.div
-                      className="flex-1 flex flex-col min-h-0 relative"
+                      className="flex-1 w-full flex flex-col min-h-0 relative"
                       initial={VIEW_TRANSITION.initial}
                       animate={VIEW_TRANSITION.animate}
                       transition={VIEW_TRANSITION.transition}
                     >
-                      {/* Desktop Player */}
-                      {!isMezclaTab && (
-                        <motion.div
-                          layout="position"
-                          transition={{ type: "spring", stiffness: 40, damping: 12 }}
-                          className={`relative z-[1] px-4 lg:px-6 pt-4 pb-2 ${
-                            currentTab === null || currentTab === "productor"
-                              ? "flex-1 flex items-center justify-center min-h-0"
-                              : "shrink-0"
-                          }`}
-                        >
-                          {workflow.session && (
-                            <div
-                              className="w-full origin-center"
-                            >
-                              <div className="flex w-full flex-col items-center justify-center space-y-6">
+                      {/* Desktop Player — margin-top prevents any collision with MasteringHeader */}
+                      <div
+                        className={`relative z-[1] w-full px-4 lg:px-6 mt-3 pt-2 pb-2 ${
+                          currentTab === null || currentTab === "productor"
+                            ? "flex-1 flex flex-col justify-center min-h-0"
+                            : "shrink-0"
+                        }`}
+                      >
+                        {workflow.session && (
+                          <div className="w-full origin-center">
+                            <div className="flex w-full flex-col justify-center space-y-6">
                               <Player
                                 originalUrl={getAudioUrl(workflow.session.session_id, "original")}
                                 masteredUrl={
@@ -438,11 +443,23 @@ function MezclasContent() {
                                 sessionId={workflow.session.session_id}
                                 burstSignal={workflow.masterBurst}
                               />
-                              </div>
+                              {(currentTab === null || currentTab === "productor") &&
+                                hasVisibleStems && (
+                                  <div className="w-full pt-2">
+                                    <AgentStemStack
+                                      sessionId={workflow.session.session_id}
+                                      stemNames={
+                                        activeAgentStems.length > 0
+                                          ? activeAgentStems
+                                          : undefined
+                                      }
+                                    />
+                                  </div>
+                                )}
                             </div>
-                          )}
-                        </motion.div>
-                      )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Scrollable Tab Canvas */}
                       <div

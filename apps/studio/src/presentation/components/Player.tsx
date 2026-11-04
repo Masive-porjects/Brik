@@ -744,7 +744,7 @@ export default function Player({
     : null;
 
   return (
-    <div className="rounded-2xl py-2 px-3 overflow-hidden bg-transparent border-none">
+    <div className="w-full rounded-2xl py-2 px-3 overflow-hidden bg-transparent border-none">
       {/* A/B/C Toggle */}
       <div className="flex items-center justify-center gap-3 mb-2">
         <div className="relative grid grid-cols-2 bg-[var(--surface-hover)] rounded-full p-0.5 w-full max-w-[280px] sm:min-w-[240px]">

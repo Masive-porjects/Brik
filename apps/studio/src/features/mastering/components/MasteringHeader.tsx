@@ -19,6 +19,7 @@ import {
 import TrackChip from "@/presentation/components/TrackChip";
 import LanguageSwitcher from "@/presentation/components/LanguageSwitcher";
 import ThemeToggle from "@/presentation/components/ThemeToggle";
+import { BASE_PATH } from "@/lib/basePath";
 import { UserMenu } from "@/features/auth";
 import { useTranslation } from "@/i18n/useTranslation";
 import type { SessionData } from "@/lib/api";
@@ -75,14 +76,14 @@ export default function MasteringHeader({
   };
 
   return (
-    <nav className="relative z-50 flex items-center justify-between px-4 lg:px-6 pt-safe py-3 shrink-0">
+    <nav className="sticky top-0 z-[100] flex items-center justify-between px-4 lg:px-6 pt-safe py-3 shrink-0 bg-[var(--bg-app)]/95 backdrop-blur-xl border-b border-[var(--border-subtle)]">
       <div className="flex items-center gap-2.5 flex-wrap">
-        <div className="rounded-full px-3.5 py-1.5 glass flex items-center gap-2">
+        <div className="rounded-full px-3.5 py-1.5 glass flex items-center gap-2 border border-[var(--border-subtle)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/mascota-3d.webp"
+            src={`${BASE_PATH}/brand/mascota-3d.webp`}
             alt="Brik Ghost Logo"
-            className="w-5 h-5 rounded-md object-contain"
+            className="w-5 h-5 rounded-md object-contain shrink-0"
           />
           <span className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
             Brik<span className="text-[var(--accent-primary)]">.</span>

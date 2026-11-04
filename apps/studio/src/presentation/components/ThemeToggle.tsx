@@ -131,7 +131,7 @@ export default function ThemeToggle() {
   const { theme, toggle, isDark } = useThemeMode();
   const { t } = useTranslation();
 
-  if (!isMounted || FORCE_DARK_THEME) {
+  if (!isMounted) {
     return (
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-[var(--bg-glass)] border border-[var(--border-subtle)]"

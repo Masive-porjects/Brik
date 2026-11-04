@@ -8,6 +8,7 @@ import WaveSurfer from "wavesurfer.js";
 import { useTranslation } from "@/i18n";
 import { getAudioUrl, getMixAudioUrl, getStemUrl } from "@/lib/api";
 import { STEMS, type StemName } from "@/presentation/components/StemSplitter";
+import { useAgentStudioStore } from "../store/agentStudioStore";
 
 /**
  * Las pistas separadas, pintadas con su forma de onda REAL.
@@ -201,8 +202,8 @@ function StemLane({
         </span>
       </span>
 
-      <div className="relative min-w-0 flex-1" style={{ height: LANE_HEIGHT }}>
-        <div ref={containerRef} className="h-full w-full" />
+      <div className="relative min-w-[140px] w-full flex-1 min-h-[38px]" style={{ height: LANE_HEIGHT }}>
+        <div ref={containerRef} className="h-[38px] w-full" />
 
         {duration === null && !failed && (
           <div
@@ -243,7 +244,15 @@ export default function AgentStemStack({
   const { t } = useTranslation();
   const [active, setActive] = useState<StemName | null>(null);
   const [loadingIndex, setLoadingIndex] = useState(0);
-  const visibleStems = selectVisibleStems(stemNames);
+  const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
+  const storeSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
+  const effectiveStemNames =
+    stemNames && stemNames.length > 0
+      ? stemNames
+      : storeSessionId === sessionId && storeCompletedStems.length > 0
+        ? storeCompletedStems
+        : undefined;
+  const visibleStems = selectVisibleStems(effectiveStemNames);
 
   const handleToggle = useCallback((name: StemName) => {
     setActive((current) => (current === name ? null : name));
@@ -266,9 +275,9 @@ export default function AgentStemStack({
   }, [sessionId]);
 
   return (
-    <div>
+    <div className="w-full">
       <div
-        className="space-y-0.5 rounded-2xl p-1.5 backdrop-blur-2xl"
+        className="w-full space-y-0.5 rounded-2xl p-1.5 backdrop-blur-2xl"
         style={{
           background: "var(--bg-glass-elevated)",
           border: "1px solid var(--border-subtle)",
