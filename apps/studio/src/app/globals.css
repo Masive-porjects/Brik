@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --color-primary: #6ee9e0;
   --color-primary-container: #4ecdc4;
@@ -37,44 +39,54 @@
   --font-serif-instrument: var(--font-instrument-serif-loaded), 'Instrument Serif', Georgia, 'Times New Roman', serif;
 }
 
-:root {
+:root,
+html,
+html.dark,
+html[data-theme="dark"],
+html[data-theme="light"] {
   /* Native UI (scrollbars, select popups, date inputs, autofill) follows the
      forced dark theme instead of the OS light scheme. */
   color-scheme: dark;
 
-  /* ── Legacy tokens (existing components depend on these names) ── */
-  --bg-primary: #0a0a0c;
-  --bg-secondary: #121216;
-  --bg-tertiary: #1a1a20;
-  --bg-elevated: #22222a;
-  --text-primary: #e8e8e8;
-  --text-secondary: #a1a1a1;
-  --text-muted: #555555;
-  --accent-primary: #627e84;
+  /* ── Legacy & semantic dark tokens (complete set — no undefined vars) ── */
+  --bg-base: #0b0b0c;
+  --bg-primary: #0b0b0c;
+  --bg-secondary: #121318;
+  --bg-tertiary: #181920;
+  --bg-elevated: #1e2029;
+  --surface: #121318;
+  --surface-base: #121318;
+  --surface-elevated: #171821;
+  --text-primary: #f4f4f2;
+  --text-secondary: #a6adb4;
+  --text-muted: #6c737a;
+  --text-on-accent: #06201e;
+  --accent-primary: #6ee9e0;
+  --accent-hover: #4ecdc4;
   --accent-secondary: #829ca1;
   --accent-warning: #ff9500;
   --accent-error: #dc2626;
   --accent-success: #34c759;
-  --border: #2a2a2a;
-  --border-hover: #3a3a3a;
+  --border: #262833;
+  --border-hover: #363947;
   --waveform-original: #484855;
   --waveform-mastered: #00d4aa;
   --meter-safe: #34c759;
   --meter-warn: #ff9500;
   --meter-clip: #ff3b30;
-  --knob-track: rgba(255, 255, 255, 0.06);
-  --knob-fill: linear-gradient(90deg, #627e84, #829ca1);
+  --knob-track: rgba(255, 255, 255, 0.08);
+  --knob-fill: linear-gradient(90deg, #6ee9e0, #4ecdc4);
 
-  /* ── Semantic theme tokens ── (data-theme aware, dark defaults) ── */
+  /* ── Semantic theme tokens ── */
   --bg-app: #0b0b0c;
-  --bg-sidebar: #09090a;
+  --bg-sidebar: #09090b;
   --bg-overlay: rgba(11, 11, 12, 0.95);
-  --bg-glass: rgba(18, 18, 22, 0.6);
-  --bg-glass-elevated: rgba(26, 26, 32, 0.55);
-  --surface-hover: rgba(255, 255, 255, 0.04);
-  --surface-active: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --bg-glass: rgba(18, 19, 24, 0.78);
+  --bg-glass-elevated: rgba(23, 24, 33, 0.88);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3);
   --shadow-heavy: 0 25px 60px rgba(0, 0, 0, 0.5);
   --shadow-knob-inset: inset 0 2px 4px rgba(0, 0, 0, 0.7);
@@ -110,6 +122,13 @@
   --ring: 0 0% 40%;
   --hero-subtitle: 210 17% 95%;
   /* --border role is covered by the legacy --border token above */
+}
+
+html,
+body {
+  background-color: #0b0b0c !important;
+  color: #f4f4f2;
+  color-scheme: dark;
 }
 
 body {

@@ -195,8 +195,9 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      data-theme="dark"
       suppressHydrationWarning
-      className={`${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
+      className={`dark bg-[#0b0b0c] text-[#f4f4f2] ${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
       <head>
         {/* Dark is forced globally: set before hydration so no light flash and
@@ -204,7 +205,7 @@ export default function RootLayout({
         <script
           id="theme-init"
           dangerouslySetInnerHTML={{
-            __html: `document.documentElement.dataset.theme="dark";`,
+            __html: `(function(){try{localStorage.removeItem("waveai-theme");}catch(e){}document.documentElement.dataset.theme="dark";document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark";})();`,
           }}
         />
         {/* Viewport height fix - runs before hydration */}
@@ -230,7 +231,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: webSiteLdJson }}
         />
       </head>
-      <body className="antialiased min-h-screen">
+      <body className="antialiased min-h-screen bg-[#0b0b0c] text-[#f4f4f2]">
         <I18nProvider>
           <AuthProvider>
             <MasteringProvider>{children}</MasteringProvider>

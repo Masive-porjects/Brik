@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import LicenseGuard from "@/components/LicenseGuard";
+import MobileDrawer from "@/components/MobileDrawer";
 import { useTranslation } from "@/i18n";
 import {
   useMastering,
@@ -164,8 +165,17 @@ export default function UploadPage() {
           onBackToUpload={() => {}}
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}
+          onOpenLibrary={() => setLibraryOpen(true)}
           autosaveStatus={workflow.autosaveStatus}
           hasSavedTracks={hasSavedTracks}
+        />
+
+        <MobileDrawer
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          session={workflow.session}
+          onBackToUpload={() => setMobileMenuOpen(false)}
+          onOpenLibrary={() => setLibraryOpen(true)}
         />
 
         {/* Upload Workspace */}

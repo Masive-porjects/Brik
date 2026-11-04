@@ -309,6 +309,9 @@ function MezclasContent() {
           onClose={() => setMobileMenuOpen(false)}
           session={workflow.session}
           onBackToUpload={handleHomeClick}
+          currentTab={currentTab}
+          onSelectTab={handleModuleClick}
+          onOpenLibrary={() => setLibraryOpen(true)}
         />
 
         {/* Main Workspaces Layout */}

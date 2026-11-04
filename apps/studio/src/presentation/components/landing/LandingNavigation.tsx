@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "@/i18n";
@@ -161,7 +162,9 @@ function MobileDrawer() {
 
   const handleClose = () => setIsOpen(false);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -170,7 +173,7 @@ function MobileDrawer() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] lg:hidden"
+          className="fixed inset-0 z-[9999] h-[100dvh] w-screen lg:hidden"
           onClick={handleClose}
           role="dialog"
           aria-modal="true"
@@ -178,7 +181,7 @@ function MobileDrawer() {
         >
           {/* Backdrop - full screen, dark with heavy blur */}
           <motion.div
-            className="absolute inset-0 bg-black/60 backdrop-blur-xl"
+            className="absolute inset-0 bg-black/75 backdrop-blur-xl"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -191,16 +194,16 @@ function MobileDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 400, damping: 35 }}
-            className="absolute right-0 top-0 h-full w-full max-w-sm bg-[var(--bg-app)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-heavy)] flex flex-col"
+            className="absolute right-0 top-0 h-[100dvh] w-[86vw] max-w-sm bg-[#0f1015] text-[#f4f4f2] border-l border-white/10 shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
               <span className="font-sans text-xl text-primary font-bold tracking-tight">BRIK</span>
               <button
                 ref={closeButtonRef}
                 type="button"
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-white/10 transition-colors"
                 onClick={handleClose}
                 aria-label={t("landing.nav.closeMenu", "Cerrar menú")}
               >
@@ -217,10 +220,10 @@ function MobileDrawer() {
                     key={link.id}
                     type="button"
                     onClick={() => onLinkClick(link.id)}
-                    className={`w-full text-left px-4 py-4 rounded-xl font-sans text-lg font-medium transition-all duration-200 active:scale-[0.98] ${
+                    className={`w-full text-left px-4 py-3.5 rounded-xl font-sans text-base font-medium transition-all duration-200 active:scale-[0.98] ${
                       isActive
                         ? "bg-primary/15 text-primary border border-primary/30"
-                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+                        : "text-[#e8e8e8] hover:text-primary hover:bg-white/5"
                     }`}
                     aria-current={isActive ? "page" : undefined}
                   >
@@ -235,7 +238,7 @@ function MobileDrawer() {
               })}
 
               {/* User Controls / Language / Theme */}
-              <div className="pt-4 border-t border-[var(--border-subtle)] space-y-3">
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-3">
                 <LanguageSwitcher />
                 {user ? <UserMenu /> : <ThemeToggle />}
               </div>
@@ -244,7 +247,7 @@ function MobileDrawer() {
               <Link
                 href="/upload"
                 onClick={handleClose}
-                className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[var(--color-on-primary)] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
+                className="mt-4 block w-full px-5 py-3.5 rounded-xl bg-primary text-[var(--color-on-primary)] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
               >
                 {t("landing.nav.enterStudio", "Ingresar a Brik Studio")}
               </Link>
@@ -252,7 +255,8 @@ function MobileDrawer() {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
