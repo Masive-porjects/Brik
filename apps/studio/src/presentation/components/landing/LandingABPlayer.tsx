@@ -4,40 +4,49 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Pause } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import { useTranslation } from "@/i18n";
+import { BASE_PATH } from "@/lib/basePath";
 import { AB_METRICS } from "./data";
 import Reveal from "./Reveal";
 import type { ABMetricDefinition, ABMetricId, AccentToken } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Demo model
+   Real 40s A/B demo: "RESILIENCIA" (Raw mix vs Brik Master)
 
-   The comparator is a synthetic, illustrative demo: a local drone whose
-   filter opens up when "Raw" is selected and closes under "Mastered". The
-   waveform is drawn on a small canvas and morphs between two shapes:
+   Two 40-second MP3 stems rendered from the same cut of RESILIENCIA:
+   • `/audio/resiliencia-raw.mp3`      (-18.5 LUFS, -6.0 dBTP, unmastered headroom)
+   • `/audio/resiliencia-mastered.mp3` (-14.0 LUFS, -2.5 dBTP, processed by Brik)
 
-   • Raw: low average with occasional tall peaks (uncontrolled).
-   • Mastered: dense bars pinned under a limiter ceiling (controlled).
-
-   It does not process or measure the user's file.
+   Both `<audio>` elements play in lockstep through a Web Audio graph with
+   two GainNodes. Toggling Crudo/Masterizado or moving the intensity fader
+   crossfades smoothly via `setTargetAtTime(..., 0.02)` (zero zipper noise).
    ───────────────────────────────────────────────────────────────────────── */
 
 const BAR_COUNT = 96;
+const CLIP_DURATION_SEC = 40;
 
-/** Deterministic per-bar seeds (never Math.random) so renders stay stable. */
-const BAR_SEEDS = Array.from({ length: BAR_COUNT }, (_, i) => {
-  const s = Math.sin(i * 12.9898) * 43758.5453;
-  return s - Math.floor(s);
-});
+/** Measured 96-bar envelope of `resiliencia-raw.mp3` (normalized to master peak). */
+const RAW_BARS: readonly number[] = [
+  0.615, 0.711, 0.435, 0.625, 0.609, 0.509, 0.745, 0.519, 0.711, 0.521, 0.603, 0.723,
+  0.703, 0.715, 0.445, 0.729, 0.545, 0.305, 0.711, 0.597, 0.685, 0.577, 0.611, 0.437,
+  0.493, 0.745, 0.311, 0.717, 0.321, 0.729, 0.549, 0.645, 0.713, 0.567, 0.741, 0.561,
+  0.637, 0.611, 0.583, 0.699, 0.619, 0.611, 0.509, 0.743, 0.529, 0.339, 0.727, 0.599,
+  0.727, 0.699, 0.713, 0.489, 0.593, 0.737, 0.305, 0.713, 0.591, 0.695, 0.519, 0.609,
+  0.581, 0.491, 0.745, 0.471, 0.717, 0.339, 0.563, 0.238, 0.675, 0.701, 0.519, 0.745,
+  0.573, 0.635, 0.583, 0.741, 0.697, 0.627, 0.643, 0.513, 0.737, 0.561, 0.375, 0.725,
+  0.615, 0.739, 0.683, 0.709, 0.551, 0.537, 0.739, 0.311, 0.709, 0.593, 0.673, 0.297,
+];
 
-/** Raw: low average with occasional tall dynamic peaks. */
-function rawAmp(seed: number): number {
-  return Math.min(1, 0.16 + Math.pow(seed, 2.2));
-}
-
-/** Mastered: dense, full bars pinned under a controlled ceiling. */
-function masteredAmp(seed: number): number {
-  return 0.6 + Math.min(0.3, seed * 0.3);
-}
+/** Measured 96-bar envelope of `resiliencia-mastered.mp3`. */
+const MAST_BARS: readonly number[] = [
+  0.832, 0.842, 0.507, 0.778, 0.862, 0.754, 0.892, 0.832, 0.892, 0.81, 0.818, 0.874,
+  0.79, 0.874, 0.766, 0.944, 0.774, 0.778, 0.892, 0.762, 0.83, 0.619, 0.84, 0.812,
+  0.806, 1.0, 0.802, 0.884, 0.802, 0.932, 0.637, 0.834, 0.976, 0.818, 0.912, 0.828,
+  0.864, 0.83, 0.727, 0.826, 0.772, 0.87, 0.824, 0.894, 0.828, 0.81, 0.898, 0.812,
+  0.88, 0.721, 0.876, 0.77, 0.772, 0.946, 0.78, 0.892, 0.609, 0.836, 0.587, 0.794,
+  0.828, 0.818, 1.0, 0.583, 0.888, 0.796, 0.852, 0.415, 0.77, 0.928, 0.745, 0.906,
+  0.731, 0.854, 0.808, 0.78, 0.892, 0.735, 0.92, 0.816, 0.87, 0.752, 0.798, 0.892,
+  0.864, 0.86, 0.82, 0.842, 0.758, 0.836, 0.932, 0.78, 0.876, 0.812, 0.832, 0.76,
+];
 
 const RAW_COLOR: readonly [number, number, number] = [134, 147, 145];
 const MASTER_COLOR: readonly [number, number, number] = [110, 233, 224];
@@ -55,13 +64,19 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+function formatTime(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r < 10 ? "0" : ""}${r}`;
+}
+
 function masteredMetrics(): Record<ABMetricId, number> {
   const out = {} as Record<ABMetricId, number>;
   for (const metric of AB_METRICS) out[metric.id] = metric.mastered;
   return out;
 }
 
-/** Normalize a metric value into the 0–1 display scale used by the fill bar. */
 function normalize(metric: ABMetricDefinition, value: number): number {
   const span = metric.max - metric.min;
   if (span <= 0) return 0;
@@ -103,10 +118,6 @@ interface FaderProps {
   ariaLabel: string;
 }
 
-/**
- * Thumb-friendly fader: 44px tall, `touch-action: none`, pointer capture, so a
- * drag controls the value without scrolling the page. Keyboard keys supported.
- */
 function Fader({ value, onChange, ariaLabel }: FaderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -170,12 +181,12 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
   );
 }
 
-interface AudioGraph {
+interface RealAudioGraph {
   ctx: AudioContext;
-  osc: OscillatorNode;
-  sub: OscillatorNode;
-  filter: BiquadFilterNode;
-  gain: GainNode;
+  rawEl: HTMLAudioElement;
+  mastEl: HTMLAudioElement;
+  rawGain: GainNode;
+  mastGain: GainNode;
 }
 
 export default function LandingABPlayer() {
@@ -184,121 +195,125 @@ export default function LandingABPlayer() {
 
   const [isBrik, setIsBrik] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [intensity, setIntensity] = useState(70);
+  const [intensity, setIntensity] = useState(100);
+  const [currentTime, setCurrentTime] = useState(0);
   const [metrics, setMetrics] = useState<Record<ABMetricId, number>>(masteredMetrics);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioRef = useRef<AudioGraph | null>(null);
+  const audioRef = useRef<RealAudioGraph | null>(null);
 
-  /** Animation state shared with the canvas loop (kept in a ref, not state). */
-  const stateRef = useRef({ target: 1, playing: false, reduced: false, intensity: 70 });
+  const stateRef = useRef({ target: 1, playing: false, reduced: false, intensity: 100 });
   const morphRef = useRef(1);
   const phaseRef = useRef(0);
-  const playheadRef = useRef(33);
+  const playheadRef = useRef(0);
 
   useEffect(() => {
     stateRef.current.reduced = prefersReduced;
   }, [prefersReduced]);
 
-  /* ── Local synthetic drone (Oscillator → BiquadFilter → Gain) ─────── */
-  const applyTone = useCallback(() => {
+  /* ── Smooth Web Audio crossfade between Raw and Mastered MP3s ────── */
+  const applyMixGains = useCallback(() => {
     const graph = audioRef.current;
     if (!graph) return;
-    const { target, intensity: level } = stateRef.current;
+    const { target, intensity: pct } = stateRef.current;
+    // Wet factor: 0 = 100% Raw, 1 = 100% Mastered (scaled by intensity when Mastered is active)
+    const wet = target === 1 ? Math.max(0, Math.min(1, pct / 100)) : 0;
     const now = graph.ctx.currentTime;
-    // `setTargetAtTime` avoids zipper noise on every parameter change.
-    graph.filter.frequency.setTargetAtTime(target === 1 ? 2400 : 700, now, 0.05);
-    graph.gain.gain.setTargetAtTime(0.01 * (level / 100), now, 0.05);
+    // Anti-zipper rule: always use setTargetAtTime with 0.02s time constant
+    graph.rawGain.gain.setTargetAtTime(1 - wet, now, 0.02);
+    graph.mastGain.gain.setTargetAtTime(wet, now, 0.02);
   }, []);
 
-  const startAudio = useCallback(() => {
+  const ensureGraph = useCallback((): RealAudioGraph | null => {
+    if (typeof window === "undefined") return null;
+    if (audioRef.current) return audioRef.current;
+
+    type AudioContextCtor = typeof AudioContext;
+    const Ctor: AudioContextCtor | undefined =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: AudioContextCtor }).webkitAudioContext;
+    if (!Ctor) return null;
+
+    const ctx = new Ctor();
+    const rawEl = new Audio(`${BASE_PATH}/audio/resiliencia-raw.mp3`);
+    const mastEl = new Audio(`${BASE_PATH}/audio/resiliencia-mastered.mp3`);
+    rawEl.preload = "auto";
+    mastEl.preload = "auto";
+    rawEl.loop = true;
+    mastEl.loop = true;
+    rawEl.crossOrigin = "anonymous";
+    mastEl.crossOrigin = "anonymous";
+
+    const rawSrc = ctx.createMediaElementSource(rawEl);
+    const mastSrc = ctx.createMediaElementSource(mastEl);
+    const rawGain = ctx.createGain();
+    const mastGain = ctx.createGain();
+
+    rawGain.gain.value = 0;
+    mastGain.gain.value = 1;
+
+    rawSrc.connect(rawGain);
+    mastSrc.connect(mastGain);
+    rawGain.connect(ctx.destination);
+    mastGain.connect(ctx.destination);
+
+    const graph: RealAudioGraph = { ctx, rawEl, mastEl, rawGain, mastGain };
+    audioRef.current = graph;
+    return graph;
+  }, []);
+
+  const startAudio = useCallback(async () => {
     try {
-      if (typeof window === "undefined") return;
-      type AudioContextCtor = typeof AudioContext;
-      const Ctor: AudioContextCtor | undefined =
-        window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: AudioContextCtor }).webkitAudioContext;
-      if (!Ctor) return;
-
-      let graph = audioRef.current;
-      if (!graph) {
-        const ctx = new Ctor();
-        const filter = ctx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.Q.value = 0.7;
-
-        const gain = ctx.createGain();
-        gain.gain.value = 0;
-
-        const osc = ctx.createOscillator();
-        osc.type = "sawtooth";
-        osc.frequency.value = 110;
-
-        const sub = ctx.createOscillator();
-        sub.type = "sine";
-        sub.frequency.value = 55;
-        const subGain = ctx.createGain();
-        subGain.gain.value = 0.6;
-
-        osc.connect(filter);
-        sub.connect(subGain);
-        subGain.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start();
-        sub.start();
-        graph = { ctx, osc, sub, filter, gain };
-        audioRef.current = graph;
+      const graph = ensureGraph();
+      if (!graph) return;
+      if (graph.ctx.state === "suspended") {
+        await graph.ctx.resume();
       }
-
-      if (graph.ctx.state === "suspended") void graph.ctx.resume();
-      applyTone();
+      // Keep both stems sample-aligned before starting playback
+      if (Math.abs(graph.rawEl.currentTime - graph.mastEl.currentTime) > 0.03) {
+        graph.rawEl.currentTime = graph.mastEl.currentTime;
+      }
+      applyMixGains();
+      await Promise.all([graph.rawEl.play(), graph.mastEl.play()]);
+      setIsPlaying(true);
     } catch {
-      // Autoplay restrictions / unavailable Web Audio: the visual demo still works.
+      setIsPlaying(false);
     }
-  }, [applyTone]);
+  }, [ensureGraph, applyMixGains]);
 
   const stopAudio = useCallback(() => {
     const graph = audioRef.current;
     if (!graph) return;
-    audioRef.current = null;
-    try {
-      const now = graph.ctx.currentTime;
-      graph.gain.gain.cancelScheduledValues(now);
-      graph.gain.gain.setTargetAtTime(0, now, 0.02);
-      graph.osc.stop(now + 0.1);
-      graph.sub.stop(now + 0.1);
-      graph.osc.onended = () => {
-        try {
-          graph.osc.disconnect();
-          graph.sub.disconnect();
-          graph.filter.disconnect();
-          graph.gain.disconnect();
-        } catch {
-          // Already detached.
-        }
-      };
-    } catch {
-      // Node already stopped.
-    }
+    graph.rawEl.pause();
+    graph.mastEl.pause();
+    setIsPlaying(false);
   }, []);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) {
       stopAudio();
-      setIsPlaying(false);
     } else {
-      startAudio();
-      setIsPlaying(true);
+      void startAudio();
     }
   }, [isPlaying, startAudio, stopAudio]);
 
-  // Raw/Mastered changes retune the live drone without restarting it.
+  const handleSeek = useCallback((clientX: number, rect: DOMRect) => {
+    if (rect.width <= 0) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const nextSec = ratio * CLIP_DURATION_SEC;
+    playheadRef.current = ratio * 100;
+    setCurrentTime(nextSec);
+    const graph = audioRef.current;
+    if (graph) {
+      graph.rawEl.currentTime = nextSec;
+      graph.mastEl.currentTime = nextSec;
+    }
+  }, []);
+
   useEffect(() => {
     stateRef.current.target = isBrik ? 1 : 0;
-    applyTone();
-  }, [isBrik, applyTone]);
+    applyMixGains();
+  }, [isBrik, applyMixGains]);
 
   useEffect(() => {
     stateRef.current.playing = isPlaying;
@@ -306,27 +321,26 @@ export default function LandingABPlayer() {
 
   useEffect(() => {
     stateRef.current.intensity = intensity;
-    applyTone();
-  }, [intensity, applyTone]);
+    applyMixGains();
+  }, [intensity, applyMixGains]);
 
-  // Tear the audio graph down exactly once.
   useEffect(() => {
     return () => {
       const graph = audioRef.current;
       audioRef.current = null;
       if (graph) {
         try {
-          graph.osc.stop();
-          graph.sub.stop();
+          graph.rawEl.pause();
+          graph.mastEl.pause();
           void graph.ctx.close();
         } catch {
-          // Already stopped.
+          // Already closed
         }
       }
     };
   }, []);
 
-  // Keyboard shortcut: A = Raw, B = Mastered.
+  // Keyboard shortcut: A = Crudo, B = Masterizado
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const el = event.target as HTMLElement | null;
@@ -356,6 +370,7 @@ export default function LandingABPlayer() {
     let frame = 0;
     let last = performance.now();
     let publishedMorph = 1;
+    let lastTimeUpdate = 0;
 
     const step = (now: number) => {
       frame = requestAnimationFrame(step);
@@ -363,27 +378,36 @@ export default function LandingABPlayer() {
       last = now;
 
       const state = stateRef.current;
+      const effectiveTarget = state.target === 1 ? state.intensity / 100 : 0;
 
-      // Ease the morph toward the selected state (snap under reduced motion).
       let morph = morphRef.current;
       if (state.reduced) {
-        morph = state.target;
+        morph = effectiveTarget;
       } else {
-        morph += (state.target - morph) * Math.min(1, dt * 6);
-        if (Math.abs(state.target - morph) < 0.001) morph = state.target;
+        morph += (effectiveTarget - morph) * Math.min(1, dt * 6);
+        if (Math.abs(effectiveTarget - morph) < 0.001) morph = effectiveTarget;
       }
       morphRef.current = morph;
 
-      // Ambient motion + moving playhead (disabled under reduced motion).
-      if (!state.reduced) {
-        phaseRef.current += dt * (state.playing ? 3.2 : 0.7);
-        if (state.playing) {
-          playheadRef.current = (playheadRef.current + dt * 9) % 100;
+      const graph = audioRef.current;
+      if (graph && state.playing) {
+        // Keep the two stems locked within 25ms
+        if (Math.abs(graph.rawEl.currentTime - graph.mastEl.currentTime) > 0.025) {
+          graph.rawEl.currentTime = graph.mastEl.currentTime;
         }
+        const dur = graph.mastEl.duration || CLIP_DURATION_SEC;
+        playheadRef.current = ((graph.mastEl.currentTime % dur) / dur) * 100;
+        if (now - lastTimeUpdate > 200) {
+          lastTimeUpdate = now;
+          setCurrentTime(graph.mastEl.currentTime % dur);
+        }
+      }
+
+      if (!state.reduced) {
+        phaseRef.current += dt * (state.playing ? 3.2 : 0.6);
       }
       const phase = phaseRef.current;
 
-      // Measure in CSS pixels, cap DPR for crisp-but-cheap rendering.
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
@@ -401,9 +425,8 @@ export default function LandingABPlayer() {
       const maxHalf = height / 2 - 4;
       const barStep = width / BAR_COUNT;
       const barW = Math.max(1, barStep * 0.62);
-      const idleScale = state.playing ? 1 : 0.62;
+      const playheadIndex = (playheadRef.current / 100) * BAR_COUNT;
 
-      // Limiter ceiling fades in only as we approach the Mastered state.
       if (morph > 0.15) {
         const ceiling = cy - maxHalf * 0.92;
         ctx.strokeStyle = `rgba(110, 233, 224, ${(0.22 * morph).toFixed(3)})`;
@@ -421,31 +444,29 @@ export default function LandingABPlayer() {
       const cb = Math.round(lerp(RAW_COLOR[2], MASTER_COLOR[2], morph));
 
       for (let i = 0; i < BAR_COUNT; i++) {
-        const seed = BAR_SEEDS[i];
-        let amp = lerp(rawAmp(seed), masteredAmp(seed), morph) * idleScale;
-        if (!state.reduced) {
-          amp *= 1 + Math.sin(phase + i * 0.35) * (state.playing ? 0.16 : 0.05);
+        let amp = lerp(RAW_BARS[i], MAST_BARS[i], morph);
+        if (!state.reduced && state.playing) {
+          amp *= 1 + Math.sin(phase + i * 0.35) * 0.08;
         }
-        amp = Math.max(0.04, Math.min(1, amp));
+        amp = Math.max(0.05, Math.min(1, amp));
         const half = amp * maxHalf;
         const x = i * barStep + (barStep - barW) / 2;
-        const alpha = 0.28 + amp * 0.55;
+        const passed = i <= playheadIndex;
+        const alpha = passed ? 0.55 + amp * 0.4 : 0.25 + amp * 0.35;
         ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${alpha.toFixed(3)})`;
         ctx.fillRect(x, cy - half, barW, half * 2);
       }
 
-      // Playhead glow while playing.
-      if (!state.reduced && state.playing) {
+      if (state.playing || playheadRef.current > 0) {
         const px = (playheadRef.current / 100) * width;
         ctx.save();
-        ctx.shadowColor = "rgba(207, 92, 255, 0.9)";
+        ctx.shadowColor = "rgba(110, 233, 224, 0.9)";
         ctx.shadowBlur = 8;
-        ctx.fillStyle = "#cf5cff";
+        ctx.fillStyle = "#6ee9e0";
         ctx.fillRect(px - 0.75, 0, 1.5, height);
         ctx.restore();
       }
 
-      // Publish animated readouts only while the value is actually moving.
       if (Math.abs(morph - publishedMorph) > 0.001) {
         publishedMorph = morph;
         const next = {} as Record<ABMetricId, number>;
@@ -496,10 +517,10 @@ export default function LandingABPlayer() {
               </button>
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-semibold text-[var(--text-primary)] sm:text-base">
-                  {t("landing.abPlayer.trackTitle", "Demo: bass electrónico")}
+                  {t("landing.abPlayer.trackTitle", "RESILIENCIA (Extracto 40s)")}
                 </span>
-                <span className="font-label-technical truncate text-[10px] text-[var(--text-muted)]">
-                  {t("landing.abPlayer.trackMeta", "DEMO SINTÉTICA — BASS ELECTRÓNICO — 128 BPM")}
+                <span className="font-label-technical truncate text-[10px] text-[var(--text-muted)] tabular-nums">
+                  {formatTime(currentTime)} / 0:40 · {t("landing.abPlayer.trackMeta", "44.1 KHZ · 24-BIT · CRUDO VS MASTER BRIK")}
                 </span>
               </div>
             </div>
@@ -538,8 +559,11 @@ export default function LandingABPlayer() {
             </div>
           </div>
 
-          {/* Compact waveform */}
-          <div className="relative h-16 w-full overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] sm:h-20">
+          {/* Compact seekable waveform */}
+          <div
+            className="relative h-16 w-full cursor-pointer overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] sm:h-20"
+            onClick={(e) => handleSeek(e.clientX, e.currentTarget.getBoundingClientRect())}
+          >
             <canvas
               ref={canvasRef}
               role="img"
@@ -610,7 +634,7 @@ export default function LandingABPlayer() {
           <p className="font-label-technical text-center text-[10px] leading-relaxed text-[var(--text-muted)]">
             {t(
               "landing.abPlayer.demoNote",
-              "Demo sintética para comparar el carácter del proceso. Las métricas son ilustrativas y no miden tu archivo."
+              "Extracto real de 40 s de RESILIENCIA: compara la mezcla cruda (-18.5 LUFS) frente al master procesado por Brik (-14.0 LUFS)."
             )}
           </p>
         </div>

@@ -28,6 +28,7 @@ uploads/
 outputs/
 *.wav
 *.mp3
+!apps/studio/public/audio/*.mp3
 
 # Test files (generated)
 test_track.wav

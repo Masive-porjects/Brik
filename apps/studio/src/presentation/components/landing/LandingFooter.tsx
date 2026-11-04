@@ -1,9 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
-import { BASE_PATH } from "@/lib/basePath";
 
 // Real destinations only: the studio route plus the landing section anchors.
 const FOOTER_NAV = [
@@ -20,21 +18,7 @@ export default function LandingFooter() {
 
   return (
     <footer className="w-full bg-[var(--bg-app)] border-t border-[var(--border-subtle)]">
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-8 lg:px-12 py-12 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2.5">
-          <Image
-            src={`${BASE_PATH}/brand/mascota-3d.webp`}
-            alt=""
-            width={24}
-            height={24}
-            className="w-6 h-6 rounded-md object-contain"
-            aria-hidden="true"
-          />
-          <span className="text-base font-bold tracking-tight text-[var(--text-primary)]">
-            {t("landing.footer.brand", "BRIK")}
-          </span>
-        </div>
-
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-8 lg:px-12 py-12 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <nav aria-label={t("landing.footer.navTitle", "Navegación")}>
           <ul className="flex flex-wrap gap-x-6 gap-y-2">
             {FOOTER_NAV.map((item) => (

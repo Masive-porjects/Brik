@@ -826,8 +826,8 @@
       "badge": "A/B Comparator",
       "title": "Hear the difference",
       "subtitle": "Switch between raw and mastered audio. Same material, same moment.",
-      "trackTitle": "Demo: electronic bass",
-      "trackMeta": "SYNTHETIC DEMO — ELECTRONIC BASS — 128 BPM",
+      "trackTitle": "RESILIENCIA (40s Excerpt)",
+      "trackMeta": "44.1 KHZ · 24-BIT · RAW VS BRIK MASTER",
       "intensityLabel": "INTENSITY:",
       "intensityAria": "Processing intensity",
       "toggleAria": "Comparison mode: raw or mastered",
@@ -852,7 +852,7 @@
         "peaks": "Peak control",
         "push": "Loudness push"
       },
-      "demoNote": "Synthetic demo to compare the character of the process. The metrics are illustrative and do not measure your file."
+      "demoNote": "Real 40s excerpt of RESILIENCIA: compare the raw mix (-18.5 LUFS) against the Brik-processed master (-14.0 LUFS)."
     },
     "presets": {
       "title": "Mastering Profiles",

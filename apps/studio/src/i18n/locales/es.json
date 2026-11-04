@@ -826,8 +826,8 @@
       "badge": "Comparador A/B",
       "title": "Escucha la diferencia",
       "subtitle": "Alterna entre el audio crudo y el masterizado. Mismo material, mismo momento.",
-      "trackTitle": "Demo: bass electrónico",
-      "trackMeta": "DEMO SINTÉTICA — BASS ELECTRÓNICO — 128 BPM",
+      "trackTitle": "RESILIENCIA (Extracto 40s)",
+      "trackMeta": "44.1 KHZ · 24-BIT · CRUDO VS MASTER BRIK",
       "intensityLabel": "INTENSIDAD:",
       "intensityAria": "Intensidad del procesamiento",
       "toggleAria": "Modo de comparación: crudo o masterizado",
@@ -852,7 +852,7 @@
         "peaks": "Control de picos",
         "push": "Empuje de loudness"
       },
-      "demoNote": "Demo sintética para comparar el carácter del proceso. Las métricas son ilustrativas y no miden tu archivo."
+      "demoNote": "Extracto real de 40 s de RESILIENCIA: compara la mezcla cruda (-18.5 LUFS) frente al master procesado por Brik (-14.0 LUFS)."
     },
     "presets": {
       "title": "Perfiles de Masterización",

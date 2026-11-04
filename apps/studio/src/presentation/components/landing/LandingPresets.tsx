@@ -1,46 +1,99 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslation } from "@/i18n";
-
-/** Base profiles the engine combines; names come from the Studio dictionary. */
-const BASE_PROFILE_IDS = ["universal", "cinta", "claridad", "espacial", "empuje", "natural"] as const;
+import { PRESETS } from "@/presentation/components/ModulePanel";
+import { PRESET_COLORS, DEFAULT_PRESET_COLOR } from "@/core/presets";
 
 /**
- * Profiles are presented as building blocks, not closed genres: the copy
- * stresses combinations that adapt to any style.
+ * Mastering profiles rendered as the same painted macro-cards used inside the
+ * Studio mastering workspace (color-coded dot, border glow, description and
+ * genre pill on a dark glass surface).
  */
 export default function LandingPresets() {
   const { t } = useTranslation();
+  const [selectedId, setSelectedId] = useState<string>("universal");
 
   return (
     <section id="perfiles" className="w-full bg-[var(--bg-app)] px-4 py-24 sm:px-8 lg:px-12 lg:py-32">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-10 text-center">
-        <div className="flex flex-col gap-3">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 text-center">
           <h2 className="text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
             {t("landing.presets.title", "Perfiles de Masterización")}
           </h2>
           <p className="text-sm leading-relaxed text-[var(--text-secondary)] sm:text-base">
             {t(
               "landing.presets.subtitle",
-              "Miles de combinaciones de mezcla y master, adaptables a cualquier estilo."
+              "Miles de combinaciones de mezcla y master, adaptables a cualquier estilo. La IA elige la ruta según tu audio, sin encasillarlo en un género."
             )}
           </p>
         </div>
 
-        <div className="flex w-full flex-col gap-4">
-          <span className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
-            {t("landing.presets.chipsLabel", "Perfiles base")}
-          </span>
-          <ul className="flex flex-wrap justify-center gap-2.5">
-            {BASE_PROFILE_IDS.map((id) => (
-              <li
-                key={id}
-                className="rounded-full border border-[var(--border-subtle)] bg-[var(--bg-glass-elevated)] px-4 py-2 text-sm font-medium text-[var(--text-primary)]"
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PRESETS.map((preset) => {
+            const Icon = preset.icon;
+            const presetColor = PRESET_COLORS[preset.id]?.wave ?? DEFAULT_PRESET_COLOR.wave;
+            const active = selectedId === preset.id;
+
+            const title = t(`mastering.presets.${preset.id}.name`, preset.title);
+            const description = t(`mastering.presets.${preset.id}.description`, preset.description);
+            const genre = t(`mastering.presets.${preset.id}.genre`, preset.genre);
+
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => setSelectedId(preset.id)}
+                aria-pressed={active}
+                className="flex flex-col items-start rounded-xl p-4 text-left select-none cursor-pointer transition-all duration-300 hover:bg-neutral-800/70"
+                style={{
+                  background: active
+                    ? `color-mix(in srgb, ${presetColor} 10%, rgba(26, 26, 32, 0.75))`
+                    : "var(--bg-glass-elevated)",
+                  backdropFilter: "blur(16px)",
+                  WebkitBackdropFilter: "blur(16px)",
+                  border: active
+                    ? `1px solid ${presetColor}`
+                    : `1px solid color-mix(in srgb, ${presetColor} 35%, transparent)`,
+                  boxShadow: active
+                    ? `0px 0px 20px color-mix(in srgb, ${presetColor} 28%, transparent)`
+                    : "none",
+                }}
               >
-                {t(`mastering.presets.${id}.name`)}
-              </li>
-            ))}
-          </ul>
+                <span style={{ color: presetColor }} aria-hidden="true">
+                  <Icon size={18} />
+                </span>
+
+                <div className="mt-2.5 flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{
+                      background: presetColor,
+                      boxShadow: `0 0 6px ${presetColor}`,
+                    }}
+                  />
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                    {title}
+                  </h3>
+                </div>
+
+                <p className="mt-1.5 flex-1 text-xs leading-relaxed text-[var(--text-secondary)]">
+                  {description}
+                </p>
+
+                <span
+                  className="mt-3 inline-block rounded px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest"
+                  style={{
+                    background: `color-mix(in srgb, ${presetColor} 16%, transparent)`,
+                    color: presetColor,
+                    border: `1px solid color-mix(in srgb, ${presetColor} 45%, transparent)`,
+                  }}
+                >
+                  {genre}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>
