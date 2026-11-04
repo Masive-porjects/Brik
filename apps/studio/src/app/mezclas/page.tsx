@@ -312,7 +312,7 @@ function MezclasContent() {
         />
 
         {/* Main Workspaces Layout */}
-        <div className="flex-1 min-h-0 w-full px-6 md:px-12 pt-4 pb-6 flex flex-col">
+        <div className="flex-1 min-h-0 w-full px-3 sm:px-6 md:px-10 pt-2 pb-4 flex flex-col lg:flex-row gap-4 overflow-hidden">
           <main className="flex-1 h-full w-full flex flex-col min-w-0 relative">
             <div className="flex flex-1 w-full min-h-0 relative">
               <div className="flex-1 w-full flex flex-col min-w-0 relative">
@@ -371,44 +371,59 @@ function MezclasContent() {
                 <div
                   className={`${
                     masteringMode === "manual" || isMezclaTab ? "flex" : "hidden"
-                  } flex-1 min-h-0 relative`}
+                  } flex-1 w-full flex-col min-h-0 relative`}
                   aria-hidden={masteringMode !== "manual" && !isMezclaTab}
                 >
                   {isMobile ? (
-                    <MobileMasteringView
-                      session={workflow.session}
-                      currentTab={currentTab}
-                      sheetTab={sheetTab}
-                      setCurrentTab={setCurrentTab}
-                      activePresetId={workflow.activePresetId}
-                      processing={workflow.processing}
-                      masterBurst={workflow.masterBurst}
-                      error={workflow.error}
-                      onPresetSelect={workflow.handlePresetSelect}
-                      onProcess={workflow.handleProcess}
-                      onDownload={workflow.handleDownload}
-                      mixGate={mixGate}
-                      renderTabContent={(tab) => (
-                        <MasteringCanvas
-                          tab={tab}
-                          session={workflow.session}
-                          params={workflow.params}
-                          setParams={workflow.setParams}
-                          activePresetId={workflow.activePresetId}
-                          onPresetSelect={workflow.handlePresetSelect}
-                          onProcess={workflow.handleProcess}
-                          onReset={workflow.handleReset}
-                          processing={workflow.processing}
-                          stemState={workflow.stemState}
-                          setStemState={workflow.setStemState}
-                          onStemSplit={workflow.handleStemSplit}
-                          masteringMode={masteringMode}
-                          onNavigateTab={handleModuleClick}
-                          onMixSettled={workflow.handleMixSettled}
-                          mixGate={mixGate}
+                    <>
+                      <MobileMasteringView
+                        session={workflow.session}
+                        currentTab={currentTab}
+                        sheetTab={sheetTab}
+                        setCurrentTab={setCurrentTab}
+                        activePresetId={workflow.activePresetId}
+                        processing={workflow.processing}
+                        masterBurst={workflow.masterBurst}
+                        error={workflow.error}
+                        onPresetSelect={workflow.handlePresetSelect}
+                        onProcess={workflow.handleProcess}
+                        onDownload={workflow.handleDownload}
+                        mixGate={mixGate}
+                        renderTabContent={(tab) => (
+                          <MasteringCanvas
+                            tab={tab}
+                            session={workflow.session}
+                            params={workflow.params}
+                            setParams={workflow.setParams}
+                            activePresetId={workflow.activePresetId}
+                            onPresetSelect={workflow.handlePresetSelect}
+                            onProcess={workflow.handleProcess}
+                            onReset={workflow.handleReset}
+                            processing={workflow.processing}
+                            stemState={workflow.stemState}
+                            setStemState={workflow.setStemState}
+                            onStemSplit={workflow.handleStemSplit}
+                            masteringMode={masteringMode}
+                            onNavigateTab={handleModuleClick}
+                            onMixSettled={workflow.handleMixSettled}
+                            mixGate={mixGate}
+                          />
+                        )}
+                      />
+                      {sheetTab === null && (
+                        <ModuleDock
+                          activeTab={currentTab}
+                          onSelect={handleModuleClick}
+                          rightOffset={0}
+                          processingProgress={workflow.processing ? workflow.progress : 0}
+                          lufs={
+                            workflow.session?.master_result?.integrated_lufs ??
+                            workflow.session?.analysis?.integrated_lufs ??
+                            null
+                          }
                         />
                       )}
-                    />
+                    </>
                   ) : (
                     <motion.div
                       className="flex-1 w-full flex flex-col min-h-0 relative"
@@ -463,8 +478,8 @@ function MezclasContent() {
 
                       {/* Scrollable Tab Canvas */}
                       <div
-                        className={`relative z-[1] min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-40 ${
-                          sheetTab !== null || currentTab === null || currentTab === "productor"
+                        className={`relative z-[1] w-full min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-40 ${
+                          sheetTab !== null || currentTab === null
                             ? "hidden"
                             : "flex-1"
                         }`}
@@ -500,8 +515,8 @@ function MezclasContent() {
                             referencia queda stale y el commit falla con
                             "NotFoundError: insertBefore" al abrir el tab de mezcla. */}
                         <AnimatePresence>
-                          {currentTab !== null && currentTab !== "productor" && (
-                            <PaintedModule key={currentTab}>
+                          {currentTab !== null && (
+                            <PaintedModule key={currentTab} className="w-full">
                               <MasteringCanvas
                                 tab={currentTab}
                                 session={workflow.session}

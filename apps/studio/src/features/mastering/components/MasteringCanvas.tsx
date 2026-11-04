@@ -10,9 +10,11 @@ import MixGateNotice, {
 } from "@/presentation/components/MixGateNotice";
 import SongStarter from "@/presentation/components/SongStarter";
 import AlbumMastering from "@/presentation/components/AlbumMastering";
+import AnalysisPanel from "@/presentation/components/AnalysisPanel";
+import StereoField from "@/presentation/components/StereoField";
 import type { MasteringTab } from "@/presentation/components/dock/types";
-import type { MasteringParameters, SessionData, StemSplitResult } from "@/lib/api";
-import { hasCompletedMix } from "@/lib/audioUtils";
+import { getAudioUrl, type MasteringParameters, type SessionData, type StemSplitResult } from "@/lib/api";
+import { hasCompletedMix, isPresetCompleted } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n/useTranslation";
 
 interface MasteringCanvasProps {
@@ -197,6 +199,42 @@ export default function MasteringCanvas({
       return (
         <div className="w-full">
           <AlbumMastering />
+        </div>
+      );
+
+    case "analysis":
+      return (
+        <div className="w-full">
+          <AnalysisPanel
+            analysis={session?.analysis ?? null}
+            presetId={activePresetId ?? undefined}
+            masterResult={session?.master_result ?? null}
+            validation={session?.validation ?? null}
+          />
+        </div>
+      );
+
+    case "stereo":
+      return (
+        <div className="w-full">
+          {session && isPresetCompleted(session, activePresetId) ? (
+            <StereoField
+              audioUrl={getAudioUrl(
+                session.session_id,
+                "mastered",
+                activePresetId ?? undefined,
+              )}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--border-subtle)] p-6 text-center">
+              <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                {t(
+                  "stereo.needMasteredFirst",
+                  "Primero necesitas masterizar un track para ver el campo estéreo.",
+                )}
+              </p>
+            </div>
+          )}
         </div>
       );
 

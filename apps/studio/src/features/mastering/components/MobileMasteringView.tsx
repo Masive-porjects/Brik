@@ -35,7 +35,6 @@ interface MobileMasteringViewProps {
 export default function MobileMasteringView({
   session,
   currentTab,
-  sheetTab,
   setCurrentTab,
   activePresetId,
   processing,
@@ -50,38 +49,36 @@ export default function MobileMasteringView({
   const { t } = useTranslation();
 
   return (
-    <>
-      {/* Player en la parte superior — visible siempre excepto en pestaña Mezcla */}
-      {currentTab !== "mezcla" && sheetTab !== "mezcla" && (
-        <div className="relative z-[1] shrink-0 px-4 pt-3 pb-1">
-          {session && (
-            <Player
-              originalUrl={getAudioUrl(session.session_id, "original")}
-              masteredUrl={
-                isPresetCompleted(session, activePresetId)
-                  ? getAudioUrl(
-                      session.session_id,
-                      "mastered",
-                      activePresetId ?? undefined,
-                    )
-                  : null
-              }
-              disabled={processing}
-              presetId={activePresetId ?? undefined}
-              sessionId={session.session_id}
-              burstSignal={masterBurst}
-            />
-          )}
-        </div>
-      )}
+    <div className="flex flex-1 w-full min-h-0 flex-col overflow-hidden">
+      {/* Player en la parte superior — siempre visible cuando hay sesión cargada */}
+      <div className="relative z-[1] w-full shrink-0 px-3 sm:px-4 mt-2 pt-2 pb-1">
+        {session && (
+          <Player
+            originalUrl={getAudioUrl(session.session_id, "original")}
+            masteredUrl={
+              isPresetCompleted(session, activePresetId)
+                ? getAudioUrl(
+                    session.session_id,
+                    "mastered",
+                    activePresetId ?? undefined,
+                  )
+                : null
+            }
+            disabled={processing}
+            presetId={activePresetId ?? undefined}
+            sessionId={session.session_id}
+            burstSignal={masterBurst}
+          />
+        )}
+      </div>
 
       {/* Contenido móvil según pestaña activa o flujo predeterminado */}
       {currentTab !== null && currentTab !== "modules" ? (
-        <div className="relative z-[1] flex-1 overflow-y-auto px-4 pt-3 pb-28 pb-safe">
+        <div className="relative z-[1] w-full flex-1 overflow-y-auto px-3 sm:px-4 pt-3 pb-36 pb-safe">
           {renderTabContent(currentTab)}
         </div>
       ) : (
-        <div className="relative z-[1] flex-1 overflow-y-auto px-4 pt-3 pb-8 pb-safe">
+        <div className="relative z-[1] w-full flex-1 overflow-y-auto px-3 sm:px-4 pt-3 pb-36 pb-safe">
           {/* Banner de error */}
           {error && (
             <motion.div className="mb-3" {...fadeUp(0)}>
@@ -228,7 +225,7 @@ export default function MobileMasteringView({
       {currentTab !== null && currentTab !== "modules" && (
         <button
           onClick={() => setCurrentTab("modules")}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40
             px-4 py-2 rounded-full text-xs font-medium
             bg-[var(--bg-glass-elevated)] border border-[var(--border-strong)]
             text-[var(--text-secondary)] hover:text-[var(--text-primary)]
@@ -237,6 +234,6 @@ export default function MobileMasteringView({
           {t("common.backToMainFlow", "← Volver al flujo principal")}
         </button>
       )}
-    </>
+    </div>
   );
 }
