@@ -38,6 +38,10 @@
 }
 
 :root {
+  /* Native UI (scrollbars, select popups, date inputs, autofill) follows the
+     forced dark theme instead of the OS light scheme. */
+  color-scheme: dark;
+
   /* ── Legacy tokens (existing components depend on these names) ── */
   --bg-primary: #0a0a0c;
   --bg-secondary: #121216;
