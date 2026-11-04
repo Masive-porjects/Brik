@@ -9,5 +9,6 @@ export { default as LandingPricing } from "./LandingPricing";
 export { default as LandingFAQ } from "./LandingFAQ";
 export { default as LandingFounders } from "./LandingFounders";
 export { default as LandingFooter } from "./LandingFooter";
+export { default as LandingHeroModal } from "./LandingHeroModal";
 export * from "./types";
 export * from "./data";
