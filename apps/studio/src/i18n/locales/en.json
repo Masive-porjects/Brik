@@ -538,6 +538,8 @@
     "timeout": "The agent took too long and we stopped waiting. The work may still be running on the server.",
     "interrupted": "The job was interrupted before it finished.",
     "failed": "Brik could not be started.",
+    "connectionRetrying": "Connection error with the agent. Retrying…",
+    "connectionError": "We could not reach the agent. Check your connection and try again in a few minutes.",
     "emptyResult": "The job finished without a result. Try again.",
     "diagnosisTitle": "Agent diagnosis",
     "narrativeTitle": "What I did",

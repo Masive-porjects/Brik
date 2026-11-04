@@ -538,6 +538,8 @@
     "timeout": "El agente tardó demasiado y dejamos de esperar. El trabajo puede seguir en el servidor.",
     "interrupted": "El trabajo se interrumpió antes de terminar.",
     "failed": "No se pudo iniciar Brik.",
+    "connectionRetrying": "Error de conexión con el agente. Reintentando…",
+    "connectionError": "No pudimos conectar con el agente. Revisa tu conexión e inténtalo de nuevo en unos minutos.",
     "emptyResult": "El trabajo terminó sin resultado. Inténtalo de nuevo.",
     "diagnosisTitle": "Diagnóstico del agente",
     "narrativeTitle": "Lo que hice",

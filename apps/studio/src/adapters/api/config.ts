@@ -3,7 +3,8 @@
  *
  * NEXT_PUBLIC_* se inlinea en build: en Vercel hay que definir
  * NEXT_PUBLIC_API_URL apuntando al backend desplegado
- * (ej. https://waveia-production.up.railway.app). La normalización de abajo
+ * (ej. https://waveai-orchestrator.waveiamusic.workers.dev/api, el backend en
+ * Cloudflare). La normalización de abajo
  * corrige los errores de configuración típicos y agrega el sufijo `/api`
  * cuando falta — el backend monta TODOS los routers bajo ese prefix.
  *

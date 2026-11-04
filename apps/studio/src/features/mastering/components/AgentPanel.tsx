@@ -29,6 +29,7 @@ import {
   type Deficiency,
   type Route,
 } from "@/lib/api";
+import { isTransientGatewayError, withBackoff } from "@/adapters/api/retry";
 import { genreDisplayLabel } from "@/lib/audioUtils";
 import { useTranslation } from "@/i18n";
 
@@ -131,6 +132,8 @@ export default function AgentPanel({
   const [selectedRoute, setSelectedRoute] = useState<"auto" | "mix_then_master" | "master_only">("auto");
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // True while a status read is backing off after a gateway/CORS failure.
+  const [connectionRetrying, setConnectionRetrying] = useState(false);
   const [cancelled, setCancelled] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -220,6 +223,7 @@ export default function AgentPanel({
 
       setPhase("producing");
       setError(null);
+      setConnectionRetrying(false);
       setCancelled(false);
       setResult(null);
 
@@ -274,10 +278,16 @@ export default function AgentPanel({
 
         while (!terminal) {
           await sleep(AGENT_POLL_MS, pollController.signal);
-          const state = await getAgentJobStatus(
-            accepted.job_id,
-            pollController.signal,
+          // Reads are idempotent, so transient gateway/CORS failures are retried
+          // with backoff. The submit POST is deliberately NOT retried (duplicate jobs).
+          const state = await withBackoff(
+            () => getAgentJobStatus(accepted.job_id, pollController.signal),
+            {
+              signal: pollController.signal,
+              onRetry: () => setConnectionRetrying(true),
+            },
           );
+          setConnectionRetrying(false);
           terminal = handleSnapshot(state);
         }
       } catch (e) {
@@ -286,12 +296,16 @@ export default function AgentPanel({
           setError(t("productor.timeout"));
         } else if (isAbort) {
           setCancelled(true);
+        } else if (isTransientGatewayError(e)) {
+          // Friendly message instead of the raw "Failed to fetch" / 502 text.
+          setError(t("productor.connectionError"));
         } else {
           setError(e instanceof Error ? e.message : t("productor.failed"));
         }
         setPhase("error");
       } finally {
         clearWatchdog();
+        setConnectionRetrying(false);
         if (abortRef.current === controller) abortRef.current = null;
         if (pollAbortRef.current === pollController) pollAbortRef.current = null;
       }
@@ -650,6 +664,16 @@ export default function AgentPanel({
           >
             {analysisError ?? error}
           </motion.p>
+        )}
+
+        {connectionRetrying && (
+          <p
+            className="mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed"
+            style={{ background: "var(--surface-hover)", color: "var(--text-secondary)" }}
+            role="status"
+          >
+            {t("productor.connectionRetrying")}
+          </p>
         )}
 
         {phase === "completed" && result && <AgentResultView result={result} />}

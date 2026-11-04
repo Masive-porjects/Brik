@@ -28,13 +28,12 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
-    # CORS: local dev origins + the production Studio (Railway). The railway
-    # origin is in the default so a deployment that doesn't override these is
-    # never blocked — a CORS-silent 502 makes the frontend "freeze" mid-master.
+    # CORS: local dev origins + the production Studio (Vercel). A deployment
+    # that doesn't override these must still allow the production origins, or
+    # the browser sees a CORS-silent 502 and the frontend "freezes" mid-master.
     cors_origins: list[str] = [
         "https://www.brikmusic.online",
         "https://brikmusic.online",
-        "https://studio-production-f546.up.railway.app",
         "http://localhost:3000",
         "http://localhost:5173",
     ]
