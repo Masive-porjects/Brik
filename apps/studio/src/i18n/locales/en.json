@@ -666,7 +666,9 @@
     "processingFailedTitle": "Processing failed",
     "processingFailedMessage": "The engine could not finish processing. Check your audio and try again.",
     "sessionExpiredTitle": "Your previous session expired",
-    "sessionExpiredMessage": "The server was restarted and could not recover it. Upload your audio again to continue."
+    "sessionExpiredMessage": "The server was restarted and could not recover it. Upload your audio again to continue.",
+    "uploadFailed": "Upload failed",
+    "engineUnreachable": "Could not reach the audio engine. Check your connection or try again later."
   },
   "theme": {
     "toggleDark": "Switch to dark theme",

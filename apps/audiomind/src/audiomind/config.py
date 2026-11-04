@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     # origin is in the default so a deployment that doesn't override these is
     # never blocked — a CORS-silent 502 makes the frontend "freeze" mid-master.
     cors_origins: list[str] = [
+        "https://www.brikmusic.online",
+        "https://brikmusic.online",
         "https://studio-production-f546.up.railway.app",
         "http://localhost:3000",
         "http://localhost:5173",

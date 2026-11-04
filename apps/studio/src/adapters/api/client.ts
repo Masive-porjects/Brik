@@ -10,6 +10,12 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    /**
+     * False when the response carried no machine-readable `detail`: CORS
+     * rejection, offline, DNS failure, or a proxy error page instead of JSON.
+     * Callers use it to show a transport-level message instead of a generic one.
+     */
+    public hasDetail: boolean = true,
   ) {
     super(message);
     this.name = "ApiError";
@@ -182,21 +188,38 @@ export async function uploadAudio(
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress?.(100);
-        try {
-          resolve(xhr.response as SessionData);
-        } catch {
-          reject(new ApiError("Upload failed parsing response", xhr.status));
+        const payload = xhr.response as SessionData | null;
+        if (!payload || typeof payload !== "object" || !payload.session_id) {
+          // 2xx with no parseable session: never let a null reach the caller.
+          reject(new ApiError("Audio engine returned an empty response", xhr.status, false));
+          return;
         }
+        resolve(payload);
       } else {
-        let detail = "Upload failed";
-        try {
-          detail = JSON.parse(xhr.responseText)?.detail || detail;
-        } catch {}
-        reject(new ApiError(detail, xhr.status));
+        // `responseType = "json"` makes `responseText` throw (InvalidStateError),
+        // so the already-parsed body is the only reliable source for the
+        // backend's `detail`. It is null when the server sent non-JSON, e.g. a
+        // proxy error page or a CORS-rejected response.
+        const body = xhr.response as { detail?: unknown } | null;
+        const raw = body && typeof body === "object" ? body.detail : undefined;
+        let detail: string | null = null;
+        if (typeof raw === "string" && raw.trim().length > 0) {
+          detail = raw;
+        } else if (raw != null) {
+          detail = JSON.stringify(raw);
+        }
+        reject(
+          new ApiError(
+            detail ?? "Audio engine request failed",
+            xhr.status,
+            detail !== null,
+          ),
+        );
       }
     };
 
-    xhr.onerror = () => reject(new ApiError("Upload failed", 0));
+    // Transport-level failure: CORS rejection, DNS, offline, connection reset.
+    xhr.onerror = () => reject(new ApiError("Audio engine unreachable", 0, false));
     xhr.responseType = "json";
     xhr.send(formData);
   });

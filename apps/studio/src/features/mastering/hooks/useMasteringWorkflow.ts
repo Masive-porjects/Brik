@@ -386,7 +386,7 @@ export function useMasteringWorkflow(
         if (currentTrackIdRef.current) {
           updateTrackStatus(currentTrackIdRef.current, "error").catch(() => {});
         }
-        let errMsg = t("errors.uploadFailed", "Upload failed");
+        let errMsg = t("errors.uploadFailed", "Error al subir el archivo");
         if (err instanceof ApiError && err.status === 413) {
           if (err.message.includes("AUDIO_TOO_LONG")) {
             errMsg = t(
@@ -399,6 +399,14 @@ export function useMasteringWorkflow(
               "El archivo es demasiado grande (máximo 50MB). Probá comprimirlo o exportar en WAV 16-bit / MP3 320kbps.",
             );
           }
+        } else if (err instanceof ApiError && !err.hasDetail) {
+          // Transport failure: CORS rejection, engine unreachable, or a proxy
+          // error page instead of JSON. The raw ApiError message is technical,
+          // so the user gets a translated, actionable one.
+          errMsg = t(
+            "errors.engineUnreachable",
+            "No se pudo conectar con el motor de audio. Verifica tu conexión o intenta más tarde.",
+          );
         } else if (err instanceof Error) {
           errMsg = err.message;
         }
