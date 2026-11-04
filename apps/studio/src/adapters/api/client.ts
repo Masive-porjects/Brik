@@ -894,6 +894,8 @@ export interface AgentRunResult {
   /** Null when the run never mastered. */
   master_metrics: AgentMasterMetrics | null;
   tools_executed: AgentToolExecution[];
+  /** Becomes available as soon as Demucs completes, before mix/master finish. */
+  stem_names?: StemName[];
   audio: {
     mix: AgentAudioAsset | null;
     master: AgentAudioAsset | null;
@@ -914,7 +916,7 @@ export interface AgentJobState {
   stage: string | null;
   session_id: string | null;
   /** Present once completed. The audio URLs inside are re-signed per read. */
-  result?: AgentRunResult;
+  result?: Partial<AgentRunResult> & { stem_names?: StemName[] };
   error?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -1036,6 +1038,76 @@ export async function getAgentJobStatus(
     );
   }
   return res.json();
+}
+
+/**
+ * Stream agent job snapshots as SSE. Partial result data can contain completed
+ * stems while the mix/master phases are still running. The durable status
+ * endpoint remains the fallback if this stream closes before a terminal event.
+ */
+export async function* streamAgentJobEvents(
+  jobId: string,
+  signal?: AbortSignal,
+): AsyncGenerator<AgentJobState> {
+  const res = await fetch(
+    `${API_BASE}/jobs/agent/${encodeURIComponent(jobId)}/events`,
+    { headers: { ...licenseHeaders() }, ...(signal ? { signal } : {}) },
+  );
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: "Agent job event stream failed" }));
+    throw new ApiError(
+      (err as { detail?: string }).detail || "Agent job event stream failed",
+      res.status,
+    );
+  }
+  if (!res.body) {
+    throw new ApiError("Agent job event stream has no response body", res.status);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const decodeFrame = (frame: string): AgentJobState | null => {
+    const data = frame
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).replace(/^ /, ""));
+    return data.length > 0 ? (JSON.parse(data.join("\n")) as AgentJobState) : null;
+  };
+
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.value) buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+      if (chunk.done) buffer += decoder.decode();
+
+      while (true) {
+        const boundary = /\r?\n\r?\n/.exec(buffer);
+        if (!boundary || boundary.index === undefined) break;
+        const frame = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary[0].length);
+        const state = decodeFrame(frame);
+        if (state) {
+          yield state;
+          if (state.status === "completed" || state.status === "error") return;
+        }
+      }
+
+      if (chunk.done) {
+        if (buffer.trim()) {
+          const state = decodeFrame(buffer);
+          if (state) yield state;
+        }
+        return;
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -1845,4 +1917,3 @@ export async function getAssetDownloadUrl(
   if (!res.ok) throw new ApiError("No se pudo obtener el enlace de descarga", res.status);
   return toAssetDownload(await res.json());
 }
-

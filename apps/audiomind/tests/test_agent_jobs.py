@@ -16,6 +16,7 @@ touches Demucs, the network or R2. ``conftest`` already breaks
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -233,6 +234,7 @@ class TestAgentJobRoute:
 
         assert body["status"] == "completed"
         result = body["result"]
+        assert set(result["stem_names"]) == set(_STEMS)
 
         # 1. The diagnosis in natural language.
         assert result["diagnosis"] == "La voz está tapada y falta pegada."
@@ -346,6 +348,92 @@ class TestAgentJobRoute:
 
     def test_an_unknown_job_is_404(self, agent_env):
         assert client.get(f"/api/jobs/agent/{uuid.uuid4()}").status_code == 404
+
+    def test_agent_job_events_stream_completed_stems_and_terminal_state(self, agent_env):
+        record = agent_env.store.create(
+            "agent", session_id="s1", result={"stem_names": ["drums", "bass"]}
+        )
+        agent_env.store.update(
+            record.job_id,
+            status=JobStatus.COMPLETED,
+            progress=100,
+            stage="done",
+        )
+
+        response = client.get(f"/api/jobs/agent/{record.job_id}/events")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        frames = [frame for frame in response.text.split("\n\n") if frame.strip()]
+        assert len(frames) == 1
+        assert "event: status" in frames[0]
+        data = next(line[6:] for line in frames[0].splitlines() if line.startswith("data: "))
+        payload = json.loads(data)
+        assert payload["status"] == "completed"
+        assert payload["result"]["stem_names"] == ["drums", "bass"]
+
+    def test_agent_job_events_close_after_error_snapshot(self, agent_env):
+        record = agent_env.store.create("agent", session_id="s1")
+        agent_env.store.update(
+            record.job_id,
+            status=JobStatus.ERROR,
+            error="provider failed",
+        )
+
+        response = client.get(f"/api/jobs/agent/{record.job_id}/events")
+        frames = [frame for frame in response.text.split("\n\n") if frame.strip()]
+
+        assert len(frames) == 1
+        assert "event: status" in frames[0]
+        data = next(line[6:] for line in frames[0].splitlines() if line.startswith("data: "))
+        payload = json.loads(data)
+        assert payload["status"] == "error"
+        assert payload["error"] == "provider failed"
+
+    def test_agent_job_events_include_each_new_stem_before_completion(
+        self, agent_env, monkeypatch
+    ):
+        record = agent_env.store.create("agent", session_id="s1")
+        import audiomind.api.jobs as jobs_api
+
+        updates = iter(
+            [
+                {"result": {"stem_names": ["drums"]}},
+                {"result": {"stem_names": ["drums", "bass"]}},
+                {
+                    "status": JobStatus.COMPLETED,
+                    "progress": 100,
+                    "stage": "done",
+                },
+            ]
+        )
+
+        def advance(_seconds):
+            patch = next(updates, None)
+            if patch is not None:
+                agent_env.store.update(record.job_id, **patch)
+
+        monkeypatch.setattr(jobs_api.time, "sleep", advance)
+
+        response = client.get(f"/api/jobs/agent/{record.job_id}/events")
+
+        frames = [frame for frame in response.text.split("\n\n") if frame.strip()]
+        payloads = [
+            json.loads(next(line[6:] for line in frame.splitlines() if line.startswith("data: ")))
+            for frame in frames
+        ]
+        assert [payload["status"] for payload in payloads] == [
+            "processing",
+            "processing",
+            "processing",
+            "completed",
+        ]
+        assert [payload["result"].get("stem_names", []) for payload in payloads] == [
+            [],
+            ["drums"],
+            ["drums", "bass"],
+            ["drums", "bass"],
+        ]
 
     def test_a_dead_worker_is_reported_as_error(self, agent_env):
         # The worker is what normally writes the terminal state, so a worker

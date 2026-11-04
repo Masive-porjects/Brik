@@ -17,6 +17,7 @@ import {
   getMixJobState,
   submitAgentJob,
   getAgentJobStatus,
+  streamAgentJobEvents,
   getProjectDocument,
   putProjectDocument,
   getProjectMixState,
@@ -1044,5 +1045,59 @@ describe('getAgentJobStatus', () => {
     await getAgentJobStatus('a/b');
 
     expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/agent/a%2Fb`);
+  });
+});
+
+describe('streamAgentJobEvents', () => {
+  it('parses status snapshots and completed stems from an SSE response', async () => {
+    const encoder = new TextEncoder();
+    const snapshots = [
+      { job_id: 'agent_abc123', status: 'processing', result: { stem_names: ['drums'] } },
+      { job_id: 'agent_abc123', status: 'completed', result: { stem_names: ['drums', 'bass'] } },
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const snapshot of snapshots) {
+          controller.enqueue(encoder.encode(`event: status\ndata: ${JSON.stringify(snapshot)}\n\n`));
+        }
+        controller.close();
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, body });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const received = [];
+    for await (const snapshot of streamAgentJobEvents('agent_abc123')) {
+      received.push(snapshot);
+    }
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/jobs/agent/agent_abc123/events`);
+    expect(received.map((snapshot) => snapshot.result?.stem_names)).toEqual([
+      ['drums'],
+      ['drums', 'bass'],
+    ]);
+    expect(received[1].status).toBe('completed');
+  });
+
+  it('cancels the reader when the consumer closes the iterator early', async () => {
+    const encoder = new TextEncoder();
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            'event: status\ndata: {"job_id":"agent_abc123","status":"processing"}\n\n',
+          ),
+        );
+      },
+      cancel,
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, body }));
+
+    const iterator = streamAgentJobEvents('agent_abc123');
+    expect((await iterator.next()).value?.status).toBe('processing');
+    await iterator.return(undefined);
+
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });

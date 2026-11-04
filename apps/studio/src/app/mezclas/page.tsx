@@ -221,7 +221,7 @@ function MezclasContent() {
 
   return (
     <LicenseGuard>
-      <main className="h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
+      <main className="h-[100dvh] min-h-0 flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
         {/* Estado explícito de resolución del `?track=`. Antes, si el track no
             aparecía en la primera página, no se renderizaba nada: pantalla en
             blanco que el usuario leía como un 404. */}
@@ -462,7 +462,7 @@ function MezclasContent() {
 
                       {/* Scrollable Tab Canvas */}
                       <div
-                        className={`relative z-[1] overflow-y-auto px-4 lg:px-6 pt-4 pb-48 ${
+                        className={`relative z-[1] min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-48 lg:pb-64 ${
                           sheetTab !== null || currentTab === null || currentTab === "productor"
                             ? "hidden"
                             : "flex-1"
@@ -649,7 +649,7 @@ function MezclasContent() {
 
 export default function MezclasPage() {
   return (
-    <Suspense fallback={<div className="h-screen bg-[var(--bg-app)] animate-pulse" />}>
+    <Suspense fallback={<div className="h-[100dvh] bg-[var(--bg-app)] animate-pulse" />}>
       <MezclasContent />
     </Suspense>
   );

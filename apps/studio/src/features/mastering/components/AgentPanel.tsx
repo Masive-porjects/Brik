@@ -18,6 +18,7 @@ import {
   getAudioUrl,
   getMixAudioUrl,
   submitAgentJob,
+  streamAgentJobEvents,
   type AgentAudioAsset,
   type AgentChangeReport,
   type AgentChangeReportBlock,
@@ -36,6 +37,12 @@ import MixWaveformAB from "@/presentation/components/MixWaveformAB";
 import { narrativeSentence } from "./narrativeText";
 import { escalationDecision } from "./escalationJob";
 import AgentStemStack from "./AgentStemStack";
+import {
+  hydrateAgentStudioStore,
+  useAgentStudioStore,
+  type AgentChatMessage,
+  type AgentStemName,
+} from "../store/agentStudioStore";
 
 /**
  * Módulo Brik — Capa de decisión interactiva (T6-T8).
@@ -89,13 +96,10 @@ interface AgentPanelProps {
   onPhaseChange?: (phase: DecisionPhase) => void;
 }
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  ts: number;
-  escalated?: boolean;
-  intentPill?: boolean;
-}
+type Message = AgentChatMessage;
+
+const EMPTY_MESSAGES: Message[] = [];
+const EMPTY_STEMS: AgentStemName[] = [];
 
 export default function AgentPanel({
   sessionId,
@@ -106,7 +110,16 @@ export default function AgentPanel({
   const { t } = useTranslation();
 
   // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
+  const messages = useAgentStudioStore((state) =>
+    sessionId ? state.messagesBySession[sessionId] ?? EMPTY_MESSAGES : EMPTY_MESSAGES,
+  );
+  const completedStems = useAgentStudioStore((state) =>
+    state.activeStemSessionId === sessionId ? state.completedStems : EMPTY_STEMS,
+  );
+  const appendMessage = useAgentStudioStore((state) => state.appendMessage);
+  const clearStems = useAgentStudioStore((state) => state.clearStems);
+  const beginStemJob = useAgentStudioStore((state) => state.beginStemJob);
+  const setCompletedStems = useAgentStudioStore((state) => state.setCompletedStems);
   const [composerInput, setComposerInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [escalateNotice, setEscalateNotice] = useState(false);
@@ -125,6 +138,10 @@ export default function AgentPanel({
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timedOutRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void hydrateAgentStudioStore();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -185,6 +202,7 @@ export default function AgentPanel({
     ) => {
       if (!sessionId) return;
 
+      if (decision !== "master_only") clearStems();
       abortRef.current?.abort();
       pollAbortRef.current?.abort();
       const controller = new AbortController();
@@ -212,28 +230,55 @@ export default function AgentPanel({
           decision,
           controller.signal,
         );
+        if (decision !== "master_only") {
+          beginStemJob(sessionId, accepted.job_id);
+        }
 
-        // El loop no expone progreso parcial: se sondea hasta el estado
-        // terminal, sin barra de progreso falsa.
-        for (;;) {
-          await sleep(AGENT_POLL_MS, pollController.signal);
-          const state = await getAgentJobStatus(
-            accepted.job_id,
-            pollController.signal,
-          );
+        const handleSnapshot = (state: Awaited<ReturnType<typeof getAgentJobStatus>>) => {
+          if (state.result?.stem_names?.length) {
+            setCompletedStems(accepted.job_id, sessionId, state.result.stem_names);
+          }
           if (state.status === "completed") {
             clearWatchdog();
-            if (state.result) setResult(state.result);
+            if (state.result) setResult(state.result as AgentRunResult);
             else setError(t("productor.emptyResult"));
             setPhase("completed");
-            return;
+            return true;
           }
           if (state.status === "error") {
             clearWatchdog();
             setError(state.error ?? t("productor.interrupted"));
             setPhase("error");
-            return;
+            return true;
           }
+          return false;
+        };
+
+        // SSE publishes completed stems after Demucs, while mix/master continue.
+        // If the stream ends early or cannot connect, resume with the durable
+        // status endpoint so the job still reaches a terminal UI state.
+        let terminal = false;
+        try {
+          for await (const state of streamAgentJobEvents(
+            accepted.job_id,
+            pollController.signal,
+          )) {
+            terminal = handleSnapshot(state);
+            if (terminal) return;
+          }
+        } catch (streamError) {
+          if ((streamError as { name?: string })?.name === "AbortError") {
+            throw streamError;
+          }
+        }
+
+        while (!terminal) {
+          await sleep(AGENT_POLL_MS, pollController.signal);
+          const state = await getAgentJobStatus(
+            accepted.job_id,
+            pollController.signal,
+          );
+          terminal = handleSnapshot(state);
         }
       } catch (e) {
         const isAbort = (e as { name?: string })?.name === "AbortError";
@@ -251,7 +296,7 @@ export default function AgentPanel({
         if (pollAbortRef.current === pollController) pollAbortRef.current = null;
       }
     },
-    [sessionId, clearWatchdog, t],
+    [sessionId, clearStems, beginStemJob, setCompletedStems, clearWatchdog, t],
   );
 
   /** Chat flow: send message to /agent/chat and handle response. */
@@ -268,7 +313,7 @@ export default function AgentPanel({
       content: userMessage,
       ts: Date.now(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    appendMessage(sessionId, userMsg);
 
     try {
       const { chatWithBrik } = await import("@/lib/api");
@@ -282,7 +327,7 @@ export default function AgentPanel({
         escalated: response.escalation?.action === "escalate_to_job",
         intentPill: response.escalation?.updates_intent === true,
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+      appendMessage(sessionId, assistantMsg);
 
       // Handle escalation
       if (response.escalation?.action === "escalate_to_job") {
@@ -304,18 +349,15 @@ export default function AgentPanel({
       // The actual intent merge happens when user confirms via verdict card
     } catch (e) {
       const errorMsg = t("productor.chat.error");
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: errorMsg,
-          ts: Date.now(),
-        },
-      ]);
+      appendMessage(sessionId, {
+        role: "assistant",
+        content: errorMsg,
+        ts: Date.now(),
+      });
     } finally {
       setIsSending(false);
     }
-  }, [sessionId, composerInput, isSending, messages, t, runAgentJob]);
+  }, [sessionId, composerInput, isSending, messages, appendMessage, t, runAgentJob]);
 
   /** Paso 3 — Lanza el job completo con la decisión elegida (legacy). */
   const handleProduceWithDecision = useCallback(async () => {
@@ -577,6 +619,13 @@ export default function AgentPanel({
               {t("productor.cancel")}
             </button>
           </motion.div>
+        )}
+
+        {phase === "producing" && completedStems.length > 0 && sessionId && (
+          <section className="mt-4">
+            <SectionTitle>{t("productor.stemsTitle")}</SectionTitle>
+            <AgentStemStack sessionId={sessionId} stemNames={completedStems} />
+          </section>
         )}
 
         {cancelled && (
@@ -870,10 +919,14 @@ function AgentResultView({ result }: { result: AgentRunResult }) {
           narrativa es la prueba de que la herramienta corrió, no la existencia
           de un archivo. Un master directo no tiene nada que mostrar acá. */}
       {result.session_id &&
-        result.narrative?.some((item) => item.code === "separated") && (
+        ((result.stem_names?.length ?? 0) > 0 ||
+          result.narrative?.some((item) => item.code === "separated")) && (
           <section>
             <SectionTitle>{t("productor.stemsTitle")}</SectionTitle>
-            <AgentStemStack sessionId={result.session_id} />
+            <AgentStemStack
+              sessionId={result.session_id}
+              stemNames={result.stem_names ?? ["drums", "bass", "other", "vocals"]}
+            />
           </section>
         )}
 

@@ -45,7 +45,7 @@ export default function VozPage() {
   }, []);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col p-4 sm:p-8">
+    <main className="mx-auto flex h-[100dvh] min-h-0 max-w-xl flex-col overflow-hidden p-4 sm:p-8">
       <AnimatePresence mode="wait">
         {step === "upload" ? (
           <motion.div key="upload" {...VIEW_TRANSITION} className="m-auto w-full">

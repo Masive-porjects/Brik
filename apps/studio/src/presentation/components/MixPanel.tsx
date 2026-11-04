@@ -99,19 +99,19 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
     cells.push({ label: "BPM", value: String(Math.round(result.tempo_bpm)) });
   }
   if (typeof result.genre === "string" && result.genre && result.genre !== "other") {
-    cells.push({ label: "Género", value: genreDisplayLabel(result.genre) });
+    cells.push({ label: t("mezcla.genre"), value: genreDisplayLabel(result.genre) });
   }
   if (typeof result.genre_confidence === "number") {
     cells.push({
-      label: "Confianza",
+      label: t("mezcla.confidence"),
       value: `${Math.round(result.genre_confidence * 100)}%`,
     });
   }
   if (typeof result.sample_rate === "number") {
-    cells.push({ label: "Sample rate", value: `${result.sample_rate} Hz` });
+    cells.push({ label: t("mezcla.sampleRate"), value: `${result.sample_rate} Hz` });
   }
   if (typeof result.duration_seconds === "number") {
-    cells.push({ label: "Duración", value: formatDuration(result.duration_seconds) });
+    cells.push({ label: t("mezcla.duration"), value: formatDuration(result.duration_seconds) });
   }
 
   const qc = result.qc_report as
@@ -123,10 +123,10 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
   // ``trim_report`` = faders manuales aplicados; ``balance_report`` = lo
   // que el auto-balance midió/corrigió. Nunca se inventan datos.
   const stemLabel: Record<string, string> = {
-    drums_db: "Batería",
-    bass_db: "Bajo",
-    other_db: "Otros",
-    vocals_db: "Voz",
+    drums_db: t("mezcla.stemDrums"),
+    bass_db: t("mezcla.stemBass"),
+    other_db: t("mezcla.stemOther"),
+    vocals_db: t("mezcla.stemVocals"),
   };
   const fmtGains = (gains?: Record<string, number>) =>
     (gains ? Object.entries(gains) : [])
@@ -146,9 +146,9 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
     | undefined;
   const trimGainsText = fmtGains(trimReport?.gains);
   const balanceGainsText = fmtGains(balanceReport?.gains);
-  if (trimGainsText) cells.push({ label: "Balance", value: trimGainsText });
+  if (trimGainsText) cells.push({ label: t("mezcla.balance"), value: trimGainsText });
   if (balanceGainsText)
-    cells.push({ label: "Auto-balance", value: balanceGainsText });
+    cells.push({ label: t("mezcla.autoBalance"), value: balanceGainsText });
 
   // P5 — carácter: solo se reporta cuando el stage corrió. El badge muestra
   // el perfil que el backend aplicó (commercial_alt_pop hoy); el seed queda
@@ -172,7 +172,7 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
         className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.16em]"
         style={{ color: "var(--text-secondary)" }}
       >
-        Análisis de la mezcla
+        {t("mezcla.mixAnalysisTitle")}
       </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {cells.map((cell) => (
@@ -201,12 +201,12 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
               qc.summary?.all_ok === false &&
               Array.isArray(qc.summary.flagged) &&
               qc.summary.flagged.length > 0
-                ? `Checks marcados: ${qc.summary.flagged.join(", ")}`
+                ? t("mezcla.qcFlagged", { checks: qc.summary.flagged.join(", ") })
                 : undefined
             }
           >
             <ShieldCheck size={13} />
-            QC: {qc.summary?.all_ok === false ? "revisar" : "ok"}
+            QC: {qc.summary?.all_ok === false ? t("mezcla.qcReview") : t("mezcla.qcOk")}
           </div>
         )}
       </div>
@@ -219,11 +219,11 @@ function MixAnalysisGrid({ result }: { result: MixResult }) {
    ±6 dB, 0 = neutral (sin ``trim_report``). El valor mostrado se clampa
    a la banda y el estado se commitea AL SOLTAR el fader (el arrastre vive
    solo en el draft local — el mix lee faders commiteados). */
-const STEM_FADERS: { key: string; label: string }[] = [
-  { key: "drums_db", label: "Batería" },
-  { key: "bass_db", label: "Bajo" },
-  { key: "other_db", label: "Otros" },
-  { key: "vocals_db", label: "Voz" },
+const STEM_FADERS: { key: string; labelKey: string }[] = [
+  { key: "drums_db", labelKey: "stemDrums" },
+  { key: "bass_db", labelKey: "stemBass" },
+  { key: "other_db", labelKey: "stemOther" },
+  { key: "vocals_db", labelKey: "stemVocals" },
 ];
 const FADER_DEFAULTS: Record<string, number> = {
   drums_db: 0,
@@ -501,7 +501,7 @@ export default function MixPanel({
         setCancelled(true);
       } else {
         setError(
-          e instanceof Error ? e.message : "No se pudo mezclar el audio",
+          e instanceof Error ? e.message : t("mezcla.mixFailed"),
         );
       }
     } finally {
@@ -533,8 +533,11 @@ export default function MixPanel({
     () =>
       MIX_STATUS_STAGES.filter(
         (stage) => dimensionEnabled || stage.id !== "dimension",
-      ),
-    [dimensionEnabled],
+      ).map((stage) => ({
+        ...stage,
+        label: t(`mezcla.stages.${stage.id}`),
+      })),
+    [dimensionEnabled, t],
   );
 
   // Género real del análisis (chip + panel IA). "other" se normaliza a "Otro".
@@ -553,20 +556,20 @@ export default function MixPanel({
     | null
     | undefined;
   const aiCells: { label: string; value: string }[] = [];
-  if (rawGenre) aiCells.push({ label: "Género", value: genreLabel });
+  if (rawGenre) aiCells.push({ label: t("mezcla.genre"), value: genreLabel });
   if (typeof analysis?.tempo_bpm === "number") {
-    aiCells.push({ label: "Tempo", value: `${Math.round(analysis.tempo_bpm)} BPM` });
+    aiCells.push({ label: t("mezcla.tempo"), value: `${Math.round(analysis.tempo_bpm)} BPM` });
   }
   if (typeof analysis?.genre_confidence === "number") {
     aiCells.push({
-      label: "Confianza",
+      label: t("mezcla.confidence"),
       value: `${Math.round(analysis.genre_confidence * 100)}%`,
     });
   }
   if (qc) {
     aiCells.push({
-      label: "QC",
-      value: qc.summary?.all_ok === false ? "Revisar" : "OK",
+      label: t("mezcla.qc"),
+      value: qc.summary?.all_ok === false ? t("mezcla.qcReview") : t("mezcla.qcOk"),
     });
   }
 
@@ -586,7 +589,7 @@ export default function MixPanel({
               className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
               style={{ color: "var(--text-secondary)" }}
             >
-              Recomendaciones del análisis
+              {t("mezcla.analysisRecommendations")}
             </p>
             {aiCells.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -612,7 +615,7 @@ export default function MixPanel({
               </div>
             ) : (
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Los datos del análisis aparecerán cuando generes la mezcla.
+                {t("mezcla.analysisPending")}
               </p>
             )}
           </div>
@@ -626,10 +629,10 @@ export default function MixPanel({
             className="text-lg font-bold"
             style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
           >
-            Mezcla de Audio
+            {t("mezcla.panelTitle")}
           </h2>
           <p className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
-            Separa, ecualiza y mezcla tus stems en un bus unificado
+            {t("mezcla.panelSubtitle")}
           </p>
         </div>
 
@@ -644,8 +647,8 @@ export default function MixPanel({
                 aria-pressed={hasMixed && showResult}
                 title={
                   hasMixed
-                    ? "Mostrar u ocultar el resultado de la mezcla"
-                    : "Todavía no hay una mezcla"
+                    ? t("mezcla.showHideResultTitle")
+                    : t("mezcla.noMixYet")
                 }
                 className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-300 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
@@ -655,14 +658,14 @@ export default function MixPanel({
                 }}
               >
                 {showResult ? <EyeOff size={13} /> : <Eye size={13} />}
-                Mostrar / Ocultar Panel
+                {t("mezcla.showPanel")}
               </button>
               {/* Pill "Volver a Mezclar": re-procesa el mix (mismo click que
                   el botón primario de v1, ahora como pill verde). */}
               <button
                 onClick={handleMix}
                 disabled={disabled || mixing}
-                title="Volver a mezclar"
+                title={t("mezcla.remixTitle")}
                 className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-300 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
                   background: "rgba(48, 209, 88, 0.12)",
@@ -673,12 +676,12 @@ export default function MixPanel({
                 {mixing ? (
                   <>
                     <Loader2 size={13} className="animate-spin" />
-                    Mezclando...
+                    {t("mezcla.mixing")}
                   </>
                 ) : (
                   <>
                     <RefreshCw size={13} />
-                    Volver a Mezclar
+                    {t("mezcla.remix")}
                   </>
                 )}
               </button>
@@ -695,11 +698,11 @@ export default function MixPanel({
             >
               {mixing ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" /> Mezclando...
+                  <Loader2 size={16} className="animate-spin" /> {t("mezcla.mixing")}
                 </>
               ) : (
                 <>
-                  <Music2 size={16} /> Mezclar Audio
+                  <Music2 size={16} /> {t("mezcla.mixAudio")}
                 </>
               )}
             </button>
@@ -716,7 +719,7 @@ export default function MixPanel({
           type="button"
           role="switch"
           aria-checked={dimensionEnabled}
-          aria-label="Dimensión espacial (Delay + Reverb)"
+          aria-label={t("mezcla.spatialDimension")}
           onClick={() => setDimensionEnabled((v) => !v)}
           disabled={mixing}
           className="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40"
@@ -739,14 +742,14 @@ export default function MixPanel({
             className="text-xs font-medium"
             style={{ color: "var(--text-primary)" }}
           >
-            Dimensión espacial (Delay + Reverb)
+            {t("mezcla.spatialDimension")}
           </p>
           <p
             className="text-[10px] leading-relaxed"
             style={{ color: "var(--text-muted)" }}
-            title="Agrega delay tempo y reverb por stem. Apagada: mezcla seca, routing idéntico al paso de paneo."
+            title={t("mezcla.spatialDimensionTooltip")}
           >
-            Apagada: mezcla seca, sin delay ni reverb
+            {t("mezcla.spatialDimensionHint")}
           </p>
         </div>
       </div>
@@ -761,14 +764,14 @@ export default function MixPanel({
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}
         >
-          Balance
+          {t("mezcla.balance")}
         </p>
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             role="switch"
             aria-checked={autoBalance}
-            aria-label="Auto-balance"
+            aria-label={t("mezcla.autoBalance")}
             onClick={() => setAutoBalance((v) => !v)}
             disabled={mixing}
             className="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40"
@@ -791,23 +794,22 @@ export default function MixPanel({
               className="text-xs font-medium"
               style={{ color: "var(--text-primary)" }}
             >
-              Auto-balance
+              {t("mezcla.autoBalance")}
             </p>
             <p
               className="text-[10px] leading-relaxed"
               style={{ color: "var(--text-muted)" }}
-              title="Corrige la voz hacia el nivel objetivo del género detectado (proceso automático)."
+              title={t("mezcla.autoBalanceTooltip")}
             >
-              Ajusta la voz hacia el nivel objetivo del género. Apagado por
-              defecto.
+              {t("mezcla.autoBalanceHint")}
             </p>
           </div>
         </div>
         <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
-          {STEM_FADERS.map(({ key, label }) => (
+          {STEM_FADERS.map(({ key, labelKey }) => (
             <FaderControl
               key={key}
-              label={label}
+              label={t(`mezcla.${labelKey}`)}
               value={faderValues[key] ?? 0}
               disabled={mixing}
               onCommit={(db) =>
@@ -946,7 +948,7 @@ export default function MixPanel({
               style={{ color: "var(--text-primary)" }}
               aria-live="polite"
               role="progressbar"
-              aria-label="Procesando mezcla de audio"
+              aria-label={t("mezcla.processingLabel")}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={progressPct}
@@ -1007,7 +1009,7 @@ export default function MixPanel({
             }}
           >
             <Info size={14} />
-            Mezcla cancelada. Puedes volver a intentarlo cuando quieras.
+            {t("mezcla.cancelled")}
           </div>
         </motion.div>
       )}
@@ -1043,13 +1045,12 @@ export default function MixPanel({
           className="px-4 pt-3 text-center text-xs"
           style={{ color: "var(--text-muted)" }}
         >
-          La mezcla separa el audio en stems por rol, aplica ecualización
-          por banda de frecuencia y los junta en un bus estéreo unificado.
+          {t("mezcla.initialHint")}
         </p>
       )}
       {!hasMixed && !mixing && !sessionId && (
         <p className="px-4 pt-3 text-sm" style={{ color: "var(--text-secondary)" }}>
-          Carga un audio para usar la Mezcla de Audio.
+          {t("mezcla.loadAudioPrompt")}
         </p>
       )}
 
@@ -1063,7 +1064,7 @@ export default function MixPanel({
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-          Mezcla generada: escucha el resultado o descarga el WAV
+          {t("mezcla.generatedHint")}
         </span>
         <div className="flex items-center gap-2">
           <button
@@ -1071,8 +1072,8 @@ export default function MixPanel({
             disabled={!hasMixed || mixing}
             title={
               hasMixed
-                ? "Continuar con el masterizado del audio"
-                : "Genera la mezcla primero"
+                ? t("mezcla.masterizeReady")
+                : t("mezcla.masterizeNeedsMix")
             }
             className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-all duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             style={{
@@ -1081,15 +1082,15 @@ export default function MixPanel({
             }}
           >
             <Sparkles size={13} />
-            Masterizar
+            {t("mezcla.masterizeLabel")}
           </button>
           <button
             onClick={handleCancel}
             disabled={!mixing}
             title={
               mixing
-                ? "Cancelar la mezcla en curso"
-                : "No hay una mezcla en curso"
+                ? t("mezcla.cancelMixActive")
+                : t("mezcla.cancelMixIdle")
             }
             className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-all duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             style={{
@@ -1098,7 +1099,7 @@ export default function MixPanel({
             }}
           >
             <X size={13} strokeWidth={2.5} />
-            Cancelar mezcla
+            {t("mezcla.cancelMixLabel")}
           </button>
           {hasMixed && audioSrc && sessionId && (
             <a
@@ -1113,7 +1114,7 @@ export default function MixPanel({
               }}
             >
               <Download size={13} />
-              Descargar WAV
+              {t("mezcla.downloadWav")}
             </a>
           )}
         </div>

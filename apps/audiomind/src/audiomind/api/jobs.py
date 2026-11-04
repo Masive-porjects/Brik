@@ -7,6 +7,8 @@ that read from and write to Supabase Cloud Storage and PostgreSQL.
 from __future__ import annotations
 
 import logging
+import json
+import time
 import traceback
 import uuid
 from pathlib import Path
@@ -19,6 +21,7 @@ from fastapi import (
     HTTPException,
     status,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from audiomind.api.license import require_license
@@ -600,6 +603,66 @@ async def get_agent_job(job_id: str) -> dict[str, Any]:
     return {**public_view(record), **_fresh_agent_assets(record)}
 
 
+@router.get(
+    "/agent/{job_id}/events",
+    summary="Stream agent job state and completed stems as server-sent events",
+)
+def stream_agent_job(job_id: str) -> StreamingResponse:
+    """Stream durable job snapshots until the agent run reaches a terminal state.
+
+    The job store remains the source of truth. This endpoint only adapts its
+    snapshots to SSE; it does not add a second in-process event bus that could
+    diverge across container restarts or replicas.
+    """
+    record = get_job_store().get(job_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent job '{job_id}' not found",
+        )
+
+    def events():
+        last_payload: str | None = None
+        last_heartbeat = time.monotonic()
+        while True:
+            current = get_job_store().get(job_id)
+            if current is None:
+                return
+
+            if is_stale(current):
+                payload = {
+                    **public_view(current),
+                    "status": "error",
+                    "error": _STALE_AGENT_ERROR,
+                }
+            else:
+                payload = {**public_view(current), **_fresh_agent_assets(current)}
+
+            encoded = json.dumps(
+                payload, ensure_ascii=False, separators=(",", ":"), default=str
+            )
+            if encoded != last_payload:
+                yield f"event: status\ndata: {encoded}\n\n"
+                last_payload = encoded
+                last_heartbeat = time.monotonic()
+            elif time.monotonic() - last_heartbeat >= 15:
+                yield ": keep-alive\n\n"
+                last_heartbeat = time.monotonic()
+
+            if payload["status"] in {"completed", "error"}:
+                return
+            time.sleep(1)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 def _fresh_agent_assets(record: Any) -> dict[str, Any]:
     """Re-sign the agent's audio URLs on every read.
 
@@ -635,5 +698,4 @@ def _agent_url(key: str) -> str | None:
     except storage.StorageError:
         logger.warning("Could not re-sign agent url for %s", key, exc_info=True)
         return None
-
 

@@ -48,6 +48,13 @@ import { STEMS, type StemName } from "@/presentation/components/StemSplitter";
 
 const LANE_HEIGHT = 38;
 
+/** Keep the stack ordered by the canonical track layout, not event arrival. */
+export function selectVisibleStems(stemNames?: readonly StemName[]) {
+  return stemNames
+    ? STEMS.filter((stem) => stemNames.includes(stem.name))
+    : STEMS;
+}
+
 /** `m:ss`, el formato que usa cualquier reproductor. */
 function formatDuration(seconds: number): string {
   const total = Math.round(seconds);
@@ -226,10 +233,17 @@ function StemLane({
 }
 
 /** Pila de cuatro stems con ondas reales + botones de mezcla/máster. */
-export default function AgentStemStack({ sessionId }: { sessionId: string }) {
+export default function AgentStemStack({
+  sessionId,
+  stemNames,
+}: {
+  sessionId: string;
+  stemNames?: readonly StemName[];
+}) {
   const { t } = useTranslation();
   const [active, setActive] = useState<StemName | null>(null);
   const [loadingIndex, setLoadingIndex] = useState(0);
+  const visibleStems = selectVisibleStems(stemNames);
 
   const handleToggle = useCallback((name: StemName) => {
     setActive((current) => (current === name ? null : name));
@@ -260,7 +274,7 @@ export default function AgentStemStack({ sessionId }: { sessionId: string }) {
           border: "1px solid var(--border-subtle)",
         }}
       >
-        {STEMS.map((stem, index) => (
+        {visibleStems.map((stem, index) => (
           <StemLane
             key={stem.name}
             index={index}

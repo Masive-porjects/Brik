@@ -117,12 +117,14 @@ export default function AgentSidebar({
         </span>
       </button>
 
-      {/* Widget de chat flotante — overlay independiente */}
-      {open && (
-        <div
-          className="fixed bottom-[120px] right-6 z-[100] w-[440px] max-w-[calc(100vw-3rem)] shadow-2xl rounded-2xl
-            bg-[var(--bg-elevated)] text-[var(--text-primary)] flex flex-col border border-[var(--border-subtle)]"
-        >
+      {/* Widget de chat flotante — overlay independiente.
+          Siempre montado: cerrarlo solo lo oculta, así AgentPanel conserva su
+          estado (mensajes, job en curso) en vez de perderlo al desmontarse. */}
+      <div
+        hidden={!open}
+        className={`${open ? "flex" : "hidden"} fixed bottom-[120px] right-6 z-[100] w-[440px] max-w-[calc(100vw-3rem)] max-h-[calc(100dvh-9rem)] overflow-hidden shadow-2xl rounded-2xl
+          bg-[var(--bg-elevated)] text-[var(--text-primary)] flex-col border border-[var(--border-subtle)]`}
+      >
           <header
             className="flex shrink-0 gap-2 border-b px-4 py-3 items-center justify-between"
             style={{ borderColor: "var(--border-subtle)" }}
@@ -184,7 +186,7 @@ export default function AgentSidebar({
             </button>
           </header>
 
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <AgentPanel
               sessionId={sessionId}
               disabled={disabled}
@@ -192,8 +194,7 @@ export default function AgentSidebar({
               onPhaseChange={setPhase}
             />
           </div>
-        </div>
-      )}
+      </div>
     </>
   );
 }

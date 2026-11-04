@@ -30,6 +30,7 @@ import logging
 import os
 import tempfile
 import threading
+from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -399,12 +400,16 @@ def run_agent_job(
     heartbeat.start()
 
     try:
+        def publish_stems(stem_names: list[str]) -> None:
+            store.update(job_id, result={"stem_names": stem_names})
+
         state = _execute(
             session_id,
             job_id=job_id,
             prompt=prompt,
             decision=decision,
             transport=transport,
+            on_stems_completed=publish_stems,
         )
         _remember_treatment(state)
         result = build_agent_result(state, _deliver(state))
@@ -435,6 +440,7 @@ def _execute(
     prompt: str | None,
     decision: Decision,
     transport: Any | None,
+    on_stems_completed: Callable[[list[str]], None] | None = None,
 ) -> AgentState:
     """Resolve the session's audio and run the loop on the gated DSP pool.
 
@@ -480,6 +486,7 @@ def _execute(
             reference_comparison=reference,
             reference_is_mastered=reference_is_mastered,
             initial_intent=initial_intent,
+            on_stems_completed=on_stems_completed,
         )
 
     future = demo_guard.get_or_create_flight(session_id, f"job:{job_id}", _work)

@@ -59,22 +59,26 @@ describe("AgentSidebar", () => {
     expect(ghost.className).toContain("z-[101]");
     // Nada de `right` dinámico: sólo el span interno levita.
     expect((ghost as HTMLButtonElement).style.right).toBe("");
-    expect(screen.queryByTestId("agent-panel")).toBeNull();
+    // Montado pero oculto: el panel conserva su estado entre aperturas.
+    expect(screen.getByTestId("agent-panel").closest("[hidden]")).not.toBeNull();
   });
 
-  it("el fantasma dispara la apertura y el cierre del widget", () => {
+  it("el fantasma muestra y oculta el widget sin desmontar el panel", () => {
     render(<AgentSidebar sessionId={null} />);
 
-    // Cerrado: no hay panel
-    expect(screen.queryByTestId("agent-panel")).toBeNull();
+    // Cerrado: montado pero oculto
+    expect(screen.getByTestId("agent-panel").closest("[hidden]")).not.toBeNull();
+    expect(
+      screen.getByTestId("agent-panel").closest(".overflow-y-auto"),
+    ).not.toBeNull();
 
     // Click abre el widget
     fireEvent.click(screen.getByTestId("brik-ghost"));
-    expect(screen.getByTestId("agent-panel")).toBeTruthy();
+    expect(screen.getByTestId("agent-panel").closest("[hidden]")).toBeNull();
 
-    // El botón X cierra el widget
+    // El botón X cierra el widget, pero el panel sigue en el DOM
     fireEvent.click(screen.getByLabelText("Cerrar"));
-    expect(screen.queryByTestId("agent-panel")).toBeNull();
+    expect(screen.getByTestId("agent-panel").closest("[hidden]")).not.toBeNull();
   });
 
   it("el fantasma está anclado fijo y solo el icono interno levita", () => {

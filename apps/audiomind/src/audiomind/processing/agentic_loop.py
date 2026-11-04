@@ -1524,6 +1524,7 @@ def run(
     reference_comparison: ReferenceComparison | None = None,
     reference_is_mastered: bool = False,
     initial_intent: IntentProfile | None = None,
+    on_stems_completed: Callable[[list[str]], None] | None = None,
     **transport_kwargs: Any,
 ) -> AgentState:
     """Corre el flujo: diagnóstico -> [desmontaje -> bucle] -> cierre.
@@ -1598,6 +1599,18 @@ def run(
     phase1_diagnose(state, transport, transcript)
     if state.decision.applied == "mix_then_master":
         phase2_separate(state, transport, transcript)
+        if on_stems_completed is not None:
+            # Demucs returns the quartet as one inference. Publish only after the
+            # completed files are validated, and before the longer mix/master
+            # phases, so the Studio can render them during the same job.
+            completed_stems = [name for name in STEM_NAMES if name in state.stems]
+            if completed_stems:
+                try:
+                    on_stems_completed(completed_stems)
+                except Exception:  # noqa: BLE001 -- progress must not fail audio work
+                    logging.getLogger(__name__).warning(
+                        "Could not publish completed agent stems", exc_info=True
+                    )
         phase3_mix_loop(state, transport, transcript)
     _close_with_user_turn(transcript)
     phase4_send_to_master(state, transport, transcript)
