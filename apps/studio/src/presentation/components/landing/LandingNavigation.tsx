@@ -14,11 +14,10 @@ interface NavLink {
 }
 
 const navLinks: NavLink[] = [
-  { id: "arquitectura-dsp", label: "landing.nav.stage13" },
-  { id: "presets-fantasmagoricos", label: "landing.nav.presets" },
-  { id: "precios", label: "landing.nav.pricing" },
-  { id: "comparador", label: "landing.nav.abCompare" },
-  { id: "equipo-fundador", label: "landing.nav.founders" },
+  { id: "beneficios", label: "landing.nav.beneficios" },
+  { id: "comparador", label: "landing.nav.comparador" },
+  { id: "perfiles", label: "landing.nav.perfiles" },
+  { id: "precios", label: "landing.nav.precios" },
   { id: "faq", label: "landing.nav.faq" },
 ];
 
@@ -246,16 +245,9 @@ function MobileDrawer() {
                 onClick={handleClose}
                 className="mt-6 block w-full px-5 py-3.5 rounded-xl bg-primary text-[var(--color-on-primary)] font-sans font-bold text-center shadow-[0_0_20px_rgba(110,233,224,0.4)] hover:bg-primary-container transition-all active:scale-[0.98]"
               >
-                {t("landing.nav.enterStudio", "Ingresar a Brik Studio")}
+                {t("landing.nav.enterStudio", "Ingresar a Studio")}
               </Link>
             </nav>
-
-            {/* Footer info */}
-            <div className="p-4 border-t border-[var(--border-subtle)] text-center">
-              <p className="font-label-technical text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
-                {t("landing.nav.dspCore", "DSP Core")} v2.4
-              </p>
-            </div>
           </motion.div>
         </motion.div>
       )}
@@ -266,19 +258,12 @@ function MobileDrawer() {
 // Main Provider Component
 export default function LandingNavigation() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<string>("arquitectura-dsp");
+  const [activeSection, setActiveSection] = useState<string>("beneficios");
 
   // Scroll spy for active section highlighting (desktop only)
   useEffect(() => {
     const handleScroll = () => {
-      const sections = [
-        "arquitectura-dsp",
-        "presets-fantasmagoricos",
-        "precios",
-        "comparador",
-        "equipo-fundador",
-        "faq",
-      ];
+      const sections = navLinks.map((link) => link.id);
 
       for (const sectionId of sections) {
         const el = document.getElementById(sectionId);

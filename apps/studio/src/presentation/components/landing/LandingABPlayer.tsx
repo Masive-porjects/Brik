@@ -470,14 +470,14 @@ export default function LandingABPlayer() {
   }, []);
 
   return (
-    <Reveal as="section" className="w-full py-20 px-4 sm:px-8 lg:px-12 bg-[var(--bg-app)] relative" id="comparador">
+    <Reveal as="section" className="w-full py-24 lg:py-32 px-4 sm:px-8 lg:px-12 bg-[var(--bg-app)] relative" id="comparador">
       <div className="max-w-[1440px] mx-auto flex flex-col gap-12">
         {/* Section Header */}
-        <div className="flex flex-col items-center text-center gap-2 max-w-3xl mx-auto">
-          <span className="font-label-technical text-secondary text-[10px] uppercase tracking-widest">
+        <div className="flex flex-col items-center text-center gap-3 max-w-3xl mx-auto">
+          <span className="font-label-technical text-primary text-[10px] uppercase tracking-widest">
             {t("landing.abPlayer.badge")}
           </span>
-          <h2 className="font-headline-lg text-2xl sm:text-3xl lg:text-4xl text-[var(--text-primary)] font-bold">
+          <h2 className="font-headline-lg text-3xl sm:text-4xl lg:text-5xl text-[var(--text-primary)] font-bold">
             {t("landing.abPlayer.title")}
           </h2>
           <p className="font-body-md text-[var(--text-secondary)] text-sm sm:text-base leading-relaxed">
@@ -486,7 +486,7 @@ export default function LandingABPlayer() {
         </div>
 
         {/* Interactive Audio Widget Shell */}
-        <div className="w-full bg-[var(--bg-glass-elevated)] rounded-2xl p-4 sm:p-8 lg:p-10 shadow-2xl border border-[var(--border-subtle)] flex flex-col gap-6">
+        <div className="w-full bg-[var(--bg-glass-elevated)] rounded-2xl p-4 sm:p-8 lg:p-10 border border-[var(--border-subtle)] flex flex-col gap-6">
           {/* Control Bar */}
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-6 border-b border-[var(--border-strong)]">
             {/* Track Info & Play */}

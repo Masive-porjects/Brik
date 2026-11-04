@@ -1,49 +1,33 @@
 "use client";
 
-import FloatingGhosts from "@/presentation/components/FloatingGhosts";
 import LandingScrollToTop from "./LandingScrollToTop";
 import LandingHeader from "./LandingHeader";
-import HeroGSAP from "./HeroGSAP";
-import LandingPhilosophy from "./LandingPhilosophy";
+import LandingHero from "./LandingHero";
+import LandingBenefits from "./LandingBenefits";
 import LandingABPlayer from "./LandingABPlayer";
-import LandingDSPChain from "./LandingDSPChain";
-import LandingEngineSpecs from "./LandingEngineSpecs";
 import LandingPresets from "./LandingPresets";
-import LandingTagline from "./LandingTagline";
 import LandingPricing from "./LandingPricing";
-import LandingFounders from "./LandingFounders";
 import LandingFAQ from "./LandingFAQ";
-import LandingCTA from "./LandingCTA";
+import LandingFounders from "./LandingFounders";
 import LandingFooter from "./LandingFooter";
 
 export default function LandingScreen() {
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] font-sans relative selection:bg-primary-container selection:text-[var(--color-on-primary)] overflow-x-clip overflow-y-auto">
-      {/* Ambient decorative brand ghosts floating across the viewport */}
-      <FloatingGhosts zIndex={1} />
-
-      {/* Fixed/Sticky Top Navigation Header */}
+    <div className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] font-sans selection:bg-primary-container selection:text-[var(--color-on-primary)] overflow-x-clip">
       <LandingHeader />
 
-      {/* Main Landing Sections Flow */}
-      <main className="flex-1 flex flex-col w-full relative z-10">
-        <HeroGSAP />
-        <LandingPhilosophy />
+      <main className="flex-1 flex flex-col w-full">
+        <LandingHero />
+        <LandingBenefits />
         <LandingABPlayer />
-        <LandingDSPChain />
-        <LandingEngineSpecs />
         <LandingPresets />
-        <LandingTagline />
         <LandingPricing />
-        <LandingFounders />
         <LandingFAQ />
-        <LandingCTA />
+        <LandingFounders />
       </main>
 
-      {/* Global Landing Footer */}
       <LandingFooter />
 
-      {/* Floating Back to Top Ghost Button */}
       <LandingScrollToTop />
     </div>
   );
