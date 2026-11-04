@@ -83,7 +83,7 @@ export default function LandingHeader() {
 
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            {user ? <UserMenu /> : <ThemeToggle />}
+            <ThemeToggle />
           </div>
         </div>
       </div>
