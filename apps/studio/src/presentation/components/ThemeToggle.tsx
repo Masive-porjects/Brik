@@ -10,7 +10,7 @@ const THEME_KEY = "waveai-theme";
 /* Dark is forced globally (product decision). While true, a stored "light" theme
    is ignored, the toggle does nothing and its button is not rendered. Set to
    false to bring the light theme back. */
-export const FORCE_DARK_THEME = true;
+export const FORCE_DARK_THEME = false;
 
 export type Theme = "dark" | "light";
 

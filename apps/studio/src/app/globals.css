@@ -124,13 +124,82 @@ html[data-theme="light"] {
   /* --border role is covered by the legacy --border token above */
 }
 
-html,
-body {
-  background-color: #0b0b0c !important;
-  color: #f4f4f2;
-  color-scheme: dark;
+/* ── Light theme ──────────────────────────────────────── */
+html[data-theme="light"] {
+  /* Light theme — mirrors dark tokens with light values */
+  color-scheme: light;
+
+  --bg-base: #f4f4f2;
+  --bg-primary: #f4f4f2;
+  --bg-secondary: #ececea;
+  --bg-tertiary: #e2e2df;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-base: #f8f8f6;
+  --surface-elevated: #ffffff;
+  --text-primary: #1a1b1b;
+  --text-secondary: #55595c;
+  --text-muted: #8a8f93;
+  --text-on-accent: #ffffff;
+  --accent-primary: #4c6a72;
+  --accent-hover: #3d5860;
+  --accent-secondary: #6b8a93;
+  --accent-warning: #d97706;
+  --accent-error: #dc2626;
+  --accent-success: #15803d;
+  --border: #d6d6d2;
+  --border-hover: #c4c4bf;
+  --waveform-original: #9a9aa6;
+  --waveform-mastered: #0f9f8f;
+  --meter-safe: #15803d;
+  --meter-warn: #d97706;
+  --meter-clip: #dc2626;
+  --knob-track: rgba(0, 0, 0, 0.06);
+  --knob-fill: linear-gradient(90deg, #4c6a72, #6b8a93);
+
+  --bg-app: #f4f4f2;
+  --bg-sidebar: #ececea;
+  --bg-overlay: rgba(244, 244, 242, 0.95);
+  --bg-glass: rgba(255, 255, 255, 0.72);
+  --bg-glass-elevated: rgba(255, 255, 255, 0.88);
+  --surface-hover: rgba(0, 0, 0, 0.05);
+  --surface-active: rgba(0, 0, 0, 0.09);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-heavy: 0 25px 60px rgba(0, 0, 0, 0.14);
+  --shadow-knob-inset: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  --knob-face-top: #cfcfd6;
+  --knob-face-bottom: #9e9ea8;
+  --knob-gradient-1: #d5d5dc;
+  --knob-gradient-2: #b5b5bf;
+  --knob-gradient-3: #a0a0aa;
+  --knob-gradient-4: #c0c0ca;
+  --knob-gradient-5: #dcdce4;
+  --knob-gradient-6: #bdbdc8;
+  --knob-gradient-7: #a8a8b2;
+  --knob-gradient-8: #9898a2;
+  --knob-highlight: rgba(255, 255, 255, 0.6);
+  --text-knockout: linear-gradient(135deg, #1a1b1b, #666666, #1a1b1b);
+
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 92%;
+  --secondary-foreground: 0 0% 15%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 170 15% 40%;
+  --accent-foreground: 0 0% 100%;
+  --input: 0 0% 88%;
+  --ring: 0 0% 60%;
+  --hero-subtitle: 210 17% 25%;
 }
 
+/* ── Body (dark default) ──────────────────────────────── */
 body {
   background: var(--bg-primary);
   background-image:
