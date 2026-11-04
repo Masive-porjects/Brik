@@ -135,7 +135,7 @@ export default function UploadPage() {
 
   return (
     <LicenseGuard>
-      <main className="min-h-screen flex flex-col bg-background text-foreground overflow-y-auto font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
+      <main className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-y-auto font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
         {/* Global Overlays & Modals */}
         <MasteringOverlays
           currentView="upload"
@@ -169,7 +169,7 @@ export default function UploadPage() {
         />
 
         {/* Upload Workspace */}
-        <div className="min-h-screen flex flex-col justify-between py-6 px-4 overflow-y-auto">
+        <div className="flex-1 flex flex-col justify-between py-6 px-4">
           <UploadView
             loading={workflow.loading}
             uploadBurst={workflow.uploadBurst}

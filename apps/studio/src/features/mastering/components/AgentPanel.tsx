@@ -425,7 +425,7 @@ export default function AgentPanel({
 
   return (
     <div
-      className={compact ? "flex h-full min-h-0 w-full flex-col" : "w-full max-w-[440px] max-w-[90vw]"}
+      className={compact ? "flex h-full min-h-0 w-full flex-col" : "w-full max-w-[440px]"}
       style={CARD_STYLE}
     >
       {!compact && (

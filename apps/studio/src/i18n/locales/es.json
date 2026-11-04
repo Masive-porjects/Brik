@@ -73,6 +73,7 @@
     "lockedNoticeMessage": "La red de inferencia acústica se integrará en la fase de Agentes Inteligentes. Todo el flujo actual opera con precisión analógica en Modo Manual.",
     "statusLocked": "Bloqueado en esta versión",
     "continueManual": "Continuar al Estudio en Modo Manual",
+    "continueAI": "Continuar al Estudio en Modo IA",
     "enteringStudio": "Ingresando a la Consola...",
     "modeTooltip": "Clic para ver detalles del flujo actual",
     "manualModeLabel": "Modo Manual",

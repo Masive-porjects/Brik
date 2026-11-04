@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useAuth } from "@/features/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -34,7 +34,7 @@ export default function SelectWorkflowModal({
   isLoading = false,
 }: SelectWorkflowModalProps) {
   const { t } = useTranslation();
-  const { user, profile, role, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const [selectedMode, setSelectedMode] = useState<"manual" | "ai">("manual");
 
   // Determinar si el usuario puede acceder al modo IA Autónomo (Fase 6)
@@ -222,15 +222,12 @@ export default function SelectWorkflowModal({
 
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
                         <CheckCircle2 size={11} />
-                        <span>{t("workflow.activeBadge", "Disponible")}</span>
+                        <span>{t("workflow.aiStatusPremium", "DISPONIBLE (PREMIUM / ADMIN)")}</span>
                       </span>
                     </div>
 
                     <h3 className="text-base font-bold text-[var(--text-primary)] mb-1 flex items-center gap-2">
                       <span>{t("workflow.aiTitle", "Asistente IA Autónomo")}</span>
-                      <span className="text-xs font-semibold bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] rounded px-1.5 py-0.5">
-                        {isAdmin ? "ADMIN" : "PREMIUM"}
-                      </span>
                     </h3>
 
                     <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-3">
@@ -336,7 +333,7 @@ export default function SelectWorkflowModal({
                     </>
                   ) : (
                     <>
-                      <span>{t(selectedMode === "ai" && !aiModeDisabled ? "Continuar al Estudio en Modo IA" : "Continuar al Estudio en Modo Manual")}</span>
+                      <span>{t(selectedMode === "ai" && !aiModeDisabled ? "workflow.continueAI" : "workflow.continueManual")}</span>
                       <ArrowRight size={15} />
                     </>
                   )}

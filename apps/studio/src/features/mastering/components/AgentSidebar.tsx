@@ -120,7 +120,7 @@ export default function AgentSidebar({
       {/* Widget de chat flotante — overlay independiente */}
       {open && (
         <div
-          className="fixed bottom-[120px] right-6 z-[100] w-[350px] shadow-2xl rounded-2xl
+          className="fixed bottom-[120px] right-6 z-[100] w-[440px] max-w-[calc(100vw-3rem)] shadow-2xl rounded-2xl
             bg-[var(--bg-elevated)] text-[var(--text-primary)] flex flex-col border border-[var(--border-subtle)]"
         >
           <header
