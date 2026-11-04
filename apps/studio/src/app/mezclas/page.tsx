@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import gsap from "gsap";
 import { motion, AnimatePresence } from "framer-motion";
 import { VIEW_TRANSITION, fadeUp } from "@/shared/motion";
 import LicenseGuard from "@/components/LicenseGuard";
@@ -169,20 +168,6 @@ function MezclasContent() {
     setRightPanelOpen(needsRightPanel);
   }
 
-  // Player stretch/reposition when a dock tab is toggled
-  const playerScaleRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!playerScaleRef.current) return;
-    const stretch = currentTab === null ? 1 : 1.03;
-    gsap.to(playerScaleRef.current, {
-      scaleX: stretch,
-      scaleY: 1,
-      duration: 0.9,
-      ease: "power3.inOut",
-      overwrite: "auto",
-    });
-  }, [currentTab]);
-
   const handleModuleClick = useCallback((tab: MasteringTab) => {
     setCurrentTab((prev) => (prev === tab ? null : tab));
     setSheetTab(null);
@@ -317,7 +302,7 @@ function MezclasContent() {
         />
 
         {/* Main Workspaces Layout */}
-        <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-4 py-8 flex flex-col justify-center items-center">
+        <div className="flex-1 min-h-0 w-full max-w-5xl mx-auto px-4 py-6 flex flex-col justify-center items-center">
           <main className="flex-1 h-full flex flex-col min-w-0 relative">
             <div className="flex flex-1 min-h-0 relative">
               <div className="flex-1 flex flex-col min-w-0 relative">
@@ -434,7 +419,6 @@ function MezclasContent() {
                         >
                           {workflow.session && (
                             <div
-                              ref={playerScaleRef}
                               className={`w-full origin-center ${
                                 currentTab === null || currentTab === "productor" ? "max-w-5xl" : ""
                               }`}
@@ -462,7 +446,7 @@ function MezclasContent() {
 
                       {/* Scrollable Tab Canvas */}
                       <div
-                        className={`relative z-[1] min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-48 lg:pb-64 ${
+                        className={`relative z-[1] min-h-0 overflow-y-auto px-4 lg:px-6 pt-4 pb-32 ${
                           sheetTab !== null || currentTab === null || currentTab === "productor"
                             ? "hidden"
                             : "flex-1"

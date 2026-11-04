@@ -278,7 +278,7 @@ function FaderControl({
           {label}
         </span>
         <span
-          className="font-mono text-[10px] font-semibold"
+          className="font-mono text-xs font-bold tabular-nums"
           style={{
             color: clamp === 0 ? "var(--text-muted)" : "var(--text-primary)",
           }}
@@ -298,7 +298,7 @@ function FaderControl({
         onPointerUp={commit}
         onKeyUp={commit}
         onBlur={commit}
-        className="mt-1 w-full"
+        className="mt-2 w-full cursor-pointer accent-[var(--accent-primary)] disabled:cursor-not-allowed disabled:opacity-40"
       />
       <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
         Rango ±6 dB
@@ -714,7 +714,7 @@ export default function MixPanel({
           v6 — elección por mezcla (no persistida), default ON; se
           deshabilita mientras corre el POST /mix. OFF = routing Paso 03
           (backend omite dimension_report). */}
-      <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
+      <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-4">
         <button
           type="button"
           role="switch"
@@ -759,7 +759,7 @@ export default function MixPanel({
           previo exacto). El fader del usuario queda SIEMPRE visible y
           relativo al resultado del motor (spec: el motor propone, el humano
           decide). Se deshabilita mientras corre el POST /mix. */}
-      <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
+      <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-4">
         <p
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}
@@ -831,7 +831,7 @@ export default function MixPanel({
           perfil soportado hoy es commercial_alt_pop (Twenty One Pilots /
           post-punk moderno); el seed queda oculto (default determinístico
           del backend). Se deshabilita mientras corre el POST /mix. */}
-      <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
+      <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] p-4">
         <p
           className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: "var(--text-secondary)" }}

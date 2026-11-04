@@ -279,7 +279,7 @@ function MacroCard({
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      className="rounded-xl p-4 cursor-pointer select-none transition-[background] duration-300"
+      className="rounded-xl p-3 cursor-pointer select-none transition-[background] duration-300"
       style={{
         background: active
           ? "rgba(98, 126, 132, 0.06)"
@@ -296,7 +296,7 @@ function MacroCard({
     >
       {/* Icon */}
       <Icon
-        size={22}
+        size={18}
         className={active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}
       />
 
@@ -316,7 +316,7 @@ function MacroCard({
       </div>
 
       {/* Description */}
-      <p className="text-[var(--text-secondary)] text-[11px] tracking-wide mt-1.5 leading-relaxed">
+      <p className="text-[var(--text-secondary)] text-[10px] tracking-wide mt-1 leading-relaxed line-clamp-2">
         {description}
       </p>
 

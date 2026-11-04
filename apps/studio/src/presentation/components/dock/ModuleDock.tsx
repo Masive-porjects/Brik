@@ -228,7 +228,7 @@ export default function ModuleDock({
   return (
     <nav
       aria-label="Módulos del estudio"
-      className="pointer-events-none fixed inset-x-0 bottom-4 pb-safe z-40 flex justify-center"
+      className="pointer-events-none fixed inset-x-0 bottom-4 pb-safe z-40 flex origin-bottom justify-center scale-[0.62] sm:scale-100"
       style={{ right: rightOffset }}
     >
       <motion.div
@@ -236,7 +236,7 @@ export default function ModuleDock({
         initial={reduceMotion ? false : { opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, delay: 0.15, ease: "easeOut" }}
-        className="glass-elevated pointer-events-auto flex items-center gap-2 rounded-2xl px-3 py-2"
+        className="glass-elevated pointer-events-auto flex items-center gap-2 rounded-2xl px-3 py-2 backdrop-blur-md"
         style={{
           border: "1px solid var(--border-strong)",
           boxShadow: "var(--shadow-heavy)",
@@ -248,7 +248,9 @@ export default function ModuleDock({
         <div className="mx-1 flex items-center gap-1.5">
           <ProgressTile progress={processingProgress} />
           <LufsTile lufs={lufs} />
-          <MotorTile />
+          <div className="hidden sm:block">
+            <MotorTile />
+          </div>
         </div>
         <div className="flex items-end gap-2">
           {rightModules.map((mod, i) => renderItem(mod, i + leftModules.length))}

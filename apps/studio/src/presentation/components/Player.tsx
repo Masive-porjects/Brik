@@ -824,8 +824,9 @@ export default function Player({
           (dimmed to 30%); playback keeps emitting floating notes so the
           collapsed player stays alive. */}
       <div
-        className="relative transition-all duration-300 ease-out"
-        style={{ height: minimized ? 20 : 48 }}
+        className={`relative overflow-hidden transition-all duration-300 ease-out ${
+          minimized ? "h-5" : "h-16"
+        }`}
       >
         <div
           className={
