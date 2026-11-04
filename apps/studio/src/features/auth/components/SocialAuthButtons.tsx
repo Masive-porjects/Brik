@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Mail, Loader2, AlertCircle } from "lucide-react";
 import type { Provider } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { getURL } from "@/lib/auth/getURL";
 import { useTranslation } from "@/i18n/useTranslation";
 import { GoogleIcon, SpotifyIcon, DiscordIcon, GitHubIcon } from "./SocialIcons";
 import SocialStatusModal, { type SocialProvider } from "./SocialStatusModal";
@@ -70,9 +71,7 @@ export default function SocialAuthButtons({
       });
 
       try {
-        const redirectUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-          redirectTo
-        )}`;
+        const redirectUrl = `${getURL()}auth/callback?next=${encodeURIComponent(redirectTo)}`;
 
         const { error } = await supabase.auth.signInWithOAuth({
           provider: provider as Provider,

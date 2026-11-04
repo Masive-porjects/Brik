@@ -20,6 +20,7 @@ import {
   Check,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getURL } from "@/lib/auth/getURL";
 import { useTranslation } from "@/i18n/useTranslation";
 import { getRegisterSchema, type RegisterFormData } from "../schemas/authSchemas";
 import SocialAuthButtons from "./SocialAuthButtons";
@@ -75,6 +76,7 @@ export default function RegisterForm() {
         email: data.email,
         password: data.password,
         options: {
+          emailRedirectTo: `${getURL()}auth/callback?next=${encodeURIComponent(redirectTo)}`,
           data: {
             full_name: data.fullName.trim() || undefined,
           },
