@@ -66,7 +66,7 @@ export default function WelcomeGate({ children }: WelcomeGateProps) {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
+      className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden [contain:layout]"
       style={{ background: "var(--bg-app)" }}
     >
       {/* Crystal atmosphere — soft radial accents over the base */}

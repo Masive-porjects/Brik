@@ -105,7 +105,7 @@ export default function FloatingGhosts({
     <div
       ref={scopeRef}
       aria-hidden="true"
-      className={`pointer-events-none fixed inset-0 overflow-hidden ${className ?? ""}`}
+      className={`pointer-events-none fixed inset-0 overflow-hidden [contain:layout] ${className ?? ""}`}
       style={{ zIndex }}
     >
       {GHOST_SPECS.map((spec, i) => (

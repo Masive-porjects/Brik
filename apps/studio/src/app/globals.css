@@ -599,6 +599,9 @@ input[type="range"]::-moz-range-thumb {
   gap: 2px;
   height: 48px;
   padding: 0 4px;
+  /* Limita el invalidation de estilo a este subárbol: los 32 bars no
+     provocan recálculo de todo el árbol cuando cambian de altura. */
+  contain: layout;
 }
 
 .waveform-bar {

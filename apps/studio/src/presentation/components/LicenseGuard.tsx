@@ -143,7 +143,7 @@ export default function LicenseGuard({ children }: LicenseGuardProps) {
   /* ── Locked — fullscreen crystal guard ────────────── */
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
+      className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden [contain:layout]"
       style={{ background: "var(--bg-app)" }}
     >
       {/* Crystal atmosphere — soft radial accents over the base */}
