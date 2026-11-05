@@ -413,6 +413,65 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/**
+ * Limpia la sesión de Supabase y redirige al login cuando el backend devuelve 401.
+ * Nunca lanza: si el signOut falla, igual se intenta la redirección para que el
+ * usuario no quede atrapado con un token caducado.
+ */
+export async function handleUnauthorized(): Promise<void> {
+  try {
+    await createClient().auth.signOut();
+  } catch {
+    // Ignorar errores de signOut: igual seguimos con la redirección.
+  }
+  if (typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
+}
+
+/**
+ * Wrapper centralizado de fetch para llamadas al backend.
+ *
+ * - Adjunta automáticamente `Authorization: Bearer <token>` vía `authHeaders()`
+ *   a cada petición contra `API_BASE`.
+ * - Intercepta respuestas 401: limpia la sesión de Supabase y redirige a `/login`
+ *   en lugar de dejar que la app siga intentando con un token caducado.
+ * - Lanza `ApiError` para respuestas no-OK (excepto 401, que se gestiona aparte).
+ *
+ * Úsalo en lugar de `fetch` directo para todas las llamadas al backend.
+ */
+export async function apiRequest(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(init.headers as Record<string, string> | undefined),
+    ...(await authHeaders()),
+  };
+
+  const res = await fetch(input, {
+    ...init,
+    headers,
+  } as RequestInit);
+
+  if (res.status === 401) {
+    // No leer el body (puede ser grande o estar ya consumido): solo lanzamos
+    // el manejador de 401 y dejamos que el caller capture el error si quiere.
+    void handleUnauthorized();
+    throw new ApiError("Sesión expirada o inválida", 401, true);
+  }
+
+  if (!res.ok) {
+    throw new ApiError(
+      `Request failed with status ${res.status}`,
+      res.status,
+      false,
+    );
+  }
+
+  return res;
+}
+
 export interface LicenseStatus {
   licensed: boolean;
   message: string;
@@ -1566,10 +1625,7 @@ function toMixStateResponse(raw: RawMixStateResponse): MixStateResponse {
 export async function getProjectDocument(
   projectId: string
 ): Promise<ProjectDocumentResponse> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
-    headers: { ...(await authHeaders()) },
-  });
-  if (!res.ok) throw new ApiError("Failed to fetch project document", res.status);
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/document`);
   return toProjectDocumentResponse(await res.json());
 }
 
@@ -1578,32 +1634,28 @@ export async function putProjectDocument(
   projectId: string,
   payload: PutDocumentPayload
 ): Promise<ProjectDocumentResponse> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/document`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new ApiError("Failed to write project document", res.status);
   return toProjectDocumentResponse(await res.json());
 }
 
 /** Deletes the project document (resets to bootstrap). */
 export async function deleteProjectDocument(projectId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/document`, {
+  await apiRequest(`${API_BASE}/projects/${projectId}/document`, {
     method: "DELETE",
-    headers: { ...(await authHeaders()) },
   });
-  if (!res.ok) throw new ApiError("Failed to delete project document", res.status);
+  // 204 No Content: no hay body que leer.
+  return undefined;
 }
 
 /** Fetches the live mix state. */
 export async function getProjectMixState(
   projectId: string
 ): Promise<MixStateResponse> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
-    headers: { ...(await authHeaders()) },
-  });
-  if (!res.ok) throw new ApiError("Failed to fetch mix state", res.status);
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/state`);
   return toMixStateResponse(await res.json());
 }
 
@@ -1613,12 +1665,11 @@ export async function patchProjectMixState(
   projectId: string,
   payload: MixStatePayload
 ): Promise<MixStateResponse> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/state`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new ApiError("Failed to update mix state", res.status);
   return toMixStateResponse(await res.json());
 }
 
@@ -1627,12 +1678,10 @@ export async function submitProjectMixJob(
   projectId: string,
   signal?: AbortSignal
 ): Promise<ProjectJobAccepted> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/mix`, {
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/jobs/mix`, {
     method: "POST",
-    headers: { ...(await authHeaders()) },
     signal,
   });
-  if (!res.ok) throw new ApiError("Failed to submit mix job", res.status);
   const raw = (await res.json()) as RawProjectJobResponse;
   return { jobId: raw.job_id, pollUrl: raw.poll_url };
 }
@@ -1642,12 +1691,10 @@ export async function submitProjectMasterJob(
   projectId: string,
   signal?: AbortSignal
 ): Promise<ProjectJobAccepted> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/jobs/master`, {
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/jobs/master`, {
     method: "POST",
-    headers: { ...(await authHeaders()) },
     signal,
   });
-  if (!res.ok) throw new ApiError("Failed to submit mastering job", res.status);
   const raw = (await res.json()) as RawProjectJobResponse;
   return { jobId: raw.job_id, pollUrl: raw.poll_url };
 }
@@ -1834,21 +1881,17 @@ export async function createProject(
   const body: Record<string, unknown> = { name };
   if (opts?.bpm !== undefined) body.bpm = opts.bpm;
   if (opts?.musicalKey !== undefined) body.musical_key = opts.musicalKey;
-  const res = await fetch(`${API_BASE}/projects`, {
+  const res = await apiRequest(`${API_BASE}/projects`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new ApiError("No se pudo crear el proyecto", res.status);
   return toProjectOut(await res.json());
 }
 
 /** Lista los proyectos del llamador, más recientes primero. */
 export async function listProjects(): Promise<ProjectOut[]> {
-  const res = await fetch(`${API_BASE}/projects`, {
-    headers: { ...(await authHeaders()) },
-  });
-  if (!res.ok) throw new ApiError("No se pudieron listar los proyectos", res.status);
+  const res = await apiRequest(`${API_BASE}/projects`);
   const raw = (await res.json()) as RawProjectOut[];
   return raw.map(toProjectOut);
 }
@@ -1864,12 +1907,11 @@ export async function presignAsset(
     body.original_filename = input.originalFilename;
   }
   if (input.contentType !== undefined) body.content_type = input.contentType;
-  const res = await fetch(`${API_BASE}/projects/${projectId}/assets/presign`, {
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/assets/presign`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new ApiError("No se pudo firmar la subida del archivo", res.status);
   return toPresignedAsset(await res.json());
 }
 
@@ -1886,21 +1928,17 @@ export async function completeAsset(
   if (input.format !== undefined) body.format = input.format;
   if (input.sizeBytes !== undefined) body.size_bytes = input.sizeBytes;
   if (input.mediaHash !== undefined) body.media_hash = input.mediaHash;
-  const res = await fetch(`${API_BASE}/projects/${projectId}/assets/${assetId}`, {
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/assets/${assetId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new ApiError("No se pudieron registrar los metadatos", res.status);
   return toProjectAsset(await res.json());
 }
 
 /** Lista los archivos de un proyecto (original, stems, masters). */
 export async function listAssets(projectId: string): Promise<ProjectAsset[]> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/assets`, {
-    headers: { ...(await authHeaders()) },
-  });
-  if (!res.ok) throw new ApiError("No se pudieron listar los archivos", res.status);
+  const res = await apiRequest(`${API_BASE}/projects/${projectId}/assets`);
   const raw = (await res.json()) as RawProjectAsset[];
   return raw.map(toProjectAsset);
 }
@@ -1910,10 +1948,8 @@ export async function getAssetDownloadUrl(
   projectId: string,
   assetId: string
 ): Promise<AssetDownload> {
-  const res = await fetch(
-    `${API_BASE}/projects/${projectId}/assets/${assetId}/download`,
-    { headers: { ...(await authHeaders()) } }
+  const res = await apiRequest(
+    `${API_BASE}/projects/${projectId}/assets/${assetId}/download`
   );
-  if (!res.ok) throw new ApiError("No se pudo obtener el enlace de descarga", res.status);
   return toAssetDownload(await res.json());
 }

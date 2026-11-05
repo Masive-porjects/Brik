@@ -28,6 +28,8 @@ import {
   completeAsset,
   listAssets,
   getAssetDownloadUrl,
+  apiRequest,
+  ApiError,
   DEFAULT_PARAMS,
   type ProjectDocumentV1,
 } from '@/adapters/api/client';
@@ -35,9 +37,20 @@ import {
 // Supabase browser singleton stub: `authHeaders()` reads the session from it.
 // `vi.hoisted` lets the module factory below close over the mock.
 const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }));
+const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({ auth: { getSession: mockGetSession } }),
+  createClient: () => ({
+    auth: { getSession: mockGetSession, signOut: mockSignOut },
+  }),
 }));
+
+// Mock de window.location para probar la redirección en 401.
+const mockHref = vi.hoisted(() => ({ href: '' }));
+Object.defineProperty(window, 'location', {
+  configurable: true,
+  get: () => mockHref,
+  set: (v) => { mockHref.href = v; },
+});
 
 // Mismo fallback que config.ts en tests (sin NEXT_PUBLIC_API_URL).
 const API = 'http://localhost:8000/api';
@@ -1099,5 +1112,110 @@ describe('streamAgentJobEvents', () => {
     await iterator.return(undefined);
 
     expect(cancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('apiRequest — Authorization header y 401', () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockSignOut.mockReset();
+    mockHref.href = '';
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('adjunta Authorization: Bearer a cada petición', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      data: { session: { access_token: 'tok-abc' } },
+    });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiRequest(`${API}/projects`);
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer tok-abc',
+    );
+  });
+
+  it('no envía Authorization cuando no hay sesión', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: null } });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiRequest(`${API}/projects`);
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it('lanza ApiError cuando la respuesta no es OK (sin 401)', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: null } });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ detail: 'error interno' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiRequest(`${API}/projects`)).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('en 401 llama a signOut y redirige a /login', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      data: { session: { access_token: 'tok-expired' } },
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: 'Token inválido o expirado.' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiRequest(`${API}/projects`)).rejects.toThrow(
+      /sesión expirada o inválida/i,
+    );
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockHref.href).toBe('/login');
+  });
+
+  it('en 401 no intenta leer el body de la respuesta', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      data: { session: { access_token: 'tok-expired' } },
+    });
+    const jsonSpy = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: jsonSpy,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiRequest(`${API}/projects`)).rejects.toBeInstanceOf(ApiError);
+
+    expect(jsonSpy).not.toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('handleUnauthorized — cierra sesión y redirige', () => {
+  beforeEach(() => {
+    mockSignOut.mockReset();
+    mockHref.href = '';
+  });
+
+  it('llama a signOut de Supabase y redirige a /login', async () => {
+    const { handleUnauthorized } = await import('@/adapters/api/client');
+    await handleUnauthorized();
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockHref.href).toBe('/login');
   });
 });
