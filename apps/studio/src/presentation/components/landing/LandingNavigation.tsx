@@ -265,26 +265,30 @@ export default function LandingNavigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("beneficios");
 
-  // Scroll spy for active section highlighting (desktop only)
+  // Scroll spy con IntersectionObserver: evita lecturas de getBoundingClientRect
+  // en cada evento de scroll (layout thrashing). El navegador notifica cuando
+  // cada sección entra/sale del viewport sin lecturas síncronas de geometría.
   useEffect(() => {
-    const handleScroll = () => {
-      const sections = navLinks.map((link) => link.id);
-
-      for (const sectionId of sections) {
-        const el = document.getElementById(sectionId);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top <= 200 && rect.bottom >= 200) {
-            setActiveSection(sectionId);
-            break;
-          }
-        }
-      }
+    const observerOptions = {
+      root: null,
+      rootMargin: "-25% 0% -75% 0%",
+      threshold: 0,
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener("scroll", handleScroll);
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          setActiveSection(entry.target.id);
+        }
+      }
+    }, observerOptions);
+
+    const sections = navLinks
+      .map((link) => document.getElementById(link.id))
+      .filter(Boolean) as HTMLElement[];
+    sections.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
   }, []);
 
   // Close mobile menu on link click + smooth scroll

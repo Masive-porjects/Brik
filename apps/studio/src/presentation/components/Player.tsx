@@ -188,6 +188,7 @@ export default function Player({
   const overlayRefPtr = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const seekOverlayRef = useRef<HTMLDivElement>(null);
+  const seekRectRef = useRef<DOMRect | null>(null);
   const wsOrigRef = useRef<WaveSurfer | null>(null);
   const wsMastRef = useRef<WaveSurfer | null>(null);
   const wsRefPtr = useRef<WaveSurfer | null>(null);
@@ -677,7 +678,9 @@ export default function Player({
   /* Click or drag anywhere on the waveform to move the playhead. */
   const applySeek = useCallback(
     (clientX: number) => {
-      const rect = seekOverlayRef.current?.getBoundingClientRect();
+      // Usar el rect cacheado al iniciar el drag para no leer geometría en
+      // cada pointermove (evita forced reflow síncrono durante el arrastre).
+      const rect = seekRectRef.current ?? seekOverlayRef.current?.getBoundingClientRect();
       if (!rect || duration <= 0) return;
       const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const time = percent * duration;
@@ -700,6 +703,9 @@ export default function Player({
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (duration <= 0) return;
       setIsDragging(true);
+      // Cachear la geometría una sola vez al iniciar el drag: así los
+      // pointermove siguientes no leen getBoundingClientRect en cada frame.
+      seekRectRef.current = seekOverlayRef.current?.getBoundingClientRect() ?? null;
       (e.target as Element).setPointerCapture(e.pointerId);
       applySeek(e.clientX);
     },
@@ -716,6 +722,7 @@ export default function Player({
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     setIsDragging(false);
+    seekRectRef.current = null;
     (e.target as Element).releasePointerCapture(e.pointerId);
   }, []);
 

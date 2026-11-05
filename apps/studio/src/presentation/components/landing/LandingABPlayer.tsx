@@ -120,12 +120,15 @@ interface FaderProps {
 
 function Fader({ value, onChange, ariaLabel }: FaderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const trackRectRef = useRef<DOMRect | null>(null);
 
   const updateFromX = useCallback(
     (clientX: number) => {
       const el = trackRef.current;
       if (!el) return;
-      const rect = el.getBoundingClientRect();
+      // Usar el rect cacheado al iniciar el puntero: leer getBoundingClientRect
+      // en cada pointermove durante el drag forzaría un reflow síncrono por frame.
+      const rect = trackRectRef.current ?? el.getBoundingClientRect();
       if (rect.width === 0) return;
       const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
       onChange(Math.round(ratio * 100));
@@ -147,6 +150,8 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
       onPointerDown={(event) => {
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
+        // Cachear la geometría una sola vez al iniciar el puntero.
+        trackRectRef.current = event.currentTarget.getBoundingClientRect();
         updateFromX(event.clientX);
       }}
       onPointerMove={(event) => {
@@ -156,6 +161,7 @@ function Fader({ value, onChange, ariaLabel }: FaderProps) {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
+        trackRectRef.current = null;
       }}
       onKeyDown={(event) => {
         const step = event.shiftKey ? 10 : 2;

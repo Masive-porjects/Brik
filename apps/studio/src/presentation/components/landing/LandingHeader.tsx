@@ -28,8 +28,13 @@ export default function LandingHeader() {
     const xTo = gsap.quickTo(el, "x", { duration: 0.5, ease: "power3.out" });
     const yTo = gsap.quickTo(el, "y", { duration: 0.5, ease: "power3.out" });
 
+    // Lectura de geometría una sola vez al montar: el CTA vive en un header
+    // fixed, su rect no cambia con el scroll, así que leerla en cada
+    // pointermove forzaba un reflow síncrono por cada movimiento del ratón.
+    const ctaRect = el.getBoundingClientRect();
+
     const onMove = (e: PointerEvent) => {
-      const rect = el.getBoundingClientRect();
+      const rect = ctaRect;
       xTo(((e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2)) * 8);
       yTo(((e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2)) * 6);
     };
