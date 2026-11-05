@@ -982,7 +982,15 @@ export default function Player({
         <button
           onClick={handleRestart}
           disabled={disabled || !activeUrl}
-          className="w-8 h-8 flex items-center justify-center rounded-full
+          /* 32px visual, 44px wide / 42px tall hit area. At 320px the row has
+             ~272px usable and already spends 232px, so real 44px buttons would
+             leave zero slack (and overflow a 280px Galaxy Fold). The
+             pseudo-element grows the touch target 6px per side without adding
+             layout width; the 12px gaps make adjacent areas meet exactly and
+             never overlap. The top 2px sit under the waveform's z-30 seek
+             overlay, hence 42 and not 44. */
+          className="relative w-8 h-8 flex items-center justify-center rounded-full
+            after:absolute after:inset-0 after:-m-1.5 after:content-['']
             text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]
             disabled:opacity-30 disabled:cursor-not-allowed
             transition-all duration-150"
@@ -994,11 +1002,14 @@ export default function Player({
         <button
           onClick={togglePlay}
           disabled={disabled || !activeUrl}
-          className="w-8 h-8 flex items-center justify-center rounded-full
+          className="relative w-8 h-8 flex items-center justify-center rounded-full
+            after:absolute after:inset-0 after:-m-1.5 after:content-['']
             bg-[var(--accent-primary)] text-[var(--bg-primary)]
             hover:brightness-110 active:scale-95
             disabled:opacity-30 disabled:cursor-not-allowed
             transition-all duration-150"
+          title={isPlaying ? t("player.pause", "Pausar") : t("player.play", "Reproducir")}
+          aria-label={isPlaying ? t("player.pause", "Pausar") : t("player.play", "Reproducir")}
         >
           {isPlaying ? (
             <Pause size={14} fill="currentColor" />
@@ -1019,8 +1030,14 @@ export default function Player({
 
         <button
           onClick={() => setMinimized((m) => !m)}
-          className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all"
+          /* 28px visual, 44px hit area (8px per side). Its only neighbour is
+             the non-interactive duration label, so the wider area steals
+             nothing. */
+          className="relative w-7 h-7 flex items-center justify-center rounded-md
+            after:absolute after:inset-0 after:-m-2 after:content-['']
+            text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all"
           title={minimized ? t("player.expand", "Expandir") : t("player.collapse", "Minimizar")}
+          aria-label={minimized ? t("player.expand", "Expandir") : t("player.collapse", "Minimizar")}
         >
           {minimized ? (
             <ChevronUp size={14} />

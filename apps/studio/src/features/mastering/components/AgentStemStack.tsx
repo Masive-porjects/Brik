@@ -192,7 +192,7 @@ function StemLane({
         {isActive ? <Pause size={12} /> : <Play size={12} />}
       </motion.button>
 
-      <span className="flex w-[68px] shrink-0 items-center gap-1 sm:w-[86px]">
+      <span className="flex w-[68px] min-w-[44px] shrink items-center gap-1 sm:w-[86px] sm:shrink-0">
         <stem.icon size={12} />
         <span
           className="truncate text-[11px] font-medium"
@@ -202,7 +202,7 @@ function StemLane({
         </span>
       </span>
 
-      <div className="relative min-w-[140px] w-full flex-1 min-h-[38px]" style={{ height: LANE_HEIGHT }}>
+      <div className="relative min-w-[100px] w-full flex-1 min-h-[38px] sm:min-w-[140px]" style={{ height: LANE_HEIGHT }}>
         <div ref={containerRef} className="h-[38px] w-full" />
 
         {duration === null && !failed && (

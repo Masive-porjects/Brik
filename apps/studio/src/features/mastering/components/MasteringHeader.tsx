@@ -76,7 +76,7 @@ export default function MasteringHeader({
   };
 
   return (
-    <nav className="sticky top-0 z-[100] flex items-center justify-between px-4 lg:px-6 pt-safe py-3 shrink-0 bg-[var(--bg-app)]/95 backdrop-blur-xl border-b border-[var(--border-subtle)]">
+    <nav className="sticky top-0 z-[100] flex items-center justify-between px-4 lg:px-6 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] shrink-0 bg-[var(--bg-app)]/95 backdrop-blur-xl border-b border-[var(--border-subtle)]">
       <div className="flex items-center gap-2.5 flex-wrap">
         <div className="rounded-full px-3.5 py-1.5 glass flex items-center gap-2 border border-[var(--border-subtle)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}

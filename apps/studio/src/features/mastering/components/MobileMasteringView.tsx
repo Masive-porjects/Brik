@@ -74,11 +74,11 @@ export default function MobileMasteringView({
 
       {/* Contenido móvil según pestaña activa o flujo predeterminado */}
       {currentTab !== null && currentTab !== "modules" ? (
-        <div className="relative z-[1] w-full flex-1 overflow-y-auto px-3 sm:px-4 pt-3 pb-36 pb-safe">
+        <div className="relative z-[1] w-full flex-1 overflow-y-auto px-3 sm:px-4 pt-3 pb-dock">
           {renderTabContent(currentTab)}
         </div>
       ) : (
-        <div className="relative z-[1] w-full flex-1 overflow-y-auto px-3 sm:px-4 pt-3 pb-36 pb-safe">
+        <div className="relative z-[1] w-full flex-1 overflow-y-auto px-3 sm:px-4 pt-3 pb-dock">
           {/* Banner de error */}
           {error && (
             <motion.div className="mb-3" {...fadeUp(0)}>
@@ -225,7 +225,7 @@ export default function MobileMasteringView({
       {currentTab !== null && currentTab !== "modules" && (
         <button
           onClick={() => setCurrentTab("modules")}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40
+          className="fixed bottom-36 sm:bottom-24 left-1/2 -translate-x-1/2 z-40
             px-4 py-2 rounded-full text-xs font-medium
             bg-[var(--bg-glass-elevated)] border border-[var(--border-strong)]
             text-[var(--text-secondary)] hover:text-[var(--text-primary)]

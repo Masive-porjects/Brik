@@ -11,7 +11,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative h-screen max-h-screen flex flex-col justify-between bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden select-none">
+    <div className="relative h-[100dvh] flex flex-col justify-between bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden select-none">
       {/* Crystal atmosphere — soft radial accents over base like LicenseGuard */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -46,9 +46,13 @@ export default function AuthLayout({
         </div>
       </header>
 
-      {/* Main Form Container with Ghost leaning over */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 py-1 sm:px-6 min-h-0 overflow-hidden">
-        <div className="flex flex-col items-center w-full max-w-[400px]">
+      {/* Main Form Container with Ghost leaning over.
+          Scrolls on its own: on a phone the register form plus the ghost is
+          taller than the viewport, and with the keyboard open it always is.
+          `m-auto` on the child centres when there is room and collapses to 0
+          when there is not, so the top of the form is never clipped. */}
+      <main className="relative z-20 flex-1 flex flex-col items-center px-4 py-2 sm:px-6 min-h-0 overflow-y-auto overscroll-contain">
+        <div className="flex flex-col items-center w-full max-w-[400px] m-auto py-2">
           <BigGhostWithNotes
             size={95}
             radius={75}

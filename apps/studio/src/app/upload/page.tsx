@@ -136,7 +136,7 @@ export default function UploadPage() {
 
   return (
     <LicenseGuard>
-      <main className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-y-auto font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
+      <main className="min-h-[100dvh] flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-y-auto font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
         {/* Global Overlays & Modals */}
         <MasteringOverlays
           currentView="upload"

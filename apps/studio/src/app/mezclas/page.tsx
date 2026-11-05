@@ -377,7 +377,12 @@ function MezclasContent() {
                   } flex-1 w-full flex-col min-h-0 relative`}
                   aria-hidden={masteringMode !== "manual" && !isMezclaTab}
                 >
-                  {isMobile ? (
+                  {isMobile === null ? (
+                    /* Viewport not measured yet. Rendering either branch would
+                       paint the wrong one for a frame: the desktop branch ships
+                       a 614px dock that overflows a 390px screen. */
+                    <div className="flex-1 w-full min-h-0" aria-hidden="true" />
+                  ) : isMobile ? (
                     <>
                       <MobileMasteringView
                         session={workflow.session}
@@ -566,7 +571,7 @@ function MezclasContent() {
           </main>
 
           {/* Analysis Sidebar Column */}
-          {masteringMode === "manual" && !isMobile && (
+          {masteringMode === "manual" && isMobile === false && (
             <AnalysisSidebar
               open={rightPanelOpen}
               onClose={() => setRightPanelOpen(false)}

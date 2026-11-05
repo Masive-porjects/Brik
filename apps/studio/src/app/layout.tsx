@@ -231,7 +231,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: webSiteLdJson }}
         />
       </head>
-      <body className="antialiased min-h-screen bg-[#0b0b0c] text-[#f4f4f2]">
+      <body className="antialiased min-h-[100dvh] bg-[#0b0b0c] text-[#f4f4f2]">
         <I18nProvider>
           <AuthProvider>
             <MasteringProvider>{children}</MasteringProvider>

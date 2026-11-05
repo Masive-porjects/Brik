@@ -458,6 +458,15 @@ body {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* Clearance for the floating module dock.
+   These utilities are unlayered, so `.pb-safe` used to override the Tailwind
+   `pb-36` on the same element and collapse the clearance to 0px on every
+   device without a home indicator (Android, desktop) — content ended up
+   underneath the dock. This one is additive and cannot collapse. */
+.pb-dock {
+  padding-bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* ── Global Interactive Cursors ────────────────────── */
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]),

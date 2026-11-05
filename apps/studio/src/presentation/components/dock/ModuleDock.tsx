@@ -228,7 +228,7 @@ export default function ModuleDock({
   return (
     <nav
       aria-label="Módulos del estudio"
-      className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex origin-bottom justify-center scale-[0.62] sm:scale-100"
+      className="pointer-events-none fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 flex justify-center"
       style={rightOffset ? { right: rightOffset } : undefined}
     >
       <motion.div
@@ -236,7 +236,11 @@ export default function ModuleDock({
         initial={reduceMotion ? false : { opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, delay: 0.15, ease: "easeOut" }}
-        className="glass-elevated pointer-events-auto flex items-center gap-2 rounded-2xl border border-neutral-700 px-3 py-2 backdrop-blur-md"
+        /* Mobile: the eight modules wrap into two rows of four at their real
+           48px size. The old `scale-[0.62]` squeezed ~614px into 381px, which
+           still overflowed every viewport ≤375px and left ~30px tap targets.
+           Telemetry tiles are desktop-only — they do not fit a phone row. */
+        className="glass-elevated pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-neutral-700 px-3 py-2 backdrop-blur-md sm:flex-nowrap"
         style={{
           boxShadow: "var(--shadow-heavy)",
         }}
@@ -244,12 +248,10 @@ export default function ModuleDock({
         <div className="flex items-end gap-2">
           {leftModules.map((mod, i) => renderItem(mod, i))}
         </div>
-        <div className="mx-1 flex items-center gap-1.5">
+        <div className="mx-1 hidden items-center gap-1.5 sm:flex">
           <ProgressTile progress={processingProgress} />
           <LufsTile lufs={lufs} />
-          <div className="hidden sm:block">
-            <MotorTile />
-          </div>
+          <MotorTile />
         </div>
         <div className="flex items-end gap-2">
           {rightModules.map((mod, i) => renderItem(mod, i + leftModules.length))}
