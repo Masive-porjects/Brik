@@ -601,6 +601,55 @@ class TestMixJobExecution:
         assert stored.result["download_url"] == "https://r2/x.wav"
         assert stored.result["r2_key"] == f"mixes/{session_id}/{session_id}_mix.wav"
 
+    def test_intermediate_progress_reaches_the_job_record(
+        self, tmp_path, monkeypatch
+    ):
+        """Every ``(percent, stage)`` the engine reports must reach the poller.
+
+        The UI ring reads ``progress``/``stage`` from the job record, so a
+        dropped report is exactly the "frozen at 0 %" bug. This pins the
+        forwarding path and the R2 ``upload`` checkpoint.
+        """
+        session_id = _register_session(tmp_path, monkeypatch)
+
+        def _build_with_progress(*args, **kwargs):
+            cb = kwargs["progress_cb"]
+            cb(0, "split")
+            cb(25, "split")
+            cb(35, "pan")
+            return _fake_build_mix(*args, **kwargs)
+
+        seen: list[tuple[int, str | None]] = []
+        original_update = job_store_mod.InMemoryJobStore.update
+
+        def _capture_update(self, job_id, **kwargs):
+            if kwargs.get("progress") is not None:
+                seen.append((kwargs["progress"], kwargs.get("stage")))
+            return original_update(self, job_id, **kwargs)
+
+        monkeypatch.setattr(
+            job_store_mod.InMemoryJobStore, "update", _capture_update
+        )
+        monkeypatch.setattr(mix_jobs, "build_mix", _build_with_progress)
+        monkeypatch.setattr(
+            mix_jobs.storage, "upload_file", lambda *a, **k: "mixes/x.wav"
+        )
+        monkeypatch.setattr(
+            mix_jobs.storage, "presigned_url", lambda *a, **k: "https://r2/x.wav"
+        )
+
+        job = mix_jobs.submit_mix_job(
+            session_id, mix_jobs.MixJobOptions(), original_path="unused"
+        )
+        mix_jobs.run_mix_job(job.job_id, session_id, mix_jobs.MixJobOptions())
+
+        assert (0, "split") in seen
+        assert (25, "split") in seen
+        assert (35, "pan") in seen
+        # The R2 upload is a real wait after the DSP: it gets its own stage.
+        assert (99, "upload") in seen
+        assert seen[-1] == (100, None)
+
     def test_dsp_failure_is_recorded_not_raised(self, tmp_path, monkeypatch):
         """An exception escaping a BackgroundTask is logged and dropped, which
         would leave the client waiting on a dead job."""

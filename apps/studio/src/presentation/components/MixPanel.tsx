@@ -59,11 +59,12 @@ interface MixPanelProps {
 }
 
 /**
- * Etapas del progreso mientras corre el POST /mix (blocking).
+ * Etapas del progreso mientras corre el POST /mix.
  * Honestidad: la cadena DSP (``MIX_STATUS_STAGES``) es SIEMPRE cierta
- * (existe en ``mix_engine.build_mix``). El timing de cuándo se completa
- * cada etapa es simulado por el ticker de `stageMsForDuration` (igual que
- * la barra: cap 95 %, 100 % solo con la respuesta real).
+ * (existe en ``mix_engine.build_mix``) y el engine reporta cada
+ * ``(percent, stage)`` real. La UI no interpola nada: muestra el número y la
+ * etapa que el backend midió, y mientras no hay número (Demucs no expone
+ * callback) el anillo gira indeterminado.
  */
 
 /**
@@ -323,6 +324,10 @@ export default function MixPanel({
   // que llegaba a 95% sin que nadie hubiera medido nada. Ahora solo sube a 100
   // cuando el WAV está de verdad en R2.
   const [progressPct, setProgressPct] = useState(0);
+  // Etapa REAL que el engine reporta junto al porcentaje (``split``, ``pan``,
+  // ``eq``…). Mientras el % es 0 (Demucs, que no expone callback) el anillo
+  // gira indeterminado y esta etapa es la única señal de avance verdadera.
+  const [mixStage, setMixStage] = useState<string | null>(null);
 
   // Sesión restaurada con mix ya hecho → el resultado se muestra al abrir;
   // la pill permite ocultarlo/mostrarlo.
@@ -433,6 +438,7 @@ export default function MixPanel({
     // Re-mezcla: ocultar el resultado previo mientras procesa.
     setShowResult(false);
     setProgressPct(0);
+    setMixStage(null);
 
     try {
       // Paso 1 — submit: 202 + job_id en milisegundos. El audio ya está
@@ -455,6 +461,7 @@ export default function MixPanel({
         await sleep(MIX_POLL_MS, pollController.signal);
         const state = await getMixJobState(accepted.job_id, pollController.signal);
         setProgressPct(state.progress ?? 0);
+        setMixStage(state.stage ?? null);
         if (state.status === "completed") {
           terminal = true;
           clearWatchdog();
@@ -533,6 +540,14 @@ export default function MixPanel({
       })),
     [dimensionEnabled, t],
   );
+
+  // Etapa actual del engine traducida al índice de `stages` (-1 = todavía no
+  // sabemos). Con ``dimension_enabled: false`` el backend nunca reporta
+  // "dimension", así que el índice no se corre: se busca por id.
+  const activeStageIndex = useMemo(() => {
+    if (!mixStage) return -1;
+    return stages.findIndex((stage) => stage.id === mixStage);
+  }, [mixStage, stages]);
 
   // Género real del análisis (chip + panel IA). "other" se normaliza a "Otro".
   const rawGenre =
@@ -825,7 +840,7 @@ export default function MixPanel({
       </div>
 
       {/* ── Círculo de carga por etapas — solo mientras corre el /mix ──
-          El anillo avanza con `progressPct` (interpolado por etapas; nunca
+          El anillo avanza con `progressPct` (reportado por el engine; nunca
           llega a 100 hasta la respuesta real del backend). El feed
           secuencial de etapas DSP (MixStatusStream) vive debajo del anillo. */}
       {/* ── Carácter: textura analógica (P5). Elección por mezcla (no
@@ -925,49 +940,88 @@ export default function MixPanel({
                   stroke="var(--border)"
                   strokeWidth={6}
                 />
-                {/* Arco de progreso (dashoffset según `progressPct` real) */}
-                <motion.circle
-                  cx={64}
-                  cy={64}
-                  r={58}
-                  fill="none"
-                  stroke="url(#mix-ring-gradient)"
-                  strokeWidth={6}
-                  strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 58}
-                  initial={false}
-                  animate={{
-                    strokeDashoffset: 2 * Math.PI * 58 * (1 - progressPct / 100),
-                  }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                />
+                {/* Arco de progreso. Con un % medido: dashoffset real. Con
+                    0 % todavía no hay número (Demucs no expone callback, así
+                    que el engine reporta 0 hasta terminar la separación):
+                    un arco corto girando dice "trabajando" en vez de un 0 %
+                    congelado. */}
+                {progressPct === 0 ? (
+                  <g
+                    className="animate-spin"
+                    style={{ transformOrigin: "64px 64px" }}
+                  >
+                    <circle
+                      cx={64}
+                      cy={64}
+                      r={58}
+                      fill="none"
+                      stroke="url(#mix-ring-gradient)"
+                      strokeWidth={6}
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 58 * 0.22} ${
+                        2 * Math.PI * 58
+                      }`}
+                    />
+                  </g>
+                ) : (
+                  <motion.circle
+                    cx={64}
+                    cy={64}
+                    r={58}
+                    fill="none"
+                    stroke="url(#mix-ring-gradient)"
+                    strokeWidth={6}
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 58}
+                    initial={false}
+                    animate={{
+                      strokeDashoffset: 2 * Math.PI * 58 * (1 - progressPct / 100),
+                    }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                  />
+                )}
               </svg>
             </div>
 
-            {/* % real: nunca 100 hasta la respuesta del backend */}
+            {/* % real: nunca 100 hasta la respuesta del backend. Mientras no
+                hay número (0 %) se muestra un spinner: el anillo y la etapa
+                del feed son la señal de avance. */}
             <span
-              className="absolute font-mono text-lg font-bold"
-              style={{ color: "var(--text-primary)" }}
+              className="absolute flex items-center justify-center"
               aria-live="polite"
               role="progressbar"
               aria-label={t("mezcla.processingLabel")}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={progressPct}
+              {...(progressPct === 0
+                ? { "aria-busy": true }
+                : { "aria-valuenow": progressPct })}
             >
-              {progressPct}%
+              {progressPct === 0 ? (
+                <Loader2
+                  className="h-6 w-6 animate-spin"
+                  style={{ color: "var(--accent-primary)" }}
+                  aria-hidden="true"
+                />
+              ) : (
+                <span
+                  className="font-mono text-lg font-bold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {progressPct}%
+                </span>
+              )}
             </span>
           </div>
 
-          {/* Feed de etapas DSP. Con el job async el backend no expone la
-              etapa en curso, así que va en modo indeterminado: ninguna fila
-              se marca activa porque no lo sabemos. El anillo y el % de
-              arriba son los que muestran el avance real. */}
+          {/* Feed de etapas DSP: la etapa activa es la que el engine reporta
+              junto al %. Antes iba indeterminado porque el job async no
+              exponía la etapa; eso ya no es cierto (``stage`` viaja en el
+              job y el poll lo lee). */}
           <MixStatusStream
             stages={stages}
-            stageIndex={-1}
+            activeIndex={activeStageIndex}
             percent={progressPct}
-            indeterminate
             doneLabel={t("mezcla.jobDone")}
           />
         </motion.div>

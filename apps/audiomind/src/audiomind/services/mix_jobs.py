@@ -12,13 +12,16 @@ expired, and the job is reported as ``error`` instead of spinning forever.
 
 Progress honesty
 ----------------
-``progress`` here is REAL: 0 while the chain runs, 100 once the bytes exist
-in R2. It is not a per-stage ticker. ``build_mix`` is a single 700-line call
-with no progress callback, so any per-stage percentage would be invented by
-this layer -- and the UI already used to invent one (``stageMsForDuration``).
-Reporting a number nobody measured is how a progress bar becomes a lie, so
-this module reports only what it can prove. Wiring a stage callback into the
-DSP engine is the real fix and is tracked as follow-up work.
+``progress`` here is REAL: ``build_mix`` takes a ``progress_cb`` and reports
+``(percent, stage)`` at the boundaries of the DSP chain, and this module
+forwards every report into the durable job record. Nothing is interpolated by
+this layer -- the UI only shows a number the engine measured.
+
+The chain's first step (Demucs stem separation) exposes no callback: it is a
+single long native inference, so the engine honestly reports 0 % for that
+stretch. The UI renders that gap as an indeterminate arc instead of a frozen
+``0 %``. The upload to R2 is reported as its own ``upload`` stage at 99 %;
+100 % is written only once the bytes exist in R2.
 """
 
 from __future__ import annotations
@@ -191,6 +194,11 @@ def _execute(
     result = outcome.get("result")
     if not result:
         raise RuntimeError("Mix pipeline produced no result")
+    # The R2 upload is a real wait after the DSP is done. Reporting it as its
+    # own stage keeps the last seconds honest instead of leaving the ring at
+    # the DSP's final checkpoint until the job flips to 100.
+    if progress_cb is not None:
+        progress_cb(99, "upload")
     delivered = _deliver(result, session_id)
     _record_mix_on_session(
         session_id,

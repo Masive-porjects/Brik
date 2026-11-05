@@ -495,12 +495,13 @@
     "qc": "Quality check",
     "stages": {
       "split": "Spectrum analysis: separating stems",
-      "eq": "Corrective EQ by frequency band",
       "pan": "Stereo balance and panning",
+      "eq": "Corrective EQ by frequency band",
       "dimension": "Spatial dimension (delay + reverb)",
       "dynamics": "Multiband compression",
       "emphasis": "Genre emphasis",
-      "bus": "LUFS / limiter: normalizing the bus"
+      "bus": "LUFS / limiter: normalizing the bus",
+      "upload": "Uploading the master to the cloud"
     }
   },
   "mezclas": {

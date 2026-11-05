@@ -495,12 +495,13 @@
     "qc": "Control de calidad",
     "stages": {
       "split": "Análisis de espectro: separando stems",
-      "eq": "EQ correctiva por banda",
       "pan": "Balance y paneo estéreo",
+      "eq": "EQ correctiva por banda",
       "dimension": "Dimensión espacial (delay + reverb)",
       "dynamics": "Compresión multibanda",
       "emphasis": "Énfasis por género",
-      "bus": "LUFS / limitador: normalizando el bus"
+      "bus": "LUFS / limitador: normalizando el bus",
+      "upload": "Subiendo el master a la nube"
     }
   },
   "mezclas": {
