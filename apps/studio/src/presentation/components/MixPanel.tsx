@@ -312,8 +312,11 @@ export default function MixPanel({
   const { t } = useTranslation();
   const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
   const storeStemSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
+  const storeStemPresence = useAgentStudioStore((state) => state.stemPresence);
   const activeSessionStems =
-    sessionId && storeStemSessionId === sessionId ? storeCompletedStems : [];
+    sessionId && storeStemSessionId === sessionId
+      ? storeCompletedStems.filter((name) => storeStemPresence[name] !== false)
+      : [];
   const [mixing, setMixing] = useState(false);
   const [mixUrl, setMixUrl] = useState<string | null>(null);
   const [mixResult, setMixResult] = useState<MixResult | null>(null);

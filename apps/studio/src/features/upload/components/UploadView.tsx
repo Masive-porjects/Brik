@@ -44,7 +44,7 @@ export default function UploadView({
   );
 
   return (
-    <div className="flex-1 flex items-center justify-center px-6 py-8 overflow-y-auto relative">
+    <div className="flex-1 flex items-center justify-center px-6 py-8 min-h-[360px] overflow-y-auto relative">
       <BigGhostWithNotes className="left-1/2 -top-8" />
       <AnimatePresence mode="wait">
         <motion.div

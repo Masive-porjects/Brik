@@ -117,6 +117,13 @@ export default function AgentPanel({
   const completedStems = useAgentStudioStore((state) =>
     state.activeStemSessionId === sessionId ? state.completedStems : EMPTY_STEMS,
   );
+  const stemPresence = useAgentStudioStore((state) => state.stemPresence);
+  /** Solo stems que el backend confirmó como presentes (RMS ≥ −50 dBFS).
+   *  Cuando stem_presence no está disponible aún (undefined) se asume presente
+   *  para no ocultar nada antes de la primera medida. */
+  const presentStems = completedStems.filter(
+    (name) => stemPresence[name] !== false,
+  );
   const appendMessage = useAgentStudioStore((state) => state.appendMessage);
   const clearStems = useAgentStudioStore((state) => state.clearStems);
   const beginStemJob = useAgentStudioStore((state) => state.beginStemJob);
@@ -240,7 +247,12 @@ export default function AgentPanel({
 
         const handleSnapshot = (state: Awaited<ReturnType<typeof getAgentJobStatus>>) => {
           if (state.result?.stem_names?.length) {
-            setCompletedStems(accepted.job_id, sessionId, state.result.stem_names);
+            setCompletedStems(
+              accepted.job_id,
+              sessionId,
+              state.result.stem_names,
+              state.result.mix_metrics?.stem_presence ?? undefined,
+            );
           }
           if (state.status === "completed") {
             clearWatchdog();
@@ -635,10 +647,10 @@ export default function AgentPanel({
           </motion.div>
         )}
 
-        {phase === "producing" && completedStems.length > 0 && sessionId && (
+        {phase === "producing" && presentStems.length > 0 && sessionId && (
           <section className="mt-4">
             <SectionTitle>{t("productor.stemsTitle")}</SectionTitle>
-            <AgentStemStack sessionId={sessionId} stemNames={completedStems} />
+            <AgentStemStack sessionId={sessionId} stemNames={presentStems} />
           </section>
         )}
 
@@ -914,6 +926,12 @@ function RouteCard({
 function AgentResultView({ result }: { result: AgentRunResult }) {
   const { t } = useTranslation();
 
+  /** Stems que el backend confirmó como presentes (RMS ≥ −50 dBFS).
+   *  Cuando stem_presence no está disponible (undefined) se asume presente. */
+  const presentStems = (result.stem_names ?? []).filter(
+    (name) => result.mix_metrics?.stem_presence?.[name] !== false,
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -942,17 +960,19 @@ function AgentResultView({ result }: { result: AgentRunResult }) {
       {/* Las pistas sólo aparecen si la corrida realmente separó audio: la
           narrativa es la prueba de que la herramienta corrió, no la existencia
           de un archivo. Un master directo no tiene nada que mostrar acá. */}
-      {result.session_id &&
-        ((result.stem_names?.length ?? 0) > 0 ||
-          result.narrative?.some((item) => item.code === "separated")) && (
-          <section>
-            <SectionTitle>{t("productor.stemsTitle")}</SectionTitle>
-            <AgentStemStack
-              sessionId={result.session_id}
-              stemNames={result.stem_names ?? ["drums", "bass", "other", "vocals"]}
-            />
-          </section>
-        )}
+      {/* Las pistas sólo aparecen si el backend confirmó su presencia
+          (RMS ≥ −50 dBFS). Un stem silencioso —por ejemplo voz en una pista
+          instrumental— no se renderiza. No hay fallback hardcodeado: si no
+          hay stems presentes, no se muestra la sección. */}
+      {result.session_id && presentStems.length > 0 && (
+        <section>
+          <SectionTitle>{t("productor.stemsTitle")}</SectionTitle>
+          <AgentStemStack
+            sessionId={result.session_id}
+            stemNames={presentStems}
+          />
+        </section>
+      )}
 
       <section>
         <SectionTitle>{t("productor.toolsTitle")}</SectionTitle>

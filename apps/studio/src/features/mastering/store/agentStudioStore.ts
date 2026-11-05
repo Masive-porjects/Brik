@@ -18,6 +18,9 @@ interface AgentStudioState {
   activeStemJobId: string | null;
   activeStemSessionId: string | null;
   completedStems: AgentStemName[];
+  /** Presencia real por stem medida por el backend (RMS ≥ −50 dBFS).
+   *  `true` = tiene audio, `false` = silencio/vacío, `undefined` = no medido aún. */
+  stemPresence: Record<string, boolean>;
   hydrated: boolean;
   appendMessage: (sessionId: string, message: AgentChatMessage) => void;
   clearStems: () => void;
@@ -26,6 +29,7 @@ interface AgentStudioState {
     jobId: string,
     sessionId: string,
     stemNames: readonly string[],
+    stemPresence?: Record<string, boolean>,
   ) => void;
 }
 
@@ -41,6 +45,7 @@ export const useAgentStudioStore = create<AgentStudioState>()(
       activeStemJobId: null,
       activeStemSessionId: null,
       completedStems: [],
+      stemPresence: {},
       hydrated: false,
       appendMessage: (sessionId, message) =>
         set((state) => {
@@ -57,14 +62,21 @@ export const useAgentStudioStore = create<AgentStudioState>()(
           activeStemJobId: null,
           activeStemSessionId: null,
           completedStems: [],
+          stemPresence: {},
         }),
       beginStemJob: (sessionId, jobId) =>
         set({
           activeStemJobId: jobId,
           activeStemSessionId: sessionId,
           completedStems: [],
+          stemPresence: {},
         }),
-      setCompletedStems: (jobId, sessionId, stemNames) =>
+      setCompletedStems: (
+        jobId: string,
+        sessionId: string,
+        stemNames: readonly string[],
+        stemPresence?: Record<string, boolean>,
+      ) =>
         set((state) => {
           if (
             state.activeStemJobId !== jobId ||
@@ -78,7 +90,12 @@ export const useAgentStudioStore = create<AgentStudioState>()(
               STEM_ORDER.includes(name as AgentStemName),
             ),
           ]);
-          return { completedStems: STEM_ORDER.filter((name) => complete.has(name)) };
+          return {
+            completedStems: STEM_ORDER.filter((name) => complete.has(name)),
+            stemPresence: stemPresence
+              ? { ...state.stemPresence, ...stemPresence }
+              : state.stemPresence,
+          };
         }),
     }),
     {
