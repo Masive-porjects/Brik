@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, X } from "lucide-react";
 import { useAudioPlayerStore } from "@/features/audio/store/audioPlayerStore";
 import { useTranslation } from "@/i18n";
 
@@ -13,6 +13,9 @@ import { useTranslation } from "@/i18n";
  * URL de descarga, sincronizado con un store de Zustand para evitar
  * re-renders innecesarios y permitir que cualquier componente dispare
  * reproducción sin perder el estado al cambiar de página.
+ *
+ * Solo se renderiza cuando hay un src válido (audio cargado). Cuando no
+ * hay audio, retorna null y no ocupa espacio en el DOM.
  */
 export default function GlobalAudioPlayer() {
   const {
@@ -35,6 +38,7 @@ export default function GlobalAudioPlayer() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isMountedRef = useRef(false);
+  const { t } = useTranslation();
 
   // Sincronizar el store con el elemento <audio> nativo.
   useEffect(() => {
@@ -118,8 +122,6 @@ export default function GlobalAudioPlayer() {
     [setCurrentTime],
   );
 
-  const { t } = useTranslation();
-
   const formatTime = (seconds: number): string => {
     if (!seconds || isNaN(seconds)) return "--:--";
     const m = Math.floor(seconds / 60);
@@ -141,52 +143,30 @@ export default function GlobalAudioPlayer() {
     }
   }, []);
 
-  const hasAudio = !!src;
+  // Si no hay audio cargado, no renderizar nada.
+  if (!src) return null;
 
   return (
     <div
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-full max-w-[420px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-glass-elevated)] backdrop-blur-2xl p-3 shadow-lg"
+      className="fixed bottom-0 left-0 right-0 z-50 w-full h-14 border-t border-white/10 bg-background/90 backdrop-blur-md px-4 py-2 flex items-center gap-3"
       aria-label="Reproductor de audio global"
     >
-      {/* Barra de título y controles principales */}
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <div className="flex-1 min-w-0">
-          <p
-            className="text-xs font-medium text-[var(--text-primary)] truncate"
-            title={title || t("audio.noTrack")}
-          >
-            {hasAudio ? title : t("audio.noTrack")}
-          </p>
-          <p
-            className="text-[10px] text-[var(--text-muted)] truncate"
-            title={kind ? `Tipo: ${kind}` : ""}
-          >
-            {kind ? `Tipo: ${kind}` : ""}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleTogglePlay}
-          aria-label={playing ? t("common.pause") : t("common.play")}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--surface-elevated)] hover:bg-[var(--surface-active)] text-[var(--text-primary)] transition-colors"
+      {/* Título y tipo */}
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <p
+          className="text-xs font-medium text-[var(--text-primary)] truncate"
+          title={title || t("audio.noTrack")}
         >
-          {playing ? <Pause size={14} /> : <Play size={14} />}
-        </button>
-        {hasAudio && (
-          <button
-            type="button"
-            onClick={() => stop()}
-            aria-label={t("common.stop")}
-            className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--surface-elevated)] hover:bg-red-500/20 text-red-400 hover:text-red-500 transition-colors"
-          >
-            <SkipForward size={14} />
-          </button>
-        )}
+          {title}
+        </p>
+        <p className="text-[10px] text-[var(--text-muted)] truncate">
+          {kind ? `Tipo: ${kind}` : ""}
+        </p>
       </div>
 
       {/* Barra de progreso */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] text-[var(--text-muted)] w-16">
+      <div className="flex-1 h-1 w-full flex items-center gap-2">
+        <span className="text-[10px] text-[var(--text-muted)] w-16 shrink-0">
           {formatTime(currentTime)}
         </span>
         <input
@@ -195,15 +175,31 @@ export default function GlobalAudioPlayer() {
           max={duration || 100}
           value={currentTime}
           onChange={handleSeek}
-          className="flex-1 h-1 bg-[var(--border-subtle)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"
+          className="flex-1 h-1 bg-[var(--border-subtle)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)] shrink-0"
         />
-        <span className="text-[10px] text-[var(--text-muted)] w-16">
+        <span className="text-[10px] text-[var(--text-muted)] w-16 shrink-0">
           {formatTime(duration)}
         </span>
       </div>
 
-      {/* Volumen */}
-      <div className="flex items-center gap-2">
+      {/* Controles: play/pause, stop, volumen */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={handleTogglePlay}
+          aria-label={playing ? t("common.pause") : t("common.play")}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-[var(--surface-elevated)] hover:bg-[var(--surface-active)] text-[var(--text-primary)] transition-colors"
+        >
+          {playing ? <Pause size={12} /> : <Play size={12} />}
+        </button>
+        <button
+          type="button"
+          onClick={() => stop()}
+          aria-label={t("common.stop")}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-[var(--surface-elevated)] hover:bg-red-500/20 text-red-400 hover:text-red-500 transition-colors"
+        >
+          <X size={12} />
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -212,27 +208,11 @@ export default function GlobalAudioPlayer() {
             if (audioRef.current) audioRef.current.volume = newVol;
           }}
           aria-label={volume > 0 ? t("common.mute") : t("common.unmute")}
-          className="flex items-center justify-center w-6 h-6 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-[var(--surface-elevated)] hover:bg-[var(--surface-active)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
-          {volume > 0 ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          {volume > 0 ? <Volume2 size={12} /> : <VolumeX size={12} />}
         </button>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={volume}
-          onChange={handleSetVolume}
-          className="w-24 h-1 bg-[var(--border-subtle)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-primary)]"
-        />
       </div>
-
-      {/* Indicador de stem activo */}
-      {hasAudio && activeStemId && (
-        <p className="text-[10px] text-[var(--accent-primary)] font-medium mt-1">
-          Stem activo: {activeStemId}
-        </p>
-      )}
     </div>
   );
 }

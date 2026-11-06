@@ -237,6 +237,9 @@
       "other": "otro"
     }
   },
+  "audio": {
+    "noTrack": "Sin pista cargada"
+  },
   "mastering": {
     "title": "Masterización Profesional",
     "loadAudioPrompt": "Carga un audio para empezar.",

@@ -237,6 +237,9 @@
       "other": "other"
     }
   },
+  "audio": {
+    "noTrack": "No track loaded"
+  },
   "mastering": {
     "title": "Professional Mastering",
     "loadAudioPrompt": "Upload an audio file to get started.",
