@@ -8,6 +8,7 @@ import {
 import { I18nProvider } from "@/i18n/I18nContext";
 import { AuthProvider } from "@/features/auth";
 import { MasteringProvider } from "@/features/mastering";
+import GlobalAudioPlayer from "@/presentation/components/audio/GlobalAudioPlayer";
 import "./globals.css";
 
 /**
@@ -236,7 +237,10 @@ export default function RootLayout({
       <body className="antialiased min-h-[100dvh]">
         <I18nProvider>
           <AuthProvider>
-            <MasteringProvider>{children}</MasteringProvider>
+            <MasteringProvider>
+              {children}
+              <GlobalAudioPlayer />
+            </MasteringProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

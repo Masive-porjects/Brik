@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import { STEMS, type StemName } from "@/presentation/components/StemSplitter";
 import { useAgentStudioStore } from "../store/agentStudioStore";
+import { useAudioPlayerStore } from "@/features/audio/store/audioPlayerStore";
 
 /**
  * Las pistas separadas, pintadas con su forma de onda REAL.
@@ -70,36 +71,15 @@ function formatDuration(seconds: number): string {
 }
 
 /**
- * Reproductor exclusivo a nivel de módulo.
+ * Gestor de ondas de stems (WaveSurfer) a nivel de módulo.
  *
- * Antes cada clic creaba un `new Audio()` sin parar el anterior: dos clics en
- * "mezcla" y "máster" dejaban ambos sonando superpuestos. Ahora mezcla, máster
- * y stems comparten un único "dueño" del audio: reclamar la reproducción
- * detiene y rebobina lo que estuviera sonando.
+ * Las ondas de stems comparten un único "dueño" del audio: activar una onda
+ * detiene y rebobina la que estuviera sonando. Mezcla y máster ahora usan el
+ * reproductor global (Zustand + <audio> persistente en layout).
  */
-let currentAudio: HTMLAudioElement | null = null;
 let currentLaneStop: (() => void) | null = null;
 
-function stopCurrentAudio(): void {
-  if (!currentAudio) return;
-  try {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-  } catch {
-    // Un audio ya liberado por el navegador no es un error de negocio.
-  }
-  currentAudio = null;
-}
-
-function claimAudio(audio: HTMLAudioElement): void {
-  stopCurrentAudio();
-  currentLaneStop?.();
-  currentLaneStop = null;
-  currentAudio = audio;
-}
-
 function claimLane(stop: () => void): void {
-  stopCurrentAudio();
   currentLaneStop?.();
   currentLaneStop = stop;
 }
@@ -379,29 +359,40 @@ export default function AgentStemStack({
     setLoadingIndex((current) => Math.max(current, index + 1));
   }, []);
 
+  const {
+    load: loadGlobalAudio,
+    togglePlay: toggleGlobalPlay,
+    playing: isGlobalPlaying,
+    src: globalSrc,
+  } = useAudioPlayerStore((state) => ({
+    load: state.load,
+    togglePlay: state.togglePlay,
+    playing: state.playing,
+    src: state.src,
+  }));
+
   /**
-   * Reproduce un archivo completo (mezcla o máster del job) con el gestor
-   * exclusivo: nunca se superpone con otra pista.
+   * Reproduce un archivo completo (mezcla o máster del job) usando el
+   * reproductor global (Zustand + <audio> persistente en layout). Sobrevive
+   * a cambios de ruta y no se corta al navegar entre módulos.
    */
-  const playFullAudio = useCallback((url: string) => {
-    setActive(null);
-    const audio = new Audio(url);
-    claimAudio(audio);
-    audio.addEventListener("ended", () => {
-      if (currentAudio === audio) currentAudio = null;
-    });
-    audio.play().catch(() => {});
-  }, []);
+  const playGlobalAudio = useCallback(
+    (url: string, kind: "master" | "stem", title: string) => {
+      setActive(null);
+      loadGlobalAudio(url, kind, title);
+    },
+    [loadGlobalAudio],
+  );
 
   /** Reproduce el archivo de mezcla completo (viene del job). */
   const playMix = useCallback(() => {
-    playFullAudio(getMixAudioUrl(sessionId));
-  }, [playFullAudio, sessionId]);
+    playGlobalAudio(getMixAudioUrl(sessionId), "master", "Mezcla");
+  }, [playGlobalAudio, sessionId]);
 
   /** Reproduce el archivo master completo (viene del job). */
   const playMaster = useCallback(() => {
-    playFullAudio(getAudioUrl(sessionId, "mastered"));
-  }, [playFullAudio, sessionId]);
+    playGlobalAudio(getAudioUrl(sessionId, "mastered"), "master", "Máster");
+  }, [playGlobalAudio, sessionId]);
 
   const [downloading, setDownloading] = useState<StemName | null>(null);
 
@@ -411,6 +402,9 @@ export default function AgentStemStack({
       try {
         const blob = await downloadStem(sessionId, name);
         const url = URL.createObjectURL(blob);
+        // Cargar en el reproductor global para poder reproducirlo también.
+        loadGlobalAudio(url, "stem", `Stem: ${name}`);
+        // Descarga directa al navegador.
         const a = document.createElement("a");
         a.href = url;
         a.download = `${sessionId}_${name}.wav`;
@@ -424,7 +418,7 @@ export default function AgentStemStack({
         setDownloading(null);
       }
     },
-    [sessionId],
+    [sessionId, loadGlobalAudio],
   );
 
   return (
