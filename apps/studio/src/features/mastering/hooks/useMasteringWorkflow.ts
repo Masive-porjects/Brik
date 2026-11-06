@@ -34,6 +34,12 @@ import {
   type MasterRecord,
 } from "@/features/tracks";
 import { useAutosaveDraft, type AutosaveStatus } from "./useAutosaveDraft";
+import {
+  idbGetSession,
+  idbSetSession,
+  idbDelSession,
+  idbMigrateFromLocalStorage,
+} from "@/lib/idbStore";
 
 
 export const ANALYSIS_TIMEOUT_MS = 180_000;
@@ -84,6 +90,7 @@ export function useMasteringWorkflow(
   const [masterBurst, setMasterBurst] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null);
   const [overMasterWarning, setOverMasterWarning] = useState<{
@@ -225,38 +232,70 @@ export function useMasteringWorkflow(
     wasProcessingRef.current = processing;
   }, [processing, session?.mastered_path]);
 
-  // Persist session association across page reloads
+  // Persist session association across page reloads.
+  // sessionStorage = disponible inmediatamente en este tab (no bloquea).
+  // IndexedDB = persistencia entre recargas y pestañas (asíncrono, fire-and-forget).
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (session?.session_id) {
       const trackId = currentTrack?.id || currentTrackIdRef.current;
       if (trackId) {
-        sessionStorage.setItem(`waveai-track-session-${trackId}`, session.session_id);
-        localStorage.setItem(`waveai-track-session-${trackId}`, session.session_id);
+        const key = `waveai-track-session-${trackId}`;
+        sessionStorage.setItem(key, session.session_id);
+        void idbSetSession(key, session.session_id);
       }
       sessionStorage.setItem("waveai-active-session", session.session_id);
+      void idbSetSession("waveai-active-session", session.session_id);
       if (!user) {
         localStorage.setItem("waveai-session", session.session_id);
+        void idbSetSession("waveai-session", session.session_id);
       }
     }
   }, [session?.session_id, currentTrack?.id, user]);
 
-  // Restore saved session on mount for guest users or fallback active session
+  // Restore saved session on mount for guest users or fallback active session.
+  // Lectura asíncrona de IndexedDB con fallback inmediato a sessionStorage.
+  // `isRestoring` se mantiene true mientras se migra y se lee, para que la UI
+  // pueda mostrar un esqueleto sin parpadeos.
   useEffect(() => {
-    if (typeof window === "undefined" || session) return;
-    if (user) return; // Authenticated users restore via handleLoadTrackProject
+    let cancelled = false;
 
-    const savedId = localStorage.getItem("waveai-session") || sessionStorage.getItem("waveai-active-session");
-    if (!savedId) return;
-    getSession(savedId)
-      .then((s) => {
+    async function restore() {
+      if (typeof window === "undefined" || session) return;
+      if (user) return; // Authenticated users restore via handleLoadTrackProject
+
+      await idbMigrateFromLocalStorage();
+
+      if (cancelled) return;
+
+      // Lectura inmediata de sessionStorage (síncrono, no bloquea).
+      const savedId =
+        sessionStorage.getItem("waveai-active-session") ||
+        (await idbGetSession<string>("waveai-active-session")) ||
+        undefined;
+
+      if (cancelled || !savedId) {
+        setIsRestoring(false);
+        return;
+      }
+
+      try {
+        const s = await getSession(savedId);
+        if (cancelled) return;
         setSession(s);
         onSessionLoaded?.(s);
-      })
-      .catch(() => {
-        localStorage.removeItem("waveai-session");
+      } catch {
+        await idbDelSession("waveai-active-session");
         sessionStorage.removeItem("waveai-active-session");
-      });
+      } finally {
+        if (!cancelled) setIsRestoring(false);
+      }
+    }
+
+    void restore();
+    return () => {
+      cancelled = true;
+    };
   }, [onSessionLoaded, session, user]);
 
   /* ── Upload Handler ────────────────────────────────── */
@@ -330,8 +369,9 @@ export function useMasteringWorkflow(
         const result = await uploadAudio(file, setUploadProgress);
         setUploadBurst((n) => n + 1);
         if (currentTrackIdRef.current && typeof window !== "undefined") {
-          sessionStorage.setItem(`waveai-track-session-${currentTrackIdRef.current}`, result.session_id);
-          localStorage.setItem(`waveai-track-session-${currentTrackIdRef.current}`, result.session_id);
+          const key = `waveai-track-session-${currentTrackIdRef.current}`;
+          sessionStorage.setItem(key, result.session_id);
+          void idbSetSession(key, result.session_id);
         }
         setSession(result);
         onSessionLoaded?.(result);
@@ -687,6 +727,8 @@ export function useMasteringWorkflow(
     if (typeof window !== "undefined") {
       localStorage.removeItem("waveai-session");
       sessionStorage.removeItem("waveai-active-session");
+      void idbDelSession("waveai-session");
+      void idbDelSession("waveai-active-session");
     }
     setSession(null);
     setCurrentTrack(null);
@@ -883,6 +925,7 @@ export function useMasteringWorkflow(
         const cachedSessionId =
           typeof window !== "undefined"
             ? sessionStorage.getItem(`waveai-track-session-${track.id}`) ||
+              (await idbGetSession<string>(`waveai-track-session-${track.id}`)) ||
               localStorage.getItem(`waveai-track-session-${track.id}`)
             : null;
 
@@ -923,6 +966,7 @@ export function useMasteringWorkflow(
             if (typeof window !== "undefined") {
               sessionStorage.removeItem(`waveai-track-session-${track.id}`);
               localStorage.removeItem(`waveai-track-session-${track.id}`);
+              void idbDelSession(`waveai-track-session-${track.id}`);
             }
           }
         }
@@ -940,7 +984,7 @@ export function useMasteringWorkflow(
         const sessionResult = await uploadAudio(file, setUploadProgress);
         if (typeof window !== "undefined") {
           sessionStorage.setItem(`waveai-track-session-${track.id}`, sessionResult.session_id);
-          localStorage.setItem(`waveai-track-session-${track.id}`, sessionResult.session_id);
+          void idbSetSession(`waveai-track-session-${track.id}`, sessionResult.session_id);
         }
         setSession(sessionResult);
         onSessionLoaded?.(sessionResult);
@@ -1102,6 +1146,7 @@ export function useMasteringWorkflow(
     handleBackToUpload,
     handleStemSplit,
     isDownloading,
+    isRestoring,
     handleDownload,
     handleConsolidateMaster,
     handleLoadTrackProject,
