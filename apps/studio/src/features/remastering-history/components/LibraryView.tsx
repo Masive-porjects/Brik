@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Music2,
@@ -94,6 +94,17 @@ export default function LibraryView({
   const [isDeleting, setIsDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
+
+  // The modal stays mounted while closed, so the hook's initial fetch happens on
+  // page load. A track uploaded afterwards (or mixed in another tab) would never
+  // show up until a manual refresh. Re-read the library on every open.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      void refresh();
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, refresh]);
 
   useEffect(() => {
     onTracksCountChange?.(totalCount);
