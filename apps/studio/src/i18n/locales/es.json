@@ -727,7 +727,9 @@
     "sessionExpiredMessage": "El servidor se reinició y no pudo recuperarla. Sube el audio otra vez para continuar.",
     "uploadFailed": "Error al subir el archivo",
     "engineUnreachable": "No se pudo conectar con el motor de audio. Verifica tu conexión o intenta más tarde.",
-    "cloudUploadFailed": "El track no se pudo guardar en tu biblioteca. La sesión de mastering sigue disponible, pero no aparecerá en Mis Canciones."
+    "cloudUploadFailed": "El track no se pudo guardar en tu biblioteca. La sesión de mastering sigue disponible, pero no aparecerá en Mis Canciones.",
+    "noMasterAvailable": "No hay master disponible para descargar. Procesá el track primero.",
+    "emptyMaster": "El master descargado está vacío. Probá de nuevo o reprocesá el track."
   },
   "theme": {
     "toggleDark": "Cambiar a tema oscuro",

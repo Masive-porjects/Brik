@@ -727,7 +727,9 @@
     "sessionExpiredMessage": "The server was restarted and could not recover it. Upload your audio again to continue.",
     "uploadFailed": "Upload failed",
     "engineUnreachable": "Could not reach the audio engine. Check your connection or try again later.",
-    "cloudUploadFailed": "The track could not be saved to your library. The mastering session is still available, but it will not appear in My Songs."
+    "cloudUploadFailed": "The track could not be saved to your library. The mastering session is still available, but it will not appear in My Songs.",
+    "noMasterAvailable": "No master available to download. Process the track first.",
+    "emptyMaster": "The downloaded master is empty. Try again or reprocess the track."
   },
   "theme": {
     "toggleDark": "Switch to dark theme",

@@ -709,12 +709,20 @@ export function useMasteringWorkflow(
   const handleDownload = useCallback(
     async (format: "wav" | "mp3") => {
       if (!session) return;
+      if (!session.mastered_path) {
+        setError(t("errors.noMasterAvailable", "No hay master disponible para descargar. Procesá el track primero."));
+        return;
+      }
       try {
         const blob = await downloadMastered(
           session.session_id,
           format,
           activePresetId ?? undefined,
         );
+        if (!blob || blob.size === 0) {
+          setError(t("errors.emptyMaster", "El master descargado está vacío. Probá de nuevo o reprocesá el track."));
+          return;
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
