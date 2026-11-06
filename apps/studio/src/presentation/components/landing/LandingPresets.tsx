@@ -45,10 +45,10 @@ export default function LandingPresets() {
                 type="button"
                 onClick={() => setSelectedId(preset.id)}
                 aria-pressed={active}
-                className="flex flex-col items-start rounded-xl p-4 text-left select-none cursor-pointer transition-all duration-300 hover:bg-neutral-800/70"
+                className="flex flex-col items-start rounded-xl p-4 text-left select-none cursor-pointer transition-all duration-300"
                 style={{
                   background: active
-                    ? `color-mix(in srgb, ${presetColor} 10%, rgba(26, 26, 32, 0.75))`
+                    ? `color-mix(in srgb, ${presetColor} 10%, var(--bg-glass-elevated))`
                     : "var(--bg-glass-elevated)",
                   backdropFilter: "blur(16px)",
                   WebkitBackdropFilter: "blur(16px)",
@@ -60,7 +60,7 @@ export default function LandingPresets() {
                     : "none",
                 }}
               >
-                <span style={{ color: presetColor }} aria-hidden="true">
+                <span style={{ color: `color-mix(in srgb, ${presetColor} var(--preset-ink-strength), #000)` }} aria-hidden="true">
                   <Icon size={18} />
                 </span>
 
@@ -85,7 +85,7 @@ export default function LandingPresets() {
                   className="mt-3 inline-block rounded px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest"
                   style={{
                     background: `color-mix(in srgb, ${presetColor} 16%, transparent)`,
-                    color: presetColor,
+                    color: `color-mix(in srgb, ${presetColor} var(--preset-ink-strength), #000)`,
                     border: `1px solid color-mix(in srgb, ${presetColor} 45%, transparent)`,
                   }}
                 >

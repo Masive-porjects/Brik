@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useId, useSyncExternalStore } from "react";
+import { useState, useCallback, useId, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "@/i18n/useTranslation";
 import { useIsMounted } from "@/shared/hooks";
@@ -39,6 +39,16 @@ function readStoredTheme(): Theme {
 
 const getServerTheme = (): Theme => "dark";
 
+/* Single place that mirrors the chosen theme onto <html>. `data-theme` drives
+   the token blocks in globals.css, `dark` keeps the Tailwind dark variant in
+   sync, and `colorScheme` themes native UI (scrollbars, inputs). */
+function applyThemeToDocument(theme: Theme) {
+  const root = document.documentElement;
+  root.dataset.theme = theme;
+  root.classList.toggle("dark", theme === "dark");
+  root.style.colorScheme = theme;
+}
+
 /* ── useThemeMode ────────────────────────────────────────
    Shared theme state (dark/light). Reads the persisted theme straight from the DOM
    and localStorage, with 'dark' as the deterministic SSR fallback. */
@@ -48,22 +58,23 @@ export function useThemeMode() {
   const [themeOverride, setThemeOverride] = useState<Theme | null>(null);
   const theme = themeOverride ?? storedTheme;
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+  // The DOM is the source of truth at load (the inline script in layout.tsx
+  // already applied the stored theme before paint). Writing it back here would
+  // re-apply the SSR snapshot "dark" and clobber a stored "light" preference.
+  // `toggle` is the only writer.
 
   const toggle = useCallback(() => {
     if (FORCE_DARK_THEME) return;
-    setThemeOverride((prev) => {
-      const next: Theme = (prev ?? readStoredTheme()) === "dark" ? "light" : "dark";
-      document.documentElement.dataset.theme = next;
-      try {
-        localStorage.setItem(THEME_KEY, next);
-      } catch {
-        // Private mode — theme still applies for this session
-      }
-      return next;
-    });
+    // Keep the updater pure: React may invoke it twice (StrictMode), and side
+    // effects inside it would run twice and persist the opposite theme.
+    const next: Theme = readStoredTheme() === "dark" ? "light" : "dark";
+    setThemeOverride(next);
+    applyThemeToDocument(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Private mode — theme still applies for this session
+    }
   }, []);
 
   return { theme, toggle, isDark: theme === "dark" };

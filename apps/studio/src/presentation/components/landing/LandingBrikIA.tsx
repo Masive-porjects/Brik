@@ -97,10 +97,10 @@ export default function LandingBrikIA() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="relative mx-auto w-full max-w-xl rounded-3xl border border-white/15 bg-white/[0.04] p-4 sm:p-6 shadow-[0_24px_80px_rgba(0,0,0,0.65)] backdrop-blur-2xl"
+            className="relative mx-auto w-full max-w-xl rounded-3xl border border-[var(--border-strong)] bg-[var(--bg-glass)] p-4 sm:p-6 shadow-[var(--shadow-heavy)] backdrop-blur-2xl"
           >
             {/* Chat Header */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-3.5">
+            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3.5">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/30 bg-primary/15 text-primary shadow-[0_0_16px_rgba(110,233,224,0.25)]">
                   <GhostIcon size={18} />
@@ -116,7 +116,7 @@ export default function LandingBrikIA() {
                 </div>
               </div>
 
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-medium text-[var(--text-muted)]">
+              <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-2.5 py-1 text-[10px] font-medium text-[var(--text-muted)]">
                 {t("landing.brikIA.tryPromptsLabel", "Prueba una instrucción")}
               </span>
             </div>
@@ -134,7 +134,7 @@ export default function LandingBrikIA() {
                     className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                       isSelected
                         ? "border-primary bg-primary/15 text-primary shadow-[0_0_14px_rgba(110,233,224,0.2)]"
-                        : "border-white/10 bg-white/[0.03] text-[var(--text-secondary)] hover:border-white/25 hover:text-[var(--text-primary)]"
+                        : "border-[var(--border-subtle)] bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                     }`}
                   >
                     {t(`landing.brikIA.scenarios.${item.id}.chip`)}
@@ -159,7 +159,7 @@ export default function LandingBrikIA() {
                 </div>
 
                 {/* BrikIA glass response bubble */}
-                <div className="mr-auto flex max-w-[92%] flex-col gap-2.5 rounded-2xl rounded-bl-sm border border-white/12 bg-black/40 px-4 py-3.5 text-left backdrop-blur-xl">
+                <div className="mr-auto flex max-w-[92%] flex-col gap-2.5 rounded-2xl rounded-bl-sm border border-[var(--border-subtle)] bg-[var(--bg-glass-elevated)] px-4 py-3.5 text-left backdrop-blur-xl">
                   <div className="flex items-center gap-2 text-[11px] font-semibold text-primary">
                     <GhostIcon size={14} />
                     <span>{t("landing.brikIA.agentReplyLabel", "Diagnóstico y ruta generada")}</span>
@@ -171,7 +171,7 @@ export default function LandingBrikIA() {
                     {(["tag1", "tag2", "tag3"] as const).map((tagKey) => (
                       <span
                         key={tagKey}
-                        className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[10px] text-primary"
+                        className="rounded-md border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-2 py-0.5 font-mono text-[10px] text-primary"
                       >
                         {t(`landing.brikIA.scenarios.${activeScenario}.${tagKey}`)}
                       </span>
@@ -182,7 +182,7 @@ export default function LandingBrikIA() {
             </AnimatePresence>
 
             {/* Simulated Composer Input Bar that leads to Studio */}
-            <div className="mt-4 flex items-center justify-between gap-2 rounded-2xl border border-white/12 bg-black/50 px-3.5 py-2.5 backdrop-blur-md">
+            <div className="mt-4 flex items-center justify-between gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-3.5 py-2.5 backdrop-blur-md">
               <span className="truncate text-xs text-[var(--text-muted)]">
                 {t(
                   "landing.brikIA.inputPlaceholder",

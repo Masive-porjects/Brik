@@ -194,16 +194,16 @@ function MobileDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 400, damping: 35 }}
-            className="absolute right-0 top-0 h-[100dvh] w-[86vw] max-w-sm bg-[#0f1015] text-[#f4f4f2] border-l border-white/10 shadow-2xl flex flex-col"
+            className="absolute right-0 top-0 h-[100dvh] w-[86vw] max-w-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] border-l border-[var(--border-subtle)] shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)] shrink-0">
               <span className="font-sans text-xl text-primary font-bold tracking-tight">BRIK</span>
               <button
                 ref={closeButtonRef}
                 type="button"
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-white/10 transition-colors"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
                 onClick={handleClose}
                 aria-label={t("landing.nav.closeMenu", "Cerrar menú")}
               >
@@ -223,7 +223,7 @@ function MobileDrawer() {
                     className={`w-full text-left px-4 py-3.5 rounded-xl font-sans text-base font-medium transition-all duration-200 active:scale-[0.98] ${
                       isActive
                         ? "bg-primary/15 text-primary border border-primary/30"
-                        : "text-[#e8e8e8] hover:text-primary hover:bg-white/5"
+                        : "text-[var(--text-secondary)] hover:text-primary hover:bg-[var(--surface-hover)]"
                     }`}
                     aria-current={isActive ? "page" : undefined}
                   >
@@ -238,7 +238,7 @@ function MobileDrawer() {
               })}
 
               {/* User Controls / Language / Theme */}
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-3">
+              <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-between gap-3">
                 <LanguageSwitcher />
                 {user ? <UserMenu /> : <ThemeToggle />}
               </div>

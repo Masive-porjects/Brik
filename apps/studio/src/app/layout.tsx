@@ -197,15 +197,17 @@ export default function RootLayout({
       lang="es"
       data-theme="dark"
       suppressHydrationWarning
-      className={`dark bg-[#0b0b0c] text-[#f4f4f2] ${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
+      className={`${syne.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
       <head>
-        {/* Dark is forced globally: set before hydration so no light flash and
-            no stored "light" preference can switch the theme back. */}
+        {/* Apply the stored theme before first paint. Without this the server
+            markup renders dark and a stored "light" preference only lands after
+            hydration, flashing the whole page. Keep it in sync with
+            useThemeMode() in ThemeToggle.tsx. */}
         <script
           id="theme-init"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{localStorage.removeItem("waveai-theme");}catch(e){}document.documentElement.dataset.theme="dark";document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark";})();`,
+            __html: `(function(){try{var t=localStorage.getItem("waveai-theme");if(t!=="light"&&t!=="dark"){t="dark";}var r=document.documentElement;r.dataset.theme=t;r.classList.toggle("dark",t==="dark");r.style.colorScheme=t;}catch(e){document.documentElement.dataset.theme="dark";document.documentElement.classList.add("dark");}})();`,
           }}
         />
         {/* Viewport height fix - runs before hydration */}
@@ -231,7 +233,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: webSiteLdJson }}
         />
       </head>
-      <body className="antialiased min-h-[100dvh] bg-[#0b0b0c] text-[#f4f4f2]">
+      <body className="antialiased min-h-[100dvh]">
         <I18nProvider>
           <AuthProvider>
             <MasteringProvider>{children}</MasteringProvider>

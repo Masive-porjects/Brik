@@ -57,7 +57,7 @@ export default function DynamicsDiagram({
 
   const masteredBars = MASTERED_HEIGHTS.map((h, i) => {
     if (isGap(i)) return null;
-    return <rect key={`m-${i}`} x={X0 + i * SLOT} y={MASTER_BASE - h} width={BAR_W} height={h} rx={1} fill="#6ee9e0" />;
+    return <rect key={`m-${i}`} x={X0 + i * SLOT} y={MASTER_BASE - h} width={BAR_W} height={h} rx={1} className="fill-[var(--accent-primary)]" />;
   });
 
   const normalTop = NORMAL_BASE - MAX_H;
@@ -77,7 +77,7 @@ export default function DynamicsDiagram({
           <path d="M0,0 L8,4 L0,8 z" fill="rgba(134, 147, 145, 0.9)" />
         </marker>
         <marker id="dyn-arrow-primary" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 z" fill="#6ee9e0" />
+          <path d="M0,0 L8,4 L0,8 z" className="fill-[var(--accent-primary)]" />
         </marker>
       </defs>
 
@@ -108,16 +108,16 @@ export default function DynamicsDiagram({
       <text x={0} y={170} fontSize={13} fontWeight={600} style={TITLE_STYLE}>
         {masteredLabel}
       </text>
-      <line x1={0} y1={CEILING_Y} x2={420} y2={CEILING_Y} stroke="#6ee9e0" strokeOpacity={0.55} strokeWidth={1} strokeDasharray="4 4" />
-      <line x1={330} y1={CEILING_Y - 14} x2={330} y2={CEILING_Y - 2} stroke="#6ee9e0" strokeWidth={1.5} markerEnd="url(#dyn-arrow-primary)" />
+      <line x1={0} y1={CEILING_Y} x2={420} y2={CEILING_Y} className="stroke-[var(--accent-primary)]" strokeOpacity={0.55} strokeWidth={1} strokeDasharray="4 4" />
+      <line x1={330} y1={CEILING_Y - 14} x2={330} y2={CEILING_Y - 2} className="stroke-[var(--accent-primary)]" strokeWidth={1.5} markerEnd="url(#dyn-arrow-primary)" />
       <text x={420} y={CEILING_Y - 18} fontSize={12} textAnchor="end" style={PRIMARY_STYLE}>
         {peakControlLabel}
       </text>
-      <line x1={X0 - 2} y1={MASTER_BASE} x2={X0 + BAR_COUNT * SLOT} y2={MASTER_BASE} stroke="rgba(110, 233, 224, 0.35)" strokeWidth={1} />
+      <line x1={X0 - 2} y1={MASTER_BASE} x2={X0 + BAR_COUNT * SLOT} y2={MASTER_BASE} className="stroke-[var(--accent-primary)]" strokeOpacity={0.35} strokeWidth={1} />
       {masteredBars}
 
       {/* Clean space between bands */}
-      <line x1={gapCenter} y1={MASTER_BASE + 26} x2={gapCenter} y2={MASTER_BASE + 6} stroke="#6ee9e0" strokeWidth={1.5} markerEnd="url(#dyn-arrow-primary)" />
+      <line x1={gapCenter} y1={MASTER_BASE + 26} x2={gapCenter} y2={MASTER_BASE + 6} className="stroke-[var(--accent-primary)]" strokeWidth={1.5} markerEnd="url(#dyn-arrow-primary)" />
       <text x={gapCenter} y={MASTER_BASE + 38} fontSize={12} textAnchor="middle" style={PRIMARY_STYLE}>
         {cleanSpaceLabel}
       </text>

@@ -50,6 +50,10 @@ const MAST_BARS: readonly number[] = [
 
 const RAW_COLOR: readonly [number, number, number] = [134, 147, 145];
 const MASTER_COLOR: readonly [number, number, number] = [110, 233, 224];
+/* The pastel dark-theme accents disappear on the light canvas, so the light
+   theme draws the same waveform with the darker light-theme accent values. */
+const RAW_COLOR_LIGHT: readonly [number, number, number] = [130, 138, 137];
+const MASTER_COLOR_LIGHT: readonly [number, number, number] = [15, 118, 110];
 
 const ACCENTS: Record<AccentToken, { text: string; bg: string }> = {
   primary: { text: "text-primary", bg: "bg-primary" },
@@ -433,9 +437,16 @@ export default function LandingABPlayer() {
       const barW = Math.max(1, barStep * 0.62);
       const playheadIndex = (playheadRef.current / 100) * BAR_COUNT;
 
+      const isLightTheme = document.documentElement.dataset.theme === "light";
+      const rawColor = isLightTheme ? RAW_COLOR_LIGHT : RAW_COLOR;
+      const masterColor = isLightTheme ? MASTER_COLOR_LIGHT : MASTER_COLOR;
+      const playheadColor = isLightTheme
+        ? "rgba(15, 118, 110, 0.9)"
+        : "rgba(110, 233, 224, 0.9)";
+
       if (morph > 0.15) {
         const ceiling = cy - maxHalf * 0.92;
-        ctx.strokeStyle = `rgba(110, 233, 224, ${(0.22 * morph).toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${masterColor[0]}, ${masterColor[1]}, ${masterColor[2]}, ${(0.22 * morph).toFixed(3)})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(0, ceiling);
@@ -445,9 +456,9 @@ export default function LandingABPlayer() {
         ctx.stroke();
       }
 
-      const cr = Math.round(lerp(RAW_COLOR[0], MASTER_COLOR[0], morph));
-      const cg = Math.round(lerp(RAW_COLOR[1], MASTER_COLOR[1], morph));
-      const cb = Math.round(lerp(RAW_COLOR[2], MASTER_COLOR[2], morph));
+      const cr = Math.round(lerp(rawColor[0], masterColor[0], morph));
+      const cg = Math.round(lerp(rawColor[1], masterColor[1], morph));
+      const cb = Math.round(lerp(rawColor[2], masterColor[2], morph));
 
       for (let i = 0; i < BAR_COUNT; i++) {
         let amp = lerp(RAW_BARS[i], MAST_BARS[i], morph);
@@ -466,9 +477,9 @@ export default function LandingABPlayer() {
       if (state.playing || playheadRef.current > 0) {
         const px = (playheadRef.current / 100) * width;
         ctx.save();
-        ctx.shadowColor = "rgba(110, 233, 224, 0.9)";
+        ctx.shadowColor = playheadColor;
         ctx.shadowBlur = 8;
-        ctx.fillStyle = "#6ee9e0";
+        ctx.fillStyle = isLightTheme ? "#0f766e" : "#6ee9e0";
         ctx.fillRect(px - 0.75, 0, 1.5, height);
         ctx.restore();
       }

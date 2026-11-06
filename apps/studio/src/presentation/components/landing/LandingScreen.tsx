@@ -14,7 +14,7 @@ import LandingFooter from "./LandingFooter";
 
 export default function LandingScreen() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0b0c] text-[#f4f4f2] font-sans selection:bg-primary-container selection:text-[var(--color-on-primary)] overflow-x-clip">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] font-sans selection:bg-primary-container selection:text-[var(--color-on-primary)] overflow-x-clip">
       <LandingHeader />
 
       <main className="flex-1 flex flex-col w-full">
