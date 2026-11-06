@@ -440,6 +440,47 @@ export function useMasteringWorkflow(
 
 
 
+  /* ── Auto-persist master to Supabase (best effort) ──────────
+     Cuando el motor entrega un master (mastered_path), lo sube a
+     Supabase y crea el registro en public.masters vinculado al
+     usuario actual, para que el track aparezca en "Mis Canciones"
+     sin que el usuario tenga que descargar o consolidar a mano.
+     Nunca bloquea la UI: falla en silencio con aviso en consola. */
+  const persistMasterToCloud = useCallback(
+    async (
+      track: Track,
+      sessionId: string,
+      presetName: string | null,
+      currentParams: MasteringParameters,
+    ) => {
+      if (!user) return;
+      try {
+        const blob = await downloadMastered(sessionId, "wav", presetName ?? undefined);
+        const { storagePath } = await uploadMasterAudio(user.id, track.id, blob, "wav");
+        await createMasterRecord(user.id, {
+          id: crypto.randomUUID(),
+          track_id: track.id,
+          storage_path: storagePath,
+          format: "wav",
+          file_size_bytes: blob.size,
+          preset_name: presetName ?? null,
+          parameters_applied: currentParams,
+        });
+        await updateTrackStatus(track.id, "completed");
+        void logTrackEvent(user.id, track.id, "master_consolidated", {
+          format: "wav",
+          storage_path: storagePath,
+          preset_name: presetName ?? null,
+          size_bytes: blob.size,
+          auto: true,
+        });
+      } catch (err) {
+        console.warn("Auto master cloud save failed:", err);
+      }
+    },
+    [user],
+  );
+
   /* ── Reprocess ─────────────────────────────────────── */
   const handleProcess = useCallback(async () => {
     if (!session) return;
@@ -481,13 +522,16 @@ export function useMasteringWorkflow(
       completeProgress();
       await new Promise((r) => setTimeout(r, 600));
       setSession(result);
-      if (currentTrackIdRef.current) {
+      if (currentTrackIdRef.current && currentTrack) {
         updateTrackStatus(currentTrackIdRef.current, "completed").catch(() => {});
         if (user) {
           logTrackEvent(user.id, currentTrackIdRef.current, "reprocessed", {
             params,
             preset_id: activePresetId,
           });
+        }
+        if (result.mastered_path) {
+          void persistMasterToCloud(currentTrack, result.session_id, activePresetId ?? null, params);
         }
       }
     } catch (err) {
@@ -579,11 +623,14 @@ export function useMasteringWorkflow(
         }
         await new Promise((r) => setTimeout(r, 600));
         setSession(result);
-        if (user && currentTrackIdRef.current) {
+        if (user && currentTrackIdRef.current && currentTrack) {
           logTrackEvent(user.id, currentTrackIdRef.current, "preset_applied", {
             preset_id: presetId,
             params: merged,
           });
+          if (result.mastered_path) {
+            void persistMasterToCloud(currentTrack, result.session_id, presetId ?? null, merged);
+          }
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
