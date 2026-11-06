@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useId, useSyncExternalStore } from "react";
+import { useState, useCallback, useId, useSyncExternalStore, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "@/i18n/useTranslation";
 import { useIsMounted } from "@/shared/hooks";
