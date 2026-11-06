@@ -568,6 +568,7 @@
     "stemsUnavailable": "The stem could not be loaded.",
     "stemPlay": "Play {stem}",
     "stemPause": "Pause {stem}",
+    "downloadStem": "Download {stem}",
     "playMix": "Play mix",
     "playMaster": "Play master",
     "toolsTitle": "Executed tools",

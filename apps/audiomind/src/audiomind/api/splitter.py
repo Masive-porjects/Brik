@@ -91,6 +91,45 @@ async def list_stems(session_id: str) -> dict[str, Any]:
     }
 
 
+@router.get("/session/{session_id}/stems-manifest")
+async def stems_manifest(session_id: str) -> dict[str, Any]:
+    """Manifest of available stems for a session.
+
+    Returns exactly which stems (vocals, drums, bass, other) exist on disk
+    for this session, plus a download URL for each available one. Frontends
+    should consult this before attempting to load any stem, avoiding blind
+    404s.
+    """
+    session = sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    stems_dir = settings.output_dir / session_id / "stems"
+    available: dict[str, Any] = {}
+    for name in STEM_NAMES:
+        wav = stems_dir / f"{name}.wav"
+        if wav.exists():
+            available[name] = {
+                "exists": True,
+                "download_url": f"/api/session/{session_id}/stem/{name}",
+                "format": "wav",
+                "size_bytes": wav.stat().st_size,
+            }
+        else:
+            available[name] = {
+                "exists": False,
+                "download_url": None,
+                "format": "wav",
+                "size_bytes": 0,
+            }
+
+    return {
+        "session_id": session_id,
+        "status": "completed" if any(v["exists"] for v in available.values()) else "not_split",
+        "stems": available,
+    }
+
+
 @router.get("/session/{session_id}/stem/{stem_name}")
 async def get_stem_audio(session_id: str, stem_name: str) -> FileResponse:
     """Serve an individual stem WAV file."""

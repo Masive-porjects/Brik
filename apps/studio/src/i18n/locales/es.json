@@ -568,6 +568,7 @@
     "stemsUnavailable": "No se pudo cargar el stem.",
     "stemPlay": "Reproducir {stem}",
     "stemPause": "Pausar {stem}",
+    "downloadStem": "Descargar {stem}",
     "playMix": "Reproducir mezcla",
     "playMaster": "Reproducir máster",
     "toolsTitle": "Herramientas ejecutadas",

@@ -1,12 +1,19 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Pause, Play } from "lucide-react";
+import { Download, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 
 import { useTranslation } from "@/i18n";
-import { getAudioUrl, getMixAudioUrl, getStemUrl } from "@/lib/api";
+import {
+  downloadStem,
+  fetchStemsManifest,
+  getAudioUrl,
+  getMixAudioUrl,
+  getStemUrl,
+  type StemsManifest,
+} from "@/lib/api";
 import { STEMS, type StemName } from "@/presentation/components/StemSplitter";
 import { useAgentStudioStore } from "../store/agentStudioStore";
 
@@ -111,6 +118,10 @@ interface StemLaneProps {
   isActive: boolean;
   onToggle: (name: StemName) => void;
   onLoaded: (index: number) => void;
+  /** Descarga el stem individual. */
+  onDownload: (name: StemName) => void;
+  /** Está descargando este stem en este momento. */
+  downloading: StemName | null;
 }
 
 /** Una pista individual con su forma de onda. */
@@ -122,6 +133,8 @@ function StemLane({
   isActive,
   onToggle,
   onLoaded,
+  onDownload,
+  downloading,
 }: StemLaneProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -242,6 +255,25 @@ function StemLane({
         {isActive ? <Pause size={12} /> : <Play size={12} />}
       </motion.button>
 
+      <motion.button
+        type="button"
+        onClick={() => onDownload(stem.name)}
+        disabled={downloading === stem.name}
+        whileTap={{ scale: 0.9 }}
+        aria-label={t("productor.downloadStem", { stem: label })}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-opacity disabled:opacity-30"
+        style={{ background: "rgba(0, 0, 0, 0.2)", color: "var(--text-primary)" }}
+      >
+        {downloading === stem.name ? (
+          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        ) : (
+          <Download size={12} />
+        )}
+      </motion.button>
+
       <span className="flex w-[68px] min-w-[44px] shrink items-center gap-1 sm:w-[86px] sm:shrink-0">
         <stem.icon size={12} />
         <span
@@ -294,15 +326,46 @@ export default function AgentStemStack({
   const { t } = useTranslation();
   const [active, setActive] = useState<StemName | null>(null);
   const [loadingIndex, setLoadingIndex] = useState(0);
+  const [manifest, setManifest] = useState<StemsManifest | null>(null);
+  const [manifestLoading, setManifestLoading] = useState(false);
   const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
   const storeSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
   const storeStemPresence = useAgentStudioStore((state) => state.stemPresence);
+
+  // Consulta el manifiesto de stems para saber cuáles existen realmente,
+  // evitando peticiones ciegas que causan errores 404 en red.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadManifest() {
+      if (!sessionId) return;
+      setManifestLoading(true);
+      try {
+        const m = await fetchStemsManifest(sessionId);
+        if (!cancelled) setManifest(m);
+      } catch {
+        // Si falla el manifiesto, dejamos que el store decida qué mostrar.
+        if (!cancelled) setManifest(null);
+      } finally {
+        if (!cancelled) setManifestLoading(false);
+      }
+    }
+    void loadManifest();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  const stemExists = (name: StemName): boolean =>
+    manifest?.stems[name]?.exists ?? false;
+
   const effectiveStemNames =
     stemNames && stemNames.length > 0
-      ? stemNames
+      ? stemNames.filter((name) => stemExists(name as StemName))
       : storeSessionId === sessionId && storeCompletedStems.length > 0
         ? // Fallback desde el store: respeta la presencia medida por el backend.
-          storeCompletedStems.filter((name) => storeStemPresence[name] !== false)
+          storeCompletedStems.filter(
+            (name) => storeStemPresence[name] !== false && stemExists(name),
+          )
         : undefined;
   const visibleStems = selectVisibleStems(effectiveStemNames);
 
@@ -340,6 +403,30 @@ export default function AgentStemStack({
     playFullAudio(getAudioUrl(sessionId, "mastered"));
   }, [playFullAudio, sessionId]);
 
+  const [downloading, setDownloading] = useState<StemName | null>(null);
+
+  const handleDownload = useCallback(
+    async (name: StemName) => {
+      setDownloading(name);
+      try {
+        const blob = await downloadStem(sessionId, name);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${sessionId}_${name}.wav`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(`Failed to download stem ${name}:`, err);
+      } finally {
+        setDownloading(null);
+      }
+    },
+    [sessionId],
+  );
+
   return (
     <div className="w-full">
       <div
@@ -359,6 +446,8 @@ export default function AgentStemStack({
             isActive={active === stem.name}
             onToggle={handleToggle}
             onLoaded={handleLoaded}
+            onDownload={handleDownload}
+            downloading={downloading === stem.name ? stem.name : null}
           />
         ))}
       </div>

@@ -664,6 +664,27 @@ export async function downloadStem(
   return res.blob();
 }
 
+export interface StemManifestEntry {
+  exists: boolean;
+  download_url: string | null;
+  format: string;
+  size_bytes: number;
+}
+
+export interface StemsManifest {
+  session_id: string;
+  status: string;
+  stems: Record<string, StemManifestEntry>;
+}
+
+export async function fetchStemsManifest(
+  sessionId: string,
+): Promise<StemsManifest> {
+  const res = await fetch(`${API_BASE}/session/${sessionId}/stems-manifest`);
+  if (!res.ok) throw new Error("Failed to fetch stems manifest");
+  return res.json();
+}
+
 /* ── Mix Engine ─────────────────────────────────────── */
 
 /**
