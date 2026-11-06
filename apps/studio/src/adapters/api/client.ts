@@ -170,6 +170,19 @@ export async function uploadAudio(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<SessionData> {
+  // Obtener el token de Supabase antes de iniciar el XHR para adjuntarlo
+  // como Authorization: Bearer. Sin este header el backend devuelve 401.
+  let accessToken: string | null = null;
+  try {
+    const {
+      data: { session },
+    } = await createClient().auth.getSession();
+    accessToken = session?.access_token ?? null;
+  } catch {
+    // Si no se puede leer la sesión, se prosigue sin token y el servidor
+    // responderá 401, que se maneja más abajo.
+  }
+
   const formData = new FormData();
   formData.append("file", file);
 
@@ -185,7 +198,16 @@ export async function uploadAudio(
 
     xhr.open("POST", `${API_BASE}/upload`, true);
 
+    if (accessToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    }
+
     xhr.onload = () => {
+      if (xhr.status === 401) {
+        void handleUnauthorized();
+        reject(new ApiError("Sesión expirada o inválida", 401, true));
+        return;
+      }
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress?.(100);
         const payload = xhr.response as SessionData | null;
@@ -226,7 +248,9 @@ export async function uploadAudio(
 }
 
 export async function getSession(sessionId: string): Promise<SessionData> {
-  const res = await fetch(`${API_BASE}/session/${sessionId}`);
+  const res = await fetch(`${API_BASE}/session/${sessionId}`, {
+    headers: { ...(await authHeaders()) },
+  });
   if (!res.ok) throw new ApiError("Session not found", res.status);
   return res.json();
 }
@@ -239,7 +263,9 @@ export interface ProcessingProgress {
 }
 
 export async function getProcessingProgress(sessionId: string): Promise<ProcessingProgress> {
-  const res = await fetch(`${API_BASE}/session/${sessionId}`);
+  const res = await fetch(`${API_BASE}/session/${sessionId}`, {
+    headers: { ...(await authHeaders()) },
+  });
   if (!res.ok) throw new ApiError(`Progress fetch failed: ${res.status}`, res.status);
   const data = (await res.json()) as SessionData;
   return {
