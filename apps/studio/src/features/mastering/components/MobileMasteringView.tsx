@@ -25,6 +25,7 @@ interface MobileMasteringViewProps {
   onPresetSelect: (p: MasteringParameters, id?: string) => Promise<void>;
   onProcess: () => Promise<void>;
   onDownload: (format: "wav" | "mp3") => void;
+  isDownloading: boolean;
   renderTabContent: (tab: MasteringTab) => React.ReactNode;
   /** Gate de mezcla (T4): aviso accionable sobre el botón de masterizar.
    *  En mobile el CTA abre el tab de mezcla, que en esta vista se llama igual
@@ -43,6 +44,7 @@ export default function MobileMasteringView({
   onPresetSelect,
   onProcess,
   onDownload,
+  isDownloading,
   renderTabContent,
   mixGate,
 }: MobileMasteringViewProps) {
@@ -146,21 +148,59 @@ export default function MobileMasteringView({
               <div className="flex gap-2">
                 <button
                   onClick={() => onDownload("wav")}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-medium text-center
-                    text-[var(--text-secondary)] hover:text-[var(--text-primary)]
-                    bg-[var(--surface-hover)] hover:bg-[var(--surface-active)]
-                    transition-all border border-[var(--border-subtle)]"
+                  disabled={isDownloading}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-medium text-center transition-all border border-[var(--border-subtle)]"
+                  style={{
+                    background: isDownloading
+                      ? "rgba(98, 126, 132, 0.12)"
+                      : "var(--surface-hover)",
+                    color: isDownloading
+                      ? "var(--text-muted)"
+                      : "var(--text-secondary)",
+                    borderColor: isDownloading
+                      ? "rgba(98, 126, 132, 0.25)"
+                      : "var(--border-subtle)",
+                  }}
                 >
-                  WAV (24-bit)
+                  {isDownloading ? (
+                    <span className="flex items-center justify-center gap-1">
+                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      {t("common.downloading")}
+                    </span>
+                  ) : (
+                    "WAV (24-bit)"
+                  )}
                 </button>
                 <button
                   onClick={() => onDownload("mp3")}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-medium text-center
-                    text-[var(--text-secondary)] hover:text-[var(--text-primary)]
-                    bg-[var(--surface-hover)] hover:bg-[var(--surface-active)]
-                    transition-all border border-[var(--border-subtle)]"
+                  disabled={isDownloading}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-medium text-center transition-all border border-[var(--border-subtle)]"
+                  style={{
+                    background: isDownloading
+                      ? "rgba(98, 126, 132, 0.12)"
+                      : "var(--surface-hover)",
+                    color: isDownloading
+                      ? "var(--text-muted)"
+                      : "var(--text-secondary)",
+                    borderColor: isDownloading
+                      ? "rgba(98, 126, 132, 0.25)"
+                      : "var(--border-subtle)",
+                  }}
                 >
-                  MP3 (320kbps)
+                  {isDownloading ? (
+                    <span className="flex items-center justify-center gap-1">
+                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      {t("common.downloading")}
+                    </span>
+                  ) : (
+                    "MP3 (320kbps)"
+                  )}
                 </button>
               </div>
             </div>

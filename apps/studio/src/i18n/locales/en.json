@@ -8,6 +8,7 @@
     "error": "An error occurred",
     "retry": "Retry",
     "download": "Download",
+    "downloading": "Downloading…",
     "delete": "Delete",
     "back": "Back",
     "next": "Next",

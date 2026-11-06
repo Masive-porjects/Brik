@@ -82,6 +82,7 @@ export function useMasteringWorkflow(
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadBurst, setUploadBurst] = useState(0);
   const [masterBurst, setMasterBurst] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null);
@@ -713,6 +714,8 @@ export function useMasteringWorkflow(
         setError(t("errors.noMasterAvailable", "No hay master disponible para descargar. Procesá el track primero."));
         return;
       }
+      setIsDownloading(true);
+      setError(null);
       try {
         const blob = await downloadMastered(
           session.session_id,
@@ -721,6 +724,7 @@ export function useMasteringWorkflow(
         );
         if (!blob || blob.size === 0) {
           setError(t("errors.emptyMaster", "El master descargado está vacío. Probá de nuevo o reprocesá el track."));
+          setIsDownloading(false);
           return;
         }
         const url = URL.createObjectURL(blob);
@@ -760,8 +764,10 @@ export function useMasteringWorkflow(
               console.warn("Background master cloud save notice:", storageErr);
             });
         }
+        setIsDownloading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Download failed");
+        setIsDownloading(false);
       }
     },
     [session, activePresetId, user, currentTrack, params],
@@ -1095,6 +1101,7 @@ export function useMasteringWorkflow(
     handleReset,
     handleBackToUpload,
     handleStemSplit,
+    isDownloading,
     handleDownload,
     handleConsolidateMaster,
     handleLoadTrackProject,

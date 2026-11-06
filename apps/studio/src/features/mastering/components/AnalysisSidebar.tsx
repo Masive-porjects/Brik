@@ -22,6 +22,7 @@ interface AnalysisSidebarProps {
   onFileSelected: (file: File) => void;
   onError: (title: string, message: string) => void;
   loading: boolean;
+  isDownloading: boolean;
 }
 
 export default function AnalysisSidebar({
@@ -35,6 +36,7 @@ export default function AnalysisSidebar({
   onFileSelected,
   onError,
   loading,
+  isDownloading,
 }: AnalysisSidebarProps) {
   const { t } = useTranslation();
 
@@ -79,15 +81,59 @@ export default function AnalysisSidebar({
                   <div className="flex gap-2">
                     <button
                       onClick={() => onDownload("wav")}
-                      className="flex-1 py-2.5 rounded-lg text-xs font-medium text-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface-hover)] hover:bg-[var(--surface-active)] transition-all border border-[var(--border-subtle)]"
+                      disabled={isDownloading}
+                      className="flex-1 py-2.5 rounded-lg text-xs font-medium text-center transition-all border border-[var(--border-subtle)]"
+                      style={{
+                        background: isDownloading
+                          ? "rgba(98, 126, 132, 0.12)"
+                          : "var(--surface-hover)",
+                        color: isDownloading
+                          ? "var(--text-muted)"
+                          : "var(--text-secondary)",
+                        borderColor: isDownloading
+                          ? "rgba(98, 126, 132, 0.25)"
+                          : "var(--border-subtle)",
+                      }}
                     >
-                      WAV
+                      {isDownloading ? (
+                        <span className="flex items-center justify-center gap-1">
+                          <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          {t("common.downloading")}
+                        </span>
+                      ) : (
+                        "WAV"
+                      )}
                     </button>
                     <button
                       onClick={() => onDownload("mp3")}
-                      className="flex-1 py-2.5 rounded-lg text-xs font-medium text-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface-hover)] hover:bg-[var(--surface-active)] transition-all border border-[var(--border-subtle)]"
+                      disabled={isDownloading}
+                      className="flex-1 py-2.5 rounded-lg text-xs font-medium text-center transition-all border border-[var(--border-subtle)]"
+                      style={{
+                        background: isDownloading
+                          ? "rgba(98, 126, 132, 0.12)"
+                          : "var(--surface-hover)",
+                        color: isDownloading
+                          ? "var(--text-muted)"
+                          : "var(--text-secondary)",
+                        borderColor: isDownloading
+                          ? "rgba(98, 126, 132, 0.25)"
+                          : "var(--border-subtle)",
+                      }}
                     >
-                      MP3
+                      {isDownloading ? (
+                        <span className="flex items-center justify-center gap-1">
+                          <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          {t("common.downloading")}
+                        </span>
+                      ) : (
+                        "MP3"
+                      )}
                     </button>
                     <ShareCard
                       sessionId={session.session_id}

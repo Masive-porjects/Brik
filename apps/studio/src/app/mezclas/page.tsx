@@ -397,6 +397,7 @@ function MezclasContent() {
                         processing={workflow.processing}
                         masterBurst={workflow.masterBurst}
                         error={workflow.error}
+                        isDownloading={workflow.isDownloading}
                         onPresetSelect={workflow.handlePresetSelect}
                         onProcess={workflow.handleProcess}
                         onDownload={workflow.handleDownload}
@@ -587,6 +588,7 @@ function MezclasContent() {
               onFileSelected={workflow.handleFileSelected}
               onError={(title, message) => workflow.setErrorModal({ title, message })}
               loading={workflow.loading}
+              isDownloading={workflow.isDownloading}
             />
           )}
         </div>
