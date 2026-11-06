@@ -38,9 +38,10 @@ import {
 // `vi.hoisted` lets the module factory below close over the mock.
 const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }));
 const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
+const { mockRefreshSession } = vi.hoisted(() => ({ mockRefreshSession: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
-    auth: { getSession: mockGetSession, signOut: mockSignOut },
+    auth: { getSession: mockGetSession, signOut: mockSignOut, refreshSession: mockRefreshSession },
   }),
 }));
 
@@ -1119,6 +1120,7 @@ describe('apiRequest — Authorization header y 401', () => {
   beforeEach(() => {
     mockGetSession.mockReset();
     mockSignOut.mockReset();
+    mockRefreshSession.mockReset();
     mockHref.href = '';
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -1167,10 +1169,12 @@ describe('apiRequest — Authorization header y 401', () => {
     await expect(apiRequest(`${API}/projects`)).rejects.toBeInstanceOf(ApiError);
   });
 
-  it('en 401 llama a signOut y redirige a /login', async () => {
-    mockGetSession.mockResolvedValueOnce({
+  it('en 401 intenta refresh; si falla, llama a signOut y redirige a /login', async () => {
+    mockGetSession.mockResolvedValue({
       data: { session: { access_token: 'tok-expired' } },
     });
+    // refreshSession devuelve null (fallo) → handleUnauthorized hace signOut + redirect.
+    mockRefreshSession.mockResolvedValue({ data: { session: null } });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -1182,14 +1186,51 @@ describe('apiRequest — Authorization header y 401', () => {
       /sesión expirada o inválida/i,
     );
 
+    expect(mockRefreshSession).toHaveBeenCalled();
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(mockHref.href).toBe('/login');
   });
 
-  it('en 401 no intenta leer el body de la respuesta', async () => {
+  it('en 401 con refresh exitoso reintenta y NO hace signOut', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: 'tok-old' } },
+    });
+    // Primera llamada a getSession → tok-old; después del refresh → tok-new.
     mockGetSession.mockResolvedValueOnce({
+      data: { session: { access_token: 'tok-old' } },
+    }).mockResolvedValueOnce({
+      data: { session: { access_token: 'tok-new' } },
+    });
+    mockRefreshSession.mockResolvedValue({
+      data: { session: { access_token: 'tok-new' } },
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: 'Token inválido o expirado.' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ project_id: 'p1' }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await apiRequest(`${API}/projects`);
+
+    // Se hizo el retry y la segunda respuesta fue 200.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+    // No se hizo signOut ni redirección.
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockHref.href).toBe('');
+  });
+
+  it('en 401 no intenta leer el body de la respuesta cuando todo falla', async () => {
+    mockGetSession.mockResolvedValue({
       data: { session: { access_token: 'tok-expired' } },
     });
+    mockRefreshSession.mockResolvedValue({ data: { session: null } });
     const jsonSpy = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -1200,18 +1241,46 @@ describe('apiRequest — Authorization header y 401', () => {
 
     await expect(apiRequest(`${API}/projects`)).rejects.toBeInstanceOf(ApiError);
 
+    // El body del primer 401 no se lee (solo se maneja el status).
     expect(jsonSpy).not.toHaveBeenCalled();
     expect(mockSignOut).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('handleUnauthorized — cierra sesión y redirige', () => {
+describe('handleUnauthorized — refresh primero, luego signOut + redirect', () => {
   beforeEach(() => {
     mockSignOut.mockReset();
+    mockRefreshSession.mockReset();
     mockHref.href = '';
   });
 
-  it('llama a signOut de Supabase y redirige a /login', async () => {
+  it('si refresh tiene éxito, NO hace signOut ni redirige', async () => {
+    mockRefreshSession.mockResolvedValue({
+      data: { session: { access_token: 'tok-refreshed' } },
+    });
+
+    const { handleUnauthorized } = await import('@/adapters/api/client');
+    await handleUnauthorized();
+
+    expect(mockRefreshSession).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockHref.href).toBe('');
+  });
+
+  it('si refresh falla, hace signOut y redirige a /login', async () => {
+    mockRefreshSession.mockResolvedValue({ data: { session: null } });
+
+    const { handleUnauthorized } = await import('@/adapters/api/client');
+    await handleUnauthorized();
+
+    expect(mockRefreshSession).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockHref.href).toBe('/login');
+  });
+
+  it('si refresh lanza excepción, hace signOut y redirige a /login', async () => {
+    mockRefreshSession.mockRejectedValue(new Error('network error'));
+
     const { handleUnauthorized } = await import('@/adapters/api/client');
     await handleUnauthorized();
 

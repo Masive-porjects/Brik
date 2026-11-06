@@ -170,18 +170,7 @@ export async function uploadAudio(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<SessionData> {
-  // Obtener el token de Supabase antes de iniciar el XHR para adjuntarlo
-  // como Authorization: Bearer. Sin este header el backend devuelve 401.
-  let accessToken: string | null = null;
-  try {
-    const {
-      data: { session },
-    } = await createClient().auth.getSession();
-    accessToken = session?.access_token ?? null;
-  } catch {
-    // Si no se puede leer la sesión, se prosigue sin token y el servidor
-    // responderá 401, que se maneja más abajo.
-  }
+  const accessToken = await getAccessTokenWithFallback();
 
   const formData = new FormData();
   formData.append("file", file);
@@ -197,6 +186,7 @@ export async function uploadAudio(
     };
 
     xhr.open("POST", `${API_BASE}/upload`, true);
+    xhr.withCredentials = true;
 
     if (accessToken) {
       xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
@@ -440,11 +430,96 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 /**
+ * Intenta refrescar la sesión de Supabase después de un 401.
+ *
+ * Si el refresh tiene éxito (devuelve una sesión con access_token), se actualiza
+ * el almacenamiento local y se devuelve `true` para que el caller reintente la
+ * petición con el token nuevo. Si falla o no hay sesión, se devuelve `false`
+ * y el caller decide si cerrar sesión.
+ */
+export async function tryRefreshSession(): Promise<boolean> {
+  try {
+    const {
+      data: { session },
+    } = await createClient().auth.refreshSession();
+    if (session?.access_token) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Obtiene el access_token de Supabase con fallback a localStorage.
+ *
+ * 1. Intenta `getSession()` (flujo normal).
+ * 2. Si devuelve null o lanza, intenta leer directamente de localStorage
+ *    usando la clave `sb-*-auth-token` que Supabase usa con `persistSession`.
+ * 3. Registra en consola qué token se está adjuntando (para diagnóstico).
+ */
+async function getAccessTokenWithFallback(): Promise<string | null> {
+  // Flujo 1: getSession() — el camino normal.
+  try {
+    const {
+      data: { session },
+    } = await createClient().auth.getSession();
+    if (session?.access_token) {
+      console.log(
+        "[uploadAudio] Token obtenido vía getSession(). Longitud:",
+        session.access_token.length,
+      );
+      return session.access_token;
+    }
+  } catch {
+    // getSession falló (env missing, cliente no inicializado, etc.)
+  }
+
+  // Flujo 2: fallback a localStorage — lee la clave sb-*-auth-token directamente.
+  if (typeof window !== "undefined") {
+    try {
+      const key = Object.keys(localStorage).find((k) =>
+        k.startsWith("sb-") && k.endsWith("-auth-token"),
+      );
+      if (key) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { access_token?: string };
+          if (parsed?.access_token) {
+            console.log(
+              "[uploadAudio] Token obtenido vía localStorage fallback. Clave:",
+              key,
+            );
+            return parsed.access_token;
+          }
+        }
+      }
+    } catch {
+      // localStorage ilegible o JSON corrupto.
+    }
+  }
+
+  console.warn("[uploadAudio] No se pudo obtener ningún token de Supabase.");
+  return null;
+}
+
+/**
  * Limpia la sesión de Supabase y redirige al login cuando el backend devuelve 401.
- * Nunca lanza: si el signOut falla, igual se intenta la redirección para que el
- * usuario no quede atrapado con un token caducado.
+ *
+ * Intenta primero `refreshSession()` para renovar el token silenciosamente.
+ * Solo si el refresh falla, hace signOut y redirige a /login.
+ * Nunca lanza.
  */
 export async function handleUnauthorized(): Promise<void> {
+  // Intentar refresh antes de dar de baja la sesión.
+  const refreshed = await tryRefreshSession();
+  if (refreshed) {
+    console.log("[handleUnauthorized] Sesión refrescada exitosamente. No se redirige.");
+    return;
+  }
+
+  // Refresh falló: cerrar sesión y redirigir.
   try {
     await createClient().auth.signOut();
   } catch {
@@ -475,14 +550,29 @@ export async function apiRequest(
     ...(await authHeaders()),
   };
 
-  const res = await fetch(input, {
+  let res = await fetch(input, {
     ...init,
     headers,
   } as RequestInit);
 
+  // En 401, intentar refresh + retry una sola vez antes de rendirse.
   if (res.status === 401) {
-    // No leer el body (puede ser grande o estar ya consumido): solo lanzamos
-    // el manejador de 401 y dejamos que el caller capture el error si quiere.
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      // Reintentar con el token nuevo.
+      const retryHeaders: Record<string, string> = {
+        ...(init.headers as Record<string, string> | undefined),
+        ...(await authHeaders()),
+      };
+      res = await fetch(input, {
+        ...init,
+        headers: retryHeaders,
+      } as RequestInit);
+    }
+  }
+
+  if (res.status === 401) {
+    // Refresh falló (o reintento volvió 401): cerrar sesión y redirigir.
     void handleUnauthorized();
     throw new ApiError("Sesión expirada o inválida", 401, true);
   }
