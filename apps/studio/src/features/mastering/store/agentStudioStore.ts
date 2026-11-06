@@ -33,7 +33,23 @@ interface AgentStudioState {
   ) => void;
 }
 
-type PersistedAgentStudioState = Pick<AgentStudioState, "messagesBySession">;
+/**
+ * Lo que sobrevive a un refresh: chat + metadatos livianos de los stems.
+ *
+ * Los stems NO guardan blobs ni URLs firmadas (caducan); sólo el id del job y
+ * la sesión que los produjo. Al recargar, `AgentStemStack` reconstruye las
+ * URLs con `getStemUrl(sessionId, name)` y las ondas se vuelven a pedir al
+ * backend. Sin esto, refrescar borraba el panel aunque el job ya hubiera
+ * terminado.
+ */
+type PersistedAgentStudioState = Pick<
+  AgentStudioState,
+  | "messagesBySession"
+  | "activeStemJobId"
+  | "activeStemSessionId"
+  | "completedStems"
+  | "stemPresence"
+>;
 
 const STEM_ORDER: readonly AgentStemName[] = ["drums", "bass", "other", "vocals"];
 const MAX_MESSAGES_PER_SESSION = 100;
@@ -102,12 +118,29 @@ export const useAgentStudioStore = create<AgentStudioState>()(
       name: "waveai-agent-studio",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      partialize: (state) => ({ messagesBySession: state.messagesBySession }),
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted as PersistedAgentStudioState),
-        hydrated: current.hydrated,
+      partialize: (state) => ({
+        messagesBySession: state.messagesBySession,
+        activeStemJobId: state.activeStemJobId,
+        activeStemSessionId: state.activeStemSessionId,
+        completedStems: state.completedStems,
+        stemPresence: state.stemPresence,
       }),
+      merge: (persisted, current) => {
+        // Tolerate an older persisted shape (only `messagesBySession`): a
+        // missing field falls back to the live default instead of `undefined`.
+        const saved = (persisted ?? {}) as Partial<PersistedAgentStudioState>;
+        return {
+          ...current,
+          messagesBySession: saved.messagesBySession ?? current.messagesBySession,
+          activeStemJobId: saved.activeStemJobId ?? null,
+          activeStemSessionId: saved.activeStemSessionId ?? null,
+          completedStems: Array.isArray(saved.completedStems)
+            ? saved.completedStems
+            : current.completedStems,
+          stemPresence: saved.stemPresence ?? current.stemPresence,
+          hydrated: current.hydrated,
+        };
+      },
     },
   ),
 );

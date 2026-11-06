@@ -64,9 +64,13 @@ function MezclasContent() {
   const workflow = useMastering();
   const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
   const storeStemSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
+  const storeStemPresence = useAgentStudioStore((state) => state.stemPresence);
+  // Un stem en silencio no se muestra: el backend ya midió su RMS y lo marcó
+  // como ausente. Antes esta ruta pasaba la lista cruda y pintaba una pista
+  // vacía que el usuario no podía escuchar.
   const activeAgentStems =
     workflow.session && storeStemSessionId === workflow.session.session_id
-      ? storeCompletedStems
+      ? storeCompletedStems.filter((name) => storeStemPresence[name] !== false)
       : [];
   const hasVisibleStems =
     activeAgentStems.length > 0 || Boolean(workflow.stemState?.stems);

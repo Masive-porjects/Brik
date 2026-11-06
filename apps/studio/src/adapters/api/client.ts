@@ -1224,11 +1224,40 @@ export async function* streamAgentJobEvents(
   jobId: string,
   signal?: AbortSignal,
 ): AsyncGenerator<AgentJobState> {
-  const res = await fetch(
-    `${API_BASE}/jobs/agent/${encodeURIComponent(jobId)}/events`,
-    { headers: { ...licenseHeaders() }, ...(signal ? { signal } : {}) },
+  // El backend manda un keep-alive cada 15 s. Si no llega NADA en 35 s, la
+  // conexión está muerta: cerramos el generador en silencio para que el
+  // llamador retome el polling durable en lugar de quedarse colgado.
+  const CONNECT_TIMEOUT_MS = 15_000;
+  const IDLE_TIMEOUT_MS = 35_000;
+
+  const connectController = new AbortController();
+  const connectTimer = setTimeout(
+    () => connectController.abort(),
+    CONNECT_TIMEOUT_MS,
   );
+  const forwardAbort = () => connectController.abort();
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+  // `AbortSignal` no dispara para un abort ocurrido antes del listener.
+  if (signal?.aborted) connectController.abort();
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${API_BASE}/jobs/agent/${encodeURIComponent(jobId)}/events`,
+      { headers: { ...licenseHeaders() }, signal: connectController.signal },
+    );
+  } catch (err) {
+    signal?.removeEventListener("abort", forwardAbort);
+    // Una cancelación del usuario se propaga como AbortError; un timeout de
+    // conexión se reporta como error normal para que el caller haga polling.
+    if (signal?.aborted) throw err;
+    throw new ApiError("Agent job event stream connect timeout", 0);
+  }
+  // La conexión ya está abierta; el abort del usuario sigue reenviándose a
+  // `connectController` para cortar el stream durante la lectura.
+  clearTimeout(connectTimer);
   if (!res.ok) {
+    signal?.removeEventListener("abort", forwardAbort);
     const err = await res
       .json()
       .catch(() => ({ detail: "Agent job event stream failed" }));
@@ -1238,6 +1267,7 @@ export async function* streamAgentJobEvents(
     );
   }
   if (!res.body) {
+    signal?.removeEventListener("abort", forwardAbort);
     throw new ApiError("Agent job event stream has no response body", res.status);
   }
 
@@ -1253,9 +1283,30 @@ export async function* streamAgentJobEvents(
     return data.length > 0 ? (JSON.parse(data.join("\n")) as AgentJobState) : null;
   };
 
+  const readWithIdleTimeout = async (): Promise<
+    ReadableStreamReadResult<Uint8Array> | "idle"
+  > => {
+    const pending = reader.read();
+    // Si el timeout gana la carrera, el read pendiente se abandona al
+    // cancelar el reader en el `finally`; evita una unhandled rejection.
+    pending.catch(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const idle = new Promise<"idle">((resolve) => {
+      timer = setTimeout(() => resolve("idle"), IDLE_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([pending, idle]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
   try {
     while (true) {
-      const chunk = await reader.read();
+      const chunk = await readWithIdleTimeout();
+      // Conexión inactiva: salida limpia, sin AbortError. El caller sigue con
+      // `getAgentJobStatus` y el job llega igual a su estado terminal.
+      if (chunk === "idle") return;
       if (chunk.value) buffer += decoder.decode(chunk.value, { stream: !chunk.done });
       if (chunk.done) buffer += decoder.decode();
 
@@ -1280,6 +1331,8 @@ export async function* streamAgentJobEvents(
       }
     }
   } finally {
+    signal?.removeEventListener("abort", forwardAbort);
+    clearTimeout(connectTimer);
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }

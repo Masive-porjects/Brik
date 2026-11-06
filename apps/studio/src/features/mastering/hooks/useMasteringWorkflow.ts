@@ -75,6 +75,7 @@ export function useMasteringWorkflow(
   const [session, setSession] = useState<SessionData | null>(null);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
+  const [cloudUploadError, setCloudUploadError] = useState<string | null>(null);
   const currentTrackIdRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -275,8 +276,10 @@ export function useMasteringWorkflow(
           return null;
         }
         setIsUploadingToCloud(true);
+        setCloudUploadError(null);
+        const previousTrackId = currentTrackIdRef.current;
+        const trackId = crypto.randomUUID();
         try {
-          const trackId = crypto.randomUUID();
           currentTrackIdRef.current = trackId;
           const meta = await extractAudioMetadata(file);
           // El original va a R2 (presign → PUT → PATCH) y `storage_path` guarda
@@ -304,6 +307,17 @@ export function useMasteringWorkflow(
           return savedTrack;
         } catch (storageErr) {
           console.error("Cloud storage upload error:", storageErr);
+          // La fila nunca se persistió: evitamos que un id colgado reciba
+          // actualizaciones de estado que fallarían en silencio.
+          if (currentTrackIdRef.current === trackId) {
+            currentTrackIdRef.current = previousTrackId;
+          }
+          setCloudUploadError(
+            t(
+              "errors.cloudUploadFailed",
+              "El track no se pudo guardar en tu biblioteca. La sesión de mastering sigue disponible, pero no aparecerá en Mis Canciones.",
+            ),
+          );
           return null;
         } finally {
           setIsUploadingToCloud(false);
@@ -998,6 +1012,7 @@ export function useMasteringWorkflow(
     currentTrack,
     setCurrentTrack,
     isUploadingToCloud,
+    cloudUploadError,
     loading,
     uploadProgress,
     uploadBurst,

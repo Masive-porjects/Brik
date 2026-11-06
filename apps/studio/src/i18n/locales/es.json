@@ -534,6 +534,8 @@
     "start": "Producir",
     "runningShort": "Produciendo…",
     "running": "El agente está escuchando, separando y mezclando. Puede tardar varios minutos.",
+    "runningSeparating": "Separando pistas…",
+    "runningMixing": "Mezclando y masterizando…",
     "cancel": "Dejar de esperar",
     "cancelled": "Dejaste de esperar. El agente puede seguir trabajando en el servidor.",
     "timeout": "El agente tardó demasiado y dejamos de esperar. El trabajo puede seguir en el servidor.",
@@ -724,7 +726,8 @@
     "sessionExpiredTitle": "Tu sesión anterior expiró",
     "sessionExpiredMessage": "El servidor se reinició y no pudo recuperarla. Sube el audio otra vez para continuar.",
     "uploadFailed": "Error al subir el archivo",
-    "engineUnreachable": "No se pudo conectar con el motor de audio. Verifica tu conexión o intenta más tarde."
+    "engineUnreachable": "No se pudo conectar con el motor de audio. Verifica tu conexión o intenta más tarde.",
+    "cloudUploadFailed": "El track no se pudo guardar en tu biblioteca. La sesión de mastering sigue disponible, pero no aparecerá en Mis Canciones."
   },
   "theme": {
     "toggleDark": "Cambiar a tema oscuro",

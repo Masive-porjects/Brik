@@ -137,6 +137,20 @@ export default function UploadPage() {
   return (
     <LicenseGuard>
       <main className="min-h-[100dvh] flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] overflow-y-auto font-sans relative selection:bg-[var(--accent-primary)] selection:text-white">
+        {workflow.cloudUploadError && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-xl px-4 py-3 text-sm backdrop-blur-2xl"
+            style={{
+              background: "var(--bg-glass-elevated)",
+              border: "1px solid var(--accent-warning)",
+              color: "var(--text-primary)",
+            }}
+          >
+            {workflow.cloudUploadError}
+          </div>
+        )}
         {/* Global Overlays & Modals */}
         <MasteringOverlays
           currentView="upload"

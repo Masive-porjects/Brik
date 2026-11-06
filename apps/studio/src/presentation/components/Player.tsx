@@ -740,12 +740,6 @@ export default function Player({
         ? referenceUrl
         : originalUrl;
 
-  const sourceIndex: Record<SourceKind, number> = {
-    original: 0,
-    mastered: 1,
-    reference: 0,
-  };
-
   const activePresetName = presetId
     ? PRESET_INFO[presetId]?.title || PRESET_NAMES[presetId] || presetId
     : null;
@@ -754,25 +748,26 @@ export default function Player({
     <div className="w-full rounded-2xl py-2 px-3 overflow-hidden bg-transparent border-none">
       {/* A/B/C Toggle */}
       <div className="flex items-center justify-center gap-3 mb-2">
-        <div className="relative grid grid-cols-2 bg-[var(--surface-hover)] rounded-full p-0.5 w-full max-w-[280px] sm:min-w-[240px]">
-          <div
-            className="absolute top-0.5 bottom-0.5 left-0 rounded-full shadow-[0_0_10px_var(--accent-primary)]/40"
-            style={{
-              width: "calc((100% - 4px) / 2)",
-              background: "var(--accent-primary)",
-              opacity: 0.25,
-              transform: `translateX(calc(${sourceIndex[source] * 100}% + 2px))`,
-              transition: "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
-            }}
-          />
+        <div className="relative grid grid-cols-2 gap-1 rounded-full p-1 w-full max-w-[280px] sm:min-w-[240px] bg-[var(--surface-hover)] border border-[var(--border-subtle)]">
           <button
             onClick={handleToggleOriginal}
             disabled={disabled || !originalUrl}
-            className={`relative z-10 px-2 py-1 rounded-full text-xs font-medium text-center transition-colors duration-200 flex items-center justify-center gap-1 ${
+            className="relative z-10 px-2 py-1.5 rounded-full text-xs font-semibold text-center transition-all duration-200 flex items-center justify-center gap-1 border disabled:cursor-not-allowed"
+            style={
               source === "original"
-                ? "text-[var(--accent-primary)] font-semibold"
-                : "text-[var(--text-muted)]"
-            } disabled:opacity-30 disabled:cursor-not-allowed`}
+                ? {
+                    background: "var(--surface-elevated)",
+                    borderColor: "var(--accent-primary)",
+                    color: "var(--accent-primary)",
+                    opacity: 1,
+                  }
+                : {
+                    background: "transparent",
+                    borderColor: "transparent",
+                    color: "var(--text-secondary)",
+                    opacity: disabled || !originalUrl ? 0.45 : 1,
+                  }
+            }
           >
             <span>{t("player.original", "Original")}</span>
             {source === "original" && (
@@ -787,11 +782,22 @@ export default function Player({
           <button
             onClick={handleToggleMastered}
             disabled={disabled || !masteredUrl}
-            className={`relative z-10 px-2 py-1 rounded-full text-xs font-medium text-center transition-colors duration-200 flex items-center justify-center gap-1 ${
+            className="relative z-10 px-2 py-1.5 rounded-full text-xs font-semibold text-center transition-all duration-200 flex items-center justify-center gap-1 border disabled:cursor-not-allowed"
+            style={
               source === "mastered"
-                ? "text-[var(--accent-primary)] font-bold"
-                : "text-[var(--text-muted)]"
-            } disabled:opacity-30 disabled:cursor-not-allowed`}
+                ? {
+                    background: "var(--surface-elevated)",
+                    borderColor: "var(--accent-primary)",
+                    color: "var(--accent-primary)",
+                    opacity: 1,
+                  }
+                : {
+                    background: "transparent",
+                    borderColor: "transparent",
+                    color: "var(--text-secondary)",
+                    opacity: disabled || !masteredUrl ? 0.45 : 1,
+                  }
+            }
           >
             <span>{t("player.master", "Master")}</span>
             {activePresetName && (

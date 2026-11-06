@@ -62,6 +62,45 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+/**
+ * Reproductor exclusivo a nivel de módulo.
+ *
+ * Antes cada clic creaba un `new Audio()` sin parar el anterior: dos clics en
+ * "mezcla" y "máster" dejaban ambos sonando superpuestos. Ahora mezcla, máster
+ * y stems comparten un único "dueño" del audio: reclamar la reproducción
+ * detiene y rebobina lo que estuviera sonando.
+ */
+let currentAudio: HTMLAudioElement | null = null;
+let currentLaneStop: (() => void) | null = null;
+
+function stopCurrentAudio(): void {
+  if (!currentAudio) return;
+  try {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  } catch {
+    // Un audio ya liberado por el navegador no es un error de negocio.
+  }
+  currentAudio = null;
+}
+
+function claimAudio(audio: HTMLAudioElement): void {
+  stopCurrentAudio();
+  currentLaneStop?.();
+  currentLaneStop = null;
+  currentAudio = audio;
+}
+
+function claimLane(stop: () => void): void {
+  stopCurrentAudio();
+  currentLaneStop?.();
+  currentLaneStop = stop;
+}
+
+function releaseLane(stop: () => void): void {
+  if (currentLaneStop === stop) currentLaneStop = null;
+}
+
 interface StemLaneProps {
   index: number;
   stem: (typeof STEMS)[number];
@@ -156,11 +195,22 @@ function StemLane({
     // Si el usuario tiene este stem "active", lo ponemos en play/pause.
     // Si no, lo dejamos quieto (no hay auto-play).
     if (isActive) {
+      const stop = () => {
+        try {
+          wave.pause();
+          wave.seekTo(0);
+        } catch {
+          // La onda pudo destruirse entre el clic y este callback.
+        }
+      };
+      // Reclamar el audio detiene la mezcla/máster o el stem anterior.
+      claimLane(stop);
       const playing = wave.play();
       if (playing && typeof playing.catch === "function") playing.catch(() => {});
-    } else {
-      wave.pause();
+      return () => releaseLane(stop);
     }
+
+    wave.pause();
   }, [isActive, duration]);
 
   const handleClick = useCallback(() => {
@@ -246,15 +296,19 @@ export default function AgentStemStack({
   const [loadingIndex, setLoadingIndex] = useState(0);
   const storeCompletedStems = useAgentStudioStore((state) => state.completedStems);
   const storeSessionId = useAgentStudioStore((state) => state.activeStemSessionId);
+  const storeStemPresence = useAgentStudioStore((state) => state.stemPresence);
   const effectiveStemNames =
     stemNames && stemNames.length > 0
       ? stemNames
       : storeSessionId === sessionId && storeCompletedStems.length > 0
-        ? storeCompletedStems
+        ? // Fallback desde el store: respeta la presencia medida por el backend.
+          storeCompletedStems.filter((name) => storeStemPresence[name] !== false)
         : undefined;
   const visibleStems = selectVisibleStems(effectiveStemNames);
 
   const handleToggle = useCallback((name: StemName) => {
+    // Activar un stem detiene la mezcla/máster que estuviera sonando (lo hace
+    // el manager al reclamar el audio desde el efecto de la pista).
     setActive((current) => (current === name ? null : name));
   }, []);
 
@@ -262,17 +316,29 @@ export default function AgentStemStack({
     setLoadingIndex((current) => Math.max(current, index + 1));
   }, []);
 
+  /**
+   * Reproduce un archivo completo (mezcla o máster del job) con el gestor
+   * exclusivo: nunca se superpone con otra pista.
+   */
+  const playFullAudio = useCallback((url: string) => {
+    setActive(null);
+    const audio = new Audio(url);
+    claimAudio(audio);
+    audio.addEventListener("ended", () => {
+      if (currentAudio === audio) currentAudio = null;
+    });
+    audio.play().catch(() => {});
+  }, []);
+
   /** Reproduce el archivo de mezcla completo (viene del job). */
   const playMix = useCallback(() => {
-    const audio = new Audio(getMixAudioUrl(sessionId));
-    audio.play();
-  }, [sessionId]);
+    playFullAudio(getMixAudioUrl(sessionId));
+  }, [playFullAudio, sessionId]);
 
   /** Reproduce el archivo master completo (viene del job). */
   const playMaster = useCallback(() => {
-    const audio = new Audio(getAudioUrl(sessionId, "mastered"));
-    audio.play();
-  }, [sessionId]);
+    playFullAudio(getAudioUrl(sessionId, "mastered"));
+  }, [playFullAudio, sessionId]);
 
   return (
     <div className="w-full">
@@ -300,7 +366,12 @@ export default function AgentStemStack({
       <div className="space-y-1.5">
         <button
           onClick={playMix}
-          className="w-full flex items-center justify-center rounded-md px-3 py-2 text-[10px] font-medium transition-colors hover:bg-[var(--accent-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+          className="w-full flex items-center justify-center rounded-md px-3 py-2 text-[10px] font-semibold transition-colors hover:bg-[var(--accent-primary)] hover:text-[var(--bg-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+          style={{
+            background: "var(--surface-elevated)",
+            border: "1px solid var(--accent-primary)",
+            color: "var(--accent-primary)",
+          }}
           aria-label={t("productor.playMix")}
         >
           <Play size={14} className="mr-2" />
@@ -309,10 +380,15 @@ export default function AgentStemStack({
 
         <button
           onClick={playMaster}
-          className="w-full flex items-center justify-center rounded-md px-3 py-2 text-[10px] font-medium transition-colors hover:bg-[var(--accent-warning)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warning)]"
+          className="w-full flex items-center justify-center rounded-md px-3 py-2 text-[10px] font-semibold transition-colors hover:bg-[var(--accent-warning)] hover:text-[var(--bg-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warning)]"
+          style={{
+            background: "var(--surface-elevated)",
+            border: "1px solid var(--accent-warning)",
+            color: "var(--accent-warning)",
+          }}
           aria-label={t("productor.playMaster")}
         >
-          <Pause size={14} className="mr-2" />
+          <Play size={14} className="mr-2" />
           {t("productor.playMaster")}
         </button>
       </div>

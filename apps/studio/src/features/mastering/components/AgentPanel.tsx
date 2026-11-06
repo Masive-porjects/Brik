@@ -628,7 +628,11 @@ export default function AgentPanel({
             <span className="text-sm" style={{ color: "var(--text-primary)" }}>
               {phase === "analyzing"
                 ? t("productor.verdict.analyzing")
-                : t("productor.running")}
+                : phase === "producing"
+                  ? presentStems.length === 0
+                    ? t("productor.runningSeparating", "Separando pistas…")
+                    : t("productor.runningMixing", "Mezclando y masterizando…")
+                  : t("productor.running")}
             </span>
             <button
               type="button"

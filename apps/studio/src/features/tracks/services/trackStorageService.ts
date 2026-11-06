@@ -208,25 +208,38 @@ export async function createTrackRecord(
   input: CreateTrackInput
 ): Promise<Track> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("tracks")
-    .insert({
-      id: input.id,
-      user_id: userId,
-      title: input.title,
-      original_filename: input.original_filename,
-      storage_path: input.storage_path,
-      file_size_bytes: input.file_size_bytes,
-      duration_seconds: input.duration_seconds ?? null,
-      sample_rate: input.sample_rate ?? null,
-      channels: input.channels ?? null,
-      format: input.format ?? null,
-      status: input.status ?? "uploaded",
-      draft_parameters: input.draft_parameters ?? null,
-      active_preset: input.active_preset ?? null,
-    })
-    .select()
-    .single();
+  const row = {
+    id: input.id,
+    user_id: userId,
+    title: input.title,
+    original_filename: input.original_filename,
+    storage_path: input.storage_path,
+    file_size_bytes: input.file_size_bytes,
+    duration_seconds: input.duration_seconds ?? null,
+    sample_rate: input.sample_rate ?? null,
+    channels: input.channels ?? null,
+    format: input.format ?? null,
+    status: input.status ?? "uploaded",
+    draft_parameters: input.draft_parameters ?? null,
+    active_preset: input.active_preset ?? null,
+  };
+
+  // Idempotent upsert on the client-generated id: a retried upload (network
+  // hiccup, refresh mid-upload) must not fail on the unique constraint.
+  const upsert = () =>
+    supabase
+      .from("tracks")
+      .upsert(row, { onConflict: "id" })
+      .select()
+      .single();
+
+  let { data, error } = await upsert();
+
+  if (error) {
+    // One retry absorbs transient network/PostgREST failures.
+    await new Promise((r) => setTimeout(r, 600));
+    ({ data, error } = await upsert());
+  }
 
   if (error) {
     throw new Error(`Error saving track record: ${error.message}`);

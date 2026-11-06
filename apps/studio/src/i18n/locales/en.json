@@ -534,6 +534,8 @@
     "start": "Produce",
     "runningShort": "Producing…",
     "running": "The agent is listening, splitting and mixing. This can take several minutes.",
+    "runningSeparating": "Separating stems…",
+    "runningMixing": "Mixing and mastering…",
     "cancel": "Stop waiting",
     "cancelled": "You stopped waiting. The agent may still be working on the server.",
     "timeout": "The agent took too long and we stopped waiting. The work may still be running on the server.",
@@ -724,7 +726,8 @@
     "sessionExpiredTitle": "Your previous session expired",
     "sessionExpiredMessage": "The server was restarted and could not recover it. Upload your audio again to continue.",
     "uploadFailed": "Upload failed",
-    "engineUnreachable": "Could not reach the audio engine. Check your connection or try again later."
+    "engineUnreachable": "Could not reach the audio engine. Check your connection or try again later.",
+    "cloudUploadFailed": "The track could not be saved to your library. The mastering session is still available, but it will not appear in My Songs."
   },
   "theme": {
     "toggleDark": "Switch to dark theme",

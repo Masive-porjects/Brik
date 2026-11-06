@@ -20,6 +20,7 @@ describe("agent studio store", () => {
       activeStemJobId: null,
       activeStemSessionId: null,
       completedStems: [],
+      stemPresence: {},
       hydrated: false,
     });
     await useAgentStudioStore.persist.clearStorage();
@@ -30,7 +31,17 @@ describe("agent studio store", () => {
 
     const saved = JSON.parse(localStorage.getItem("waveai-agent-studio") ?? "null");
     expect(saved.state.messagesBySession["session-a"]).toEqual([firstMessage]);
-    expect(Object.keys(saved.state)).toEqual(["messagesBySession"]);
+    // El chat y los metadatos livianos de stems sobreviven al refresh; las
+    // URLs de audio no se guardan (se reconstruyen desde el backend).
+    expect(Object.keys(saved.state).sort()).toEqual(
+      [
+        "activeStemJobId",
+        "activeStemSessionId",
+        "completedStems",
+        "messagesBySession",
+        "stemPresence",
+      ].sort(),
+    );
 
     const persisted = localStorage.getItem("waveai-agent-studio");
     useAgentStudioStore.setState({ messagesBySession: {} });
@@ -40,6 +51,31 @@ describe("agent studio store", () => {
     expect(useAgentStudioStore.getState().messagesBySession["session-a"]).toEqual([
       firstMessage,
     ]);
+  });
+
+  it("restores completed stem metadata after rehydration", async () => {
+    const store = useAgentStudioStore.getState();
+    store.beginStemJob("session-a", "job-1");
+    store.setCompletedStems("job-1", "session-a", ["drums", "vocals"], {
+      drums: true,
+      vocals: false,
+    });
+
+    const persisted = localStorage.getItem("waveai-agent-studio");
+    useAgentStudioStore.setState({
+      activeStemJobId: null,
+      activeStemSessionId: null,
+      completedStems: [],
+      stemPresence: {},
+    });
+    if (persisted) localStorage.setItem("waveai-agent-studio", persisted);
+    await useAgentStudioStore.persist.rehydrate();
+
+    const restored = useAgentStudioStore.getState();
+    expect(restored.activeStemJobId).toBe("job-1");
+    expect(restored.activeStemSessionId).toBe("session-a");
+    expect(restored.completedStems).toEqual(["drums", "vocals"]);
+    expect(restored.stemPresence).toEqual({ drums: true, vocals: false });
   });
 
   it("clears prior stems immediately and rejects stale updates from older jobs", () => {
